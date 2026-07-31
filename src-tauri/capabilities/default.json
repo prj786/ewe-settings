@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Settings only reads and writes the shell's own config files and shells out to `qs ipc`. It asks for nothing beyond that.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "opener:default",
+    "os:default",
+    "shell:default"
+  ]
+}

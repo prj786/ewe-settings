@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+Comment=Appearance, displays, input, power and startup
+Exec=hypr-settings
+Icon=hypr-settings
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=settings;preferences;appearance;display;power;
+StartupWMClass=Settings

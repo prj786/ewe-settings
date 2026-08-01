@@ -4,7 +4,7 @@
 # hard-won reasons — see the two notes below before changing anything here.
 
 pkgname=hypr-shell-settings
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Settings for the hypr-shell desktop"
 arch=('x86_64' 'aarch64')
@@ -15,13 +15,13 @@ depends=('webkit2gtk-4.1' 'gtk3' 'quickshell')
 makedepends=('rust' 'cargo' 'nodejs' 'npm')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('272b848ae205ed4d42a44cfe1dbbff710fd1b4000e3e0606680eb7a6ce1309d1')
+sha256sums=('SKIP')  # pinned again right after the tag exists — a tag cannot contain its own tarball hash
 
 # Arch enables LTO in makepkg.conf, which injects -flto into CFLAGS/LDFLAGS.
 # Any crate shipping hand-written assembly (ring, via rustls) fails to link with
 # a wall of "undefined symbol: ring_core_*". Rust-level LTO stays on via
 # [profile.release], so the binary is unaffected.
-options=(!lto)
+options=(!lto !debug)
 
 build() {
   cd "$srcdir/$pkgname-$pkgver"

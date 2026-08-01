@@ -1,3 +1,4 @@
+mod backend;
 mod shell;
 mod util;
 
@@ -22,6 +23,39 @@ pub fn run() {
             shell::write_prefs,
             shell::shell_version,
             shell::shell_running,
+            shell::poke_shell,
+            backend::read_config,
+            backend::write_config,
+            backend::remove_config,
+            backend::hyprctl_query,
+            backend::run_evals,
+            backend::dpms_on,
+            backend::hyprctl_reload,
+            backend::wallpaper_backend,
+            backend::wallpaper_reapply,
+            backend::restart_hypridle,
+            backend::per_window_kb,
+            backend::apply_colorscheme,
+            backend::default_wallpaper_dir,
+            backend::list_wallpapers,
+            backend::desktop_apps,
+            backend::mime_default,
+            backend::mime_apps,
+            backend::set_mime_default,
+            backend::diagnostics,
+            backend::power_info,
+            backend::set_power_profile,
+            backend::set_charge_limit,
+            backend::set_kbd_backlight,
+            backend::qs_ipc,
+            backend::net_status,
+            backend::wifi_set,
+            backend::wifi_connect,
+            backend::connection_set,
+            backend::save_avatar,
+            backend::avatar_from_url,
+            backend::set_real_name,
+            backend::user_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Settings");

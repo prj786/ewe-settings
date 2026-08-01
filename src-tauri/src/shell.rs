@@ -98,7 +98,11 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
 
     std::fs::create_dir_all(qs_dir()).map_err(estr)?;
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(&cur).map_err(estr)?).map_err(estr)?;
+    // trailing \n matches the shell's own writer, so alternating writers never
+    // churn the file by a single byte
+    let mut body = serde_json::to_vec_pretty(&cur).map_err(estr)?;
+    body.push(b'\n');
+    std::fs::write(&tmp, body).map_err(estr)?;
     // rename is atomic on the same filesystem: the shell either sees the old
     // file or the new one, never a half-written one.
     std::fs::rename(&tmp, &path).map_err(estr)?;
@@ -116,6 +120,15 @@ pub async fn reload_shell() -> Result<(), String> {
         .output()
         .await;
     Ok(())
+}
+
+/// Exposed to the frontend for panes that write files other than
+/// user-theme.json (displays, input, startup): after the write, the running
+/// shell re-reads its state so hotplug/re-assert logic never acts on stale
+/// in-memory copies.
+#[tauri::command]
+pub async fn poke_shell() -> Result<(), String> {
+    reload_shell().await
 }
 
 #[tauri::command]

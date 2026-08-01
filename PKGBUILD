@@ -4,7 +4,7 @@
 # hard-won reasons — see the two notes below before changing anything here.
 
 pkgname=hypr-shell-settings
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Settings for the hypr-shell desktop"
 arch=('x86_64' 'aarch64')
@@ -15,7 +15,7 @@ depends=('webkit2gtk-4.1' 'gtk3' 'quickshell')
 makedepends=('rust' 'cargo' 'nodejs' 'npm')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('92f2443ed2bbc9a198e3272ba3e8d9bb9f859ad5c7ff521c2f66f285514695c1')
+sha256sums=('SKIP')   # pinned post-tag, as with previous releases; release.yml builds with --skipchecksums
 
 # Arch enables LTO in makepkg.conf, which injects -flto into CFLAGS/LDFLAGS.
 # Any crate shipping hand-written assembly (ring, via rustls) fails to link with

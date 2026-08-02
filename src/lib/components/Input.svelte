@@ -10,6 +10,11 @@
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
+  import IconBtn from "./ui/IconBtn.svelte";
+
+  const icUp = '<path d="m18 15-6-6-6 6"/>';
+  const icDown = '<path d="m6 9 6 6 6-6"/>';
+  const icX = '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
 
   let inp = { ...INPUT_DEFAULTS };
   let loaded = false;
@@ -166,10 +171,10 @@
                 <option value={v.value}>{v.label}</option>
               {/each}
             </select>
-            <div class="flex gap-1">
-              <button class="btn-ghost !px-2 !py-0.5 text-xs" disabled={i === 0} title="Move up" on:click={() => kbMove(i, i - 1)}>↑</button>
-              <button class="btn-ghost !px-2 !py-0.5 text-xs" disabled={i === kbActive.length - 1} title="Move down" on:click={() => kbMove(i, i + 1)}>↓</button>
-              <button class="btn-ghost !px-2 !py-0.5 text-xs" disabled={kbActive.length <= 1} title="Remove" on:click={() => kbRemove(i)}>✕</button>
+            <div class="flex items-center gap-0.5">
+              <IconBtn icon={icUp} title="Move up" disabled={i === 0} go={() => kbMove(i, i - 1)} />
+              <IconBtn icon={icDown} title="Move down" disabled={i === kbActive.length - 1} go={() => kbMove(i, i + 1)} />
+              <IconBtn icon={icX} title="Remove" danger disabled={kbActive.length <= 1} go={() => kbRemove(i)} />
             </div>
           </div>
         {/each}

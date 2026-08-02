@@ -621,11 +621,14 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
             return Err("only boolean ipc arguments are allowed".into());
         }
     }
-    let mut args = vec!["ipc", "call", target.as_str(), func.as_str()];
+    let mut args = vec![target.as_str(), func.as_str()];
     if let Some(a) = &arg {
         args.push(a.as_str());
     }
-    run_out("qs", &args).await
+    let out = crate::shell::qs_call(&args).await.map_err(estr)?;
+    let mut s = String::from_utf8_lossy(&out.stdout).to_string();
+    s.push_str(&String::from_utf8_lossy(&out.stderr));
+    Ok(s)
 }
 
 // ── networking (nmcli — argv vectors, never a shell string) ─────────────────

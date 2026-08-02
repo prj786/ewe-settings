@@ -111,14 +111,30 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
     Ok(cur)
 }
 
+/// The DE shell's qs pid (hypr-shell.service MainPID) — targeting it makes
+/// `qs ipc` unambiguous even when another qs instance exists (nested tests).
+pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
+    let pid = Command::new("systemctl")
+        .args(["--user", "show", "-p", "MainPID", "--value", "hypr-shell.service"])
+        .output()
+        .await
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .filter(|p| !p.is_empty() && p != "0");
+    let mut cmd = Command::new("qs");
+    cmd.arg("ipc");
+    if let Some(p) = &pid {
+        cmd.args(["--pid", p]);
+    }
+    cmd.arg("call").args(args);
+    cmd.output().await
+}
+
 /// Ask the running shell to re-read its user state. Not an error when it fails:
 /// the shell may simply not be running (Settings launched from a TTY), and the
 /// write above is still valid — it will be picked up at next start.
 pub async fn reload_shell() -> Result<(), String> {
-    let _ = Command::new("qs")
-        .args(["ipc", "call", "settings", "reload"])
-        .output()
-        .await;
+    let _ = qs_call(&["settings", "reload"]).await;
     Ok(())
 }
 
@@ -133,9 +149,6 @@ pub async fn poke_shell() -> Result<(), String> {
 
 #[tauri::command]
 pub async fn shell_running() -> Result<bool, String> {
-    let out = Command::new("qs")
-        .args(["ipc", "call", "settings", "ping"])
-        .output()
-        .await;
+    let out = qs_call(&["settings", "ping"]).await;
     Ok(matches!(out, Ok(o) if o.status.success()))
 }

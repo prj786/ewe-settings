@@ -5,6 +5,7 @@
   import { cleanExec } from "../hypr.js";
   import Card from "./ui/Card.svelte";
   import Toggle from "./ui/Toggle.svelte";
+  import IconBtn from "./ui/IconBtn.svelte";
 
   let apps = []; // [{name, exec, icon, enabled}]
   let allApps = [];
@@ -96,7 +97,7 @@
             <div class="truncate text-xs text-zinc-400">{a.exec}</div>
           </div>
           <Toggle on={a.enabled !== false} toggled={() => toggle(i)} />
-          <button class="btn-ghost !px-2 !py-0.5 text-xs" title="Remove" on:click={() => remove(i)}>✕</button>
+          <IconBtn icon={'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'} title="Remove" danger go={() => remove(i)} />
         </div>
       {/each}
     </Card>

@@ -19,6 +19,7 @@ export const monitors = async () => JSON.parse(await hyprctl(["monitors", "all",
 export const devices = async () => JSON.parse(await hyprctl(["devices", "-j"]));
 export const runEvals = (stmts) => invoke("run_evals", { stmts });
 export const dpmsOn = () => invoke("dpms_on");
+export const vrrCaps = () => invoke("vrr_caps");
 export const reloadHyprland = () => invoke("hyprctl_reload");
 
 // wallpaper

@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Browser-only harness: fakes the Tauri bridge with a two-monitor setup so
+     panes can be eyeballed without a compositor. Never shipped (dev server
+     only); delete freely. Open http://localhost:5174/dev-mock.html -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings (mock)</title>
+    <script>
+      const mon = (name, w, h, x, y, scale, desc) => ({
+        name, description: desc, width: w, height: h, refreshRate: 120,
+        x, y, scale, transform: 0, vrr: false, currentFormat: "XRGB8888",
+        disabled: false, mirrorOf: "none",
+        availableModes: [w + "x" + h + "@120.00Hz", w + "x" + h + "@60.00Hz", "1920x1080@60.00Hz"]
+      });
+      window.__TAURI_INTERNALS__ = {
+        transformCallback: (cb) => cb,
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+        invoke: (cmd) => {
+          switch (cmd) {
+            case "hyprctl_query":
+              return Promise.resolve(JSON.stringify([
+                mon("eDP-1", 2880, 1800, 0, 0, 2, "BOE NE160QDM"),
+                mon("DP-1", 2560, 1440, 1440, 0, 1, "Dell U2724D")
+              ]));
+            case "read_config": return Promise.resolve("");
+            case "read_prefs": return Promise.resolve({ accent: "#0a84ff", colorScheme: "dark" });
+            case "vrr_caps": return Promise.resolve({ "eDP-1": false, "DP-1": true });
+            case "shell_version": return Promise.resolve("0.3.0-mock");
+            case "shell_running": return Promise.resolve(true);
+            case "user_info": return Promise.resolve({ user: "mock", host: "mock" });
+            default: return Promise.resolve("");
+          }
+        }
+      };
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

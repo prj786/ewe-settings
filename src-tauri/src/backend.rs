@@ -72,6 +72,7 @@ pub async fn write_config(rel: String, content: String) -> Result<(), String> {
     let tmp = path.with_extension("hs-tmp");
     std::fs::write(&tmp, body.as_bytes()).map_err(estr)?;
     std::fs::rename(&tmp, &path).map_err(estr)?;
+    crate::shell::poke_sync();
     Ok(())
 }
 
@@ -81,6 +82,7 @@ pub async fn remove_config(rel: String) -> Result<(), String> {
         return Err(format!("remove not allowed: {rel}"));
     }
     let _ = std::fs::remove_file(config_path(&rel)?);
+    crate::shell::poke_sync();
     Ok(())
 }
 
@@ -157,6 +159,26 @@ pub async fn hyprctl_reload() -> Result<(), String> {
     Ok(())
 }
 
+/// Which connectors can do adaptive sync at all, from
+/// /sys/class/drm/card*-<connector>/vrr_capable. Hyprland silently ignores a
+/// vrr rule the hardware can't honour, so the UI needs this to dim the toggle
+/// instead of claiming "Applied" for a no-op. Missing node → not capable.
+#[tauri::command]
+pub async fn vrr_caps() -> Result<serde_json::Value, String> {
+    let mut map = serde_json::Map::new();
+    if let Ok(rd) = std::fs::read_dir("/sys/class/drm") {
+        for e in rd.flatten() {
+            let fname = e.file_name().to_string_lossy().to_string();
+            let Some(conn) = fname.splitn(2, '-').nth(1) else { continue };
+            let cap = std::fs::read_to_string(e.path().join("vrr_capable"))
+                .map(|s| s.trim() == "1")
+                .unwrap_or(false);
+            map.insert(conn.to_string(), serde_json::Value::Bool(cap));
+        }
+    }
+    Ok(serde_json::Value::Object(map))
+}
+
 // ── named actions (fixed scripts, no free-form shell from the frontend) ─────
 
 async fn run_sh(script: &str) -> Result<String, String> {
@@ -213,6 +235,9 @@ pub async fn per_window_kb(action: String) -> Result<bool, String> {
         }
         _ => return Err("unknown action".into()),
     }
+    if action == "on" || action == "off" {
+        crate::shell::poke_sync(); // the disabled-flag file travels in the sync bundle
+    }
     // settle, then report the live truth
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let out = run_sh("pgrep -f \"[k]b-per-window.py\" >/dev/null && echo yes || echo no").await?;
@@ -234,6 +259,7 @@ pub async fn apply_colorscheme(scheme: String, accent: String) -> Result<(), Str
         "\"$HOME/.config/quickshell/scripts/colorscheme.sh\" {scheme} {acc} >/dev/null 2>&1 &"
     ))
     .await;
+    crate::shell::poke_sync();
     Ok(())
 }
 
@@ -455,6 +481,7 @@ pub async fn set_mime_default(
     if set_browser {
         let _ = run_out("xdg-settings", &["set", "default-web-browser", &desktop_id]).await?;
     }
+    crate::shell::poke_sync(); // mimeapps.list travels in the sync bundle
     Ok(())
 }
 
@@ -751,6 +778,7 @@ pub async fn wifi_connect(ssid: String, password: Option<String>) -> Result<Stri
     if out.contains("Error") {
         return Err(out.lines().next().unwrap_or("connection failed").to_string());
     }
+    crate::shell::poke_sync(); // the new Wi-Fi profile travels in the sync bundle
     Ok(out)
 }
 
@@ -789,6 +817,7 @@ async fn install_face(tmp: &std::path::Path) -> Result<String, String> {
     )
     .await
     .unwrap_or_default();
+    crate::shell::poke_sync(); // ~/.face travels in the sync bundle
     if out.to_lowercase().contains("error") {
         return Ok("Avatar saved to ~/.face, but AccountsService rejected the update — the login screen may keep the old icon.".into());
     }

@@ -31,6 +31,7 @@ pub fn run() {
             backend::run_evals,
             backend::dpms_on,
             backend::hyprctl_reload,
+            backend::vrr_caps,
             backend::wallpaper_backend,
             backend::wallpaper_reapply,
             backend::restart_hypridle,

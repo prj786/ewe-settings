@@ -108,6 +108,7 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
     std::fs::rename(&tmp, &path).map_err(estr)?;
 
     reload_shell().await?;
+    poke_sync();
     Ok(cur)
 }
 
@@ -128,6 +129,15 @@ pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
     }
     cmd.arg("call").args(args);
     cmd.output().await
+}
+
+/// Fire-and-forget "user state changed": the shell debounces the pokes and
+/// pushes the sync bundle to Drive when things go quiet. Never awaited — a
+/// save must not wait on a network round-trip.
+pub fn poke_sync() {
+    tokio::spawn(async {
+        let _ = qs_call(&["google", "syncSoon"]).await;
+    });
 }
 
 /// Ask the running shell to re-read its user state. Not an error when it fails:

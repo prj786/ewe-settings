@@ -15,7 +15,7 @@ depends=('webkit2gtk-4.1' 'gtk3' 'quickshell')
 makedepends=('rust' 'cargo' 'nodejs' 'npm')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('8df531cd710c9bbc615357616a50f753aa71459932afdc2c333702fbc4936fef')
 
 # Arch enables LTO in makepkg.conf, which injects -flto into CFLAGS/LDFLAGS.
 # Any crate shipping hand-written assembly (ring, via rustls) fails to link with

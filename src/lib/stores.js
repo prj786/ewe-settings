@@ -5,13 +5,8 @@ export const pane = writable("appearance");
 export const version = writable("");
 export const shellUp = writable(true);
 
-// Ambiance forces Ubuntu orange as the effective accent, so the accent picker
-// must show as inert there rather than pretending it still applies.
-export const themeName = derived(prefs, (p) => p.themeName || "graphite");
-export const accentApplies = derived(themeName, (t) => t !== "ambiance");
-export const effectiveAccent = derived(prefs, (p) =>
-  (p.themeName || "graphite") === "ambiance" ? "#e95420" : p.accent || "#0a84ff"
-);
+// One look ("flock") — the accent the user picked is always the effective one.
+export const effectiveAccent = derived(prefs, (p) => p.accent || "#0a84ff");
 
 // Transient status shared by every pane: a green "Applied" flash and a red
 // dismissable error banner — the same two signals the in-shell Settings had.

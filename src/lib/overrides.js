@@ -123,10 +123,3 @@ export async function setColorScheme(mode) {
   flashApplied("Applied to GTK/Qt apps");
 }
 
-export async function setThemeName(name) {
-  await setPrefs({ themeName: name });
-  // the effective accent may have changed (Ambiance pins Ubuntu orange)
-  await applyBorder();
-  const p = get(prefs);
-  await api.applyColorscheme(p.colorScheme || "dark", get(effectiveAccent));
-}

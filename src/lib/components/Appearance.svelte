@@ -1,8 +1,7 @@
 <script>
-  import { prefs, themeName, accentApplies } from "../stores.js";
+  import { prefs } from "../stores.js";
   import { ACCENTS } from "../hypr.js";
   import {
-    setThemeName,
     setAccent,
     setColorScheme,
     setTransparency,
@@ -10,11 +9,6 @@
     setPrefs,
     applyBorder
   } from "../overrides.js";
-
-  const looks = [
-    ["graphite", "Graphite", "Neutral dark greys, rounded corners, your accent colour."],
-    ["ambiance", "Ambiance (Unity)", "Warm gradient panel, full-height square highlights, Ubuntu type, aubergine menus. The accent is fixed to Ubuntu orange."]
-  ];
 
   const animSpeeds = [
     { label: "Off", value: 0 },
@@ -41,31 +35,17 @@
 
   <section>
     <div class="section-title">Shell style</div>
-    <div class="card divide-y divide-zinc-200 dark:divide-zinc-700/60">
-      {#each looks as [id, label, blurb] (id)}
-        <button
-          class="flex w-full items-start gap-3 p-4 text-left hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
-          disabled={busy}
-          on:click={() => run(() => setThemeName(id))}
-        >
-          <span
-            class="mt-1 h-3 w-3 shrink-0 rounded-full border
-                   {$themeName === id ? 'border-transparent' : 'border-zinc-500'}"
-            style={$themeName === id ? "background: var(--accent)" : ""}
-          ></span>
-          <span>
-            <span class="block text-sm font-medium">{label}</span>
-            <span class="block text-xs text-zinc-400 dark:text-zinc-500">{blurb}</span>
-          </span>
-        </button>
-      {/each}
+    <div class="card p-4">
+      <span class="block text-sm font-medium">Flock</span>
+      <span class="block text-xs text-zinc-400 dark:text-zinc-500">
+        The hypr-shell look: solid dark surfaces, rounded corners, Phosphor icons, and the accent colour you pick below.
+      </span>
     </div>
   </section>
 
   <section>
     <div class="section-title">Accent colour</div>
     <div class="card p-4">
-      {#if $accentApplies}
         <div class="mb-3 flex flex-wrap gap-2.5">
           {#each ACCENTS as a (a.hex)}
             <button
@@ -81,11 +61,6 @@
         <p class="text-xs text-zinc-400 dark:text-zinc-500">
           Applies to the shell, window borders and GTK/Qt apps.
         </p>
-      {:else}
-        <p class="text-xs text-amber-500">
-          Ambiance fixes the accent to Ubuntu orange, so this has no effect while it is selected.
-        </p>
-      {/if}
     </div>
   </section>
 

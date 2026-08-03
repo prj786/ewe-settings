@@ -24,22 +24,22 @@
   // The shell is always dark; Settings matches it rather than the GTK scheme.
   document.documentElement.classList.add("dark");
 
-  // Lucide-style inner SVG markup (24×24, stroked round) — single paths were
-  // too crude for the keyboard/wallpaper glyphs.
+  // Phosphor Fill codepoints — the same glyphs the shell's own sidebar uses,
+  // so DE and app are one icon language (font in assets/, MIT).
   const panes = [
-    ["appearance", "Appearance", '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>'],
-    ["layout", "Layout & Dock", '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'],
-    ["displays", "Displays", '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>'],
-    ["network", "Networking", '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>'],
-    ["wallpaper", "Wallpaper", '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'],
-    ["input", "Keyboard & Mouse", '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/>'],
-    ["saver", "Screensaver", '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>'],
-    ["power", "Power", '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>'],
-    ["defaults", "Default Apps", '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'],
-    ["startup", "Startup", '<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'],
-    ["shortcuts", "Shortcuts", '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>'],
-    ["user", "User", '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'],
-    ["system", "System", '<rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>']
+    ["appearance", "Appearance", 0xE6C8],
+    ["layout", "Layout & Dock", 0xE6D6],
+    ["displays", "Displays", 0xE32E],
+    ["network", "Networking", 0xE4EA],
+    ["wallpaper", "Wallpaper", 0xE2CA],
+    ["input", "Keyboard & Mouse", 0xE2D8],
+    ["saver", "Screensaver", 0xE58E],
+    ["power", "Power", 0xE3DA],
+    ["defaults", "Default Apps", 0xE5DA],
+    ["startup", "Startup", 0xE3FE],
+    ["shortcuts", "Shortcuts", 0xE1C4],
+    ["user", "User", 0xE4C2],
+    ["system", "System", 0xE610]
   ];
 
   $: document.documentElement.style.setProperty("--accent", $effectiveAccent);
@@ -65,9 +65,7 @@
           style={$pane === id ? "background: var(--accent)" : ""}
           on:click={() => pane.set(id)}
         >
-          <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            {@html icon}
-          </svg>
+          <span class="ph-i w-4 shrink-0 text-center text-[16px]">{String.fromCodePoint(icon)}</span>
           <span class="hidden min-w-0 flex-1 truncate md:block">{label}</span>
         </button>
       {/each}

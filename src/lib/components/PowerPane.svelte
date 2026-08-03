@@ -66,9 +66,9 @@
     <Card>
       <ToggleRow
         title="Suspend even when docked"
-        sub="Off: with an external monitor connected, keep working and just blank the built-in panel."
-        on={$prefs.lidDockedSuspend !== false}
-        toggled={() => setPrefs({ lidDockedSuspend: !($prefs.lidDockedSuspend !== false) })}
+        sub="On: closing the lid always suspends. Off (default): with an external monitor connected, keep working and just blank the built-in panel."
+        on={$prefs.lidDockedSuspend === true}
+        toggled={() => setPrefs({ lidDockedSuspend: !($prefs.lidDockedSuspend === true) })}
       />
     </Card>
     <p class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">

@@ -43,6 +43,7 @@
   ];
 
   $: document.documentElement.style.setProperty("--accent", $effectiveAccent);
+  $: document.documentElement.classList.toggle("blacksheep", ($prefs.themeName || "flock") === "blacksheep");
 
   onMount(async () => {
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }

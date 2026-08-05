@@ -12,6 +12,12 @@
     layout.update((l) => ({ ...l, ...patch }));
     applyGaps();
   }
+
+  const iconSizes = [
+    ["small", "Small"],
+    ["normal", "Normal"],
+    ["large", "Large"]
+  ];
 </script>
 
 <div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
@@ -55,6 +61,29 @@
         on={!!$prefs.dockAutohide}
         toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
       />
+      <div
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3
+          {$prefs.dockEnabled === false ? 'pointer-events-none opacity-40' : ''}"
+      >
+        <div>
+          <div class="text-sm font-medium">Icon size</div>
+          <div class="text-xs text-zinc-400 dark:text-zinc-500">How big the dock buttons and workspace boxes are.</div>
+        </div>
+        <div class="flex gap-1.5">
+          {#each iconSizes as [id, label] (id)}
+            <button
+              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+                {($prefs.dockIconSize || 'normal') === id
+                ? 'text-white'
+                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
+              style={($prefs.dockIconSize || "normal") === id ? "background: var(--accent)" : ""}
+              on:click={() => setPrefs({ dockIconSize: id })}
+            >
+              {label}
+            </button>
+          {/each}
+        </div>
+      </div>
     </Card>
   </section>
 </div>

@@ -1,9 +1,9 @@
-# hypr-shell-settings
+# ewe-settings
 
-The settings app for [hypr-shell](https://github.com/prj786/hypr-shell) — an
-Arch-only Hyprland desktop. Tauri v2 + Svelte 5.
-
-> hypr-shell is a code name. Both projects get renamed at 1.0.
+The settings app for [ewe](https://github.com/prj786/ewe) — an Arch-only
+Hyprland desktop. Tauri v2 + Svelte 5. Formerly `hypr-shell-settings`; the
+package `provides`/`replaces` the old name and ships a `hypr-settings`
+compatibility symlink.
 
 ## Why it is a separate process
 
@@ -34,7 +34,7 @@ Writes are atomic (temp file + rename) and **merge** rather than replace, since
 the shell writes this file too. The shell side merges for the same reason.
 
 The IPC verbs this app depends on (`reload`, `ping`, `version`) live in
-hypr-shell's `Settings.qml`. They are public API in both directions: renaming
+ewe's `Settings.qml`. They are public API in both directions: renaming
 one breaks an installed binary.
 
 If the shell is not running, writes still succeed — they simply take effect at
@@ -47,12 +47,13 @@ there is no polkit helper and no setuid anything.
 
 ## Version
 
-The footer shows **hypr-shell's** version, not this app's. Settings is part of
+The footer shows **ewe's** version, not this app's. Settings is part of
 the desktop rather than a product with its own release cycle, and a second
 number would only raise the question of which one is real. It is read from the
 repo checkout, falling back to what the running shell reports.
 
-Override the checkout location with `HYPR_SHELL_REPO` if it is not `~/hypr-shell`.
+The checkout is found via `$EWE_REPO` (or the legacy `$HYPR_SHELL_REPO`), then
+`~/.local/share/ewe` (a get.sh install), then `~/hypr-shell` (a developer clone).
 
 ## Build
 

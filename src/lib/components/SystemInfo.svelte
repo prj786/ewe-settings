@@ -17,7 +17,7 @@
   <h1 class="text-lg font-semibold">System</h1>
 
   <Card>
-    <KV k="hypr-shell" v={$version || "unknown"} />
+    <KV k="ewe" v={$version || "unknown"} />
     {#if d}
       <KV k="Hyprland" v={d.hypr || "—"} />
       <KV k="Kernel" v={d.kernel || "—"} />

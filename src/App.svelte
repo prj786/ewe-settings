@@ -19,7 +19,7 @@
   import Network from "./lib/components/Network.svelte";
   import UserPane from "./lib/components/UserPane.svelte";
 
-  // No window controls. Settings is part of hypr-shell, and the shell's bar
+  // No window controls. Settings is part of ewe, and the shell's bar
   // already provides New / Float / Move / Close for every window.
   // The shell is always dark; Settings matches it rather than the GTK scheme.
   document.documentElement.classList.add("dark");
@@ -71,10 +71,10 @@
       {/each}
     </nav>
 
-    <!-- hypr-shell's version, not this app's: Settings is part of the desktop
+    <!-- ewe's version, not this app's: Settings is part of the desktop
          rather than a separate product. -->
     <div class="hidden px-4 py-3 text-[11px] text-zinc-500 md:block">
-      hypr-shell {$version}
+      ewe {$version}
       {#if !$shellUp}<div class="mt-1 text-amber-500">shell not running — changes apply at next start</div>{/if}
     </div>
   </aside>

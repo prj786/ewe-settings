@@ -1,5 +1,5 @@
 # Build the Arch package for every version tag and attach it to a GitHub
-# release. hypr-shell's installer downloads this .pkg.tar.zst instead of
+# release. ewe's installer downloads this .pkg.tar.zst instead of
 # compiling the Rust/Tauri app on the user's machine (a ~10 minute build).
 #
 # Flow: push a tag `vX.Y.Z` (matching pkgver in PKGBUILD) → this job builds
@@ -39,8 +39,8 @@ jobs:
           # checksum chicken-and-egg (the PKGBUILD inside a tag cannot pin the
           # hash of its own tarball). makepkg finds the file in the start dir
           # because the name matches the PKGBUILD's source entry.
-          git archive --format=tar.gz --prefix="hypr-shell-settings-$pkgver/" \
-            -o "hypr-shell-settings-$pkgver.tar.gz" HEAD
+          git archive --format=tar.gz --prefix="ewe-settings-$pkgver/" \
+            -o "ewe-settings-$pkgver.tar.gz" HEAD
           # makepkg refuses to run as root; deps are preinstalled above, and
           # -d skips the dependency resolution that would otherwise want sudo.
           useradd -m builder

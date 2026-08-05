@@ -1,7 +1,7 @@
 {
-  "name": "hypr-shell-settings",
+  "name": "ewe-settings",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

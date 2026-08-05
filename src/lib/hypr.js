@@ -435,7 +435,10 @@ export function hypridleConfText(saver, lowPower) {
   } else {
     s += `listener {\n    timeout    = ${idleAt(300)}\n    on-timeout = ${lockCmd}\n    on-resume  = ${undim}\n}\n`;
   }
-  s += `listener {\n    timeout    = ${idleAt(900)}\n    on-timeout = ~/.config/hypr/scripts/idle-suspend.sh\n}\n`;
+  // Deliberately NOT battery-shortened (matches Settings.qml): suspend is the
+  // one stage the user walks into blind — a fixed, documented 15 min instead
+  // of a surprise 7.5.
+  s += `listener {\n    timeout    = 900\n    on-timeout = ~/.config/hypr/scripts/idle-suspend.sh\n}\n`;
   return s;
 }
 
@@ -452,7 +455,7 @@ export function idlePolicyText(saver, lowPower) {
   } else {
     parts.push(`lock at ${mins(5)} min`);
   }
-  parts.push(`suspend at ${mins(15)} min on battery`);
+  parts.push("suspend at 15 min on battery");
   parts.push("no display power-off");
   return parts.join(" · ") + (lowPower ? "   (battery timeline)" : "");
 }

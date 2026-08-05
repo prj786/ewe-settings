@@ -1,13 +1,13 @@
 [package]
-name = "hypr-settings"
-version = "0.5.0"
-description = "Settings for the hypr-shell desktop"
+name = "ewe-settings"
+version = "0.6.0"
+description = "Settings for the ewe desktop"
 authors = ["scubba"]
 license = "MIT"
 edition = "2021"
 
 [lib]
-name = "hypr_settings_lib"
+name = "ewe_settings_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

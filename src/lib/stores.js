@@ -5,7 +5,8 @@ export const pane = writable("appearance");
 export const version = writable("");
 export const shellUp = writable(true);
 
-// One look ("flock") — the accent the user picked is always the effective one.
+// Two looks ("flock" / "blacksheep") share every token except the neutral
+// surfaces — the accent the user picked is always the effective one.
 export const effectiveAccent = derived(prefs, (p) => p.accent || "#0a84ff");
 
 // Transient status shared by every pane: a green "Applied" flash and a red

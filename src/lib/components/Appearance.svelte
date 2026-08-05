@@ -10,12 +10,28 @@
     applyBorder
   } from "../overrides.js";
 
+  // Mirrors the shell's presets: Normal ≈ 500 ms window animations,
+  // Snappy ≈ 350 ms, Fast ≈ 200 ms (the multiplier divides the base speeds).
   const animSpeeds = [
     { label: "Off", value: 0 },
-    { label: "Relaxed", value: 0.7 },
-    { label: "Default", value: 1 },
-    { label: "Snappy", value: 1.5 },
-    { label: "Fast", value: 2 }
+    { label: "Normal", value: 1 },
+    { label: "Snappy", value: 1.43 },
+    { label: "Fast", value: 2.5 }
+  ];
+
+  const shellStyles = [
+    {
+      id: "flock",
+      name: "Flock",
+      sub: "The ewe look in soft dark greys.",
+      swatch: "#1c1c1e"
+    },
+    {
+      id: "blacksheep",
+      name: "Black Sheep",
+      sub: "The same look on absolute black (#020202) surfaces.",
+      swatch: "#020202"
+    }
   ];
 
   let busy = false;
@@ -36,10 +52,25 @@
   <section>
     <div class="section-title">Shell style</div>
     <div class="card p-4">
-      <span class="block text-sm font-medium">Flock</span>
-      <span class="block text-xs text-zinc-400 dark:text-zinc-500">
-        The hypr-shell look: solid dark surfaces, rounded corners, Phosphor icons, and the accent colour you pick below.
-      </span>
+      <div class="mb-3 grid grid-cols-2 gap-2.5">
+        {#each shellStyles as st (st.id)}
+          <button
+            class="rounded-lg border p-3 text-left transition-colors
+              {($prefs.themeName || 'flock') === st.id
+              ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
+              : 'border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800/60'}"
+            disabled={busy}
+            on:click={() => run(() => setPrefs({ themeName: st.id }))}
+          >
+            <span class="mb-2 block h-8 w-full rounded border border-zinc-700/60" style="background: {st.swatch}"></span>
+            <span class="block text-sm font-medium">{st.name}</span>
+            <span class="block text-xs text-zinc-400 dark:text-zinc-500">{st.sub}</span>
+          </button>
+        {/each}
+      </div>
+      <p class="text-xs text-zinc-400 dark:text-zinc-500">
+        Bar, dock and panels follow the style; shape, Phosphor icons and your accent stay identical. Applies instantly.
+      </p>
     </div>
   </section>
 

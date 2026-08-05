@@ -29,15 +29,25 @@ fn qs_dir() -> PathBuf {
     home().join(".config/quickshell")
 }
 
-/// Where hypr-shell is checked out. The repo is the source of truth for the
-/// version, and for updates. Overridable because ~/hypr-shell is a convention,
-/// not a guarantee — and guessing with `find` across a home directory is worse
-/// than simply not offering the feature.
+/// Where ewe is checked out / installed. The repo is the source of truth for
+/// the version, and for updates. Overridable because the locations below are
+/// conventions, not guarantees — and guessing with `find` across a home
+/// directory is worse than simply not offering the feature. get.sh installs to
+/// ~/.local/share/ewe; a developer clone is ~/hypr-shell (the pre-rename dir
+/// name, kept on disk).
 fn repo_dir() -> PathBuf {
-    match std::env::var("HYPR_SHELL_REPO") {
-        Ok(p) if !p.trim().is_empty() => PathBuf::from(p),
-        _ => home().join("hypr-shell"),
+    for var in ["EWE_REPO", "HYPR_SHELL_REPO"] {
+        if let Ok(p) = std::env::var(var) {
+            if !p.trim().is_empty() {
+                return PathBuf::from(p);
+            }
+        }
     }
+    let installed = home().join(".local/share/ewe");
+    if installed.join("VERSION").is_file() {
+        return installed;
+    }
+    home().join("hypr-shell")
 }
 
 // ── reading ─────────────────────────────────────────────────────────────────
@@ -52,7 +62,7 @@ pub async fn read_prefs() -> Result<Value, String> {
     }
 }
 
-/// The version shown in the footer. It is hypr-shell's, not this app's: Settings
+/// The version shown in the footer. It is ewe's, not this app's: Settings
 /// is a part of the desktop rather than a product with its own release cycle,
 /// and showing a second number would only invite "which one is the real one".
 #[tauri::command]
@@ -116,7 +126,14 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
 /// `qs ipc` unambiguous even when another qs instance exists (nested tests).
 pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
     let pid = Command::new("systemctl")
-        .args(["--user", "show", "-p", "MainPID", "--value", "hypr-shell.service"])
+        .args([
+            "--user",
+            "show",
+            "-p",
+            "MainPID",
+            "--value",
+            "hypr-shell.service",
+        ])
         .output()
         .await
         .ok()

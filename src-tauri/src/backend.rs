@@ -34,8 +34,7 @@ fn is_allowed_read(rel: &str) -> bool {
 }
 
 fn is_allowed_write(rel: &str) -> bool {
-    rel.starts_with("hypr/generated/")
-        || (rel.starts_with("quickshell/") && rel.ends_with(".json"))
+    rel.starts_with("hypr/generated/") || (rel.starts_with("quickshell/") && rel.ends_with(".json"))
 }
 
 fn config_path(rel: &str) -> Result<PathBuf, String> {
@@ -133,7 +132,12 @@ pub async fn run_evals(stmts: Vec<String>) -> Result<(), String> {
         }
         let out = run_out("hyprctl", &["eval", t]).await?;
         if !out.trim_start().starts_with("ok") {
-            errs.push(out.lines().next().unwrap_or("hyprctl eval failed").to_string());
+            errs.push(
+                out.lines()
+                    .next()
+                    .unwrap_or("hyprctl eval failed")
+                    .to_string(),
+            );
         }
     }
     if errs.is_empty() {
@@ -169,7 +173,9 @@ pub async fn vrr_caps() -> Result<serde_json::Value, String> {
     if let Ok(rd) = std::fs::read_dir("/sys/class/drm") {
         for e in rd.flatten() {
             let fname = e.file_name().to_string_lossy().to_string();
-            let Some(conn) = fname.splitn(2, '-').nth(1) else { continue };
+            let Some((_, conn)) = fname.split_once('-') else {
+                continue;
+            };
             let cap = std::fs::read_to_string(e.path().join("vrr_capable"))
                 .map(|s| s.trim() == "1")
                 .unwrap_or(false);
@@ -515,7 +521,9 @@ pub async fn diagnostics() -> Result<Value, String> {
 // ── power ───────────────────────────────────────────────────────────────────
 
 fn read_sys(p: &std::path::Path) -> Option<String> {
-    std::fs::read_to_string(p).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(p)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 fn read_sys_i64(p: &std::path::Path) -> Option<i64> {
@@ -559,8 +567,12 @@ pub async fn power_info() -> Result<Value, String> {
             break;
         }
     }
-    let ppd = run_out("powerprofilesctl", &["get"]).await.unwrap_or_default();
-    let ppd_list = run_out("powerprofilesctl", &["list"]).await.unwrap_or_default();
+    let ppd = run_out("powerprofilesctl", &["get"])
+        .await
+        .unwrap_or_default();
+    let ppd_list = run_out("powerprofilesctl", &["list"])
+        .await
+        .unwrap_or_default();
     let profiles: Vec<String> = ppd_list
         .lines()
         .filter_map(|l| {
@@ -633,7 +645,14 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
     const ALLOWED: &[(&str, &[&str])] = &[
         (
             "google",
-            &["signIn", "signOut", "syncNow", "refresh", "setAutoSync", "status"],
+            &[
+                "signIn",
+                "signOut",
+                "syncNow",
+                "refresh",
+                "setAutoSync",
+                "status",
+            ],
         ),
         ("saver", &["show"]),
     ];
@@ -677,7 +696,14 @@ pub async fn net_status() -> Result<Value, String> {
     if has_wifi && wifi_on {
         let text = run_out(
             "nmcli",
-            &["-t", "-f", "IN-USE,SIGNAL,SECURITY,SSID", "device", "wifi", "list"],
+            &[
+                "-t",
+                "-f",
+                "IN-USE,SIGNAL,SECURITY,SSID",
+                "device",
+                "wifi",
+                "list",
+            ],
         )
         .await
         .unwrap_or_default();
@@ -709,7 +735,14 @@ pub async fn net_status() -> Result<Value, String> {
     let mut active: Vec<Value> = Vec::new();
     for l in run_out(
         "nmcli",
-        &["-t", "-f", "NAME,TYPE,DEVICE,STATE", "connection", "show", "--active"],
+        &[
+            "-t",
+            "-f",
+            "NAME,TYPE,DEVICE,STATE",
+            "connection",
+            "show",
+            "--active",
+        ],
     )
     .await
     .unwrap_or_default()
@@ -724,10 +757,13 @@ pub async fn net_status() -> Result<Value, String> {
     }
 
     let mut vpn: Vec<Value> = Vec::new();
-    for l in run_out("nmcli", &["-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"])
-        .await
-        .unwrap_or_default()
-        .lines()
+    for l in run_out(
+        "nmcli",
+        &["-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"],
+    )
+    .await
+    .unwrap_or_default()
+    .lines()
     {
         let p: Vec<&str> = l.rsplitn(3, ':').collect();
         if p.len() == 3 && (p[1].contains("vpn") || p[1].contains("wireguard")) {
@@ -735,19 +771,25 @@ pub async fn net_status() -> Result<Value, String> {
         }
     }
 
-    let ips: Vec<String> = run_sh("ip -4 -o addr show scope global 2>/dev/null | awk '{print $2\": \"$4}'")
-        .await
-        .unwrap_or_default()
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect();
+    let ips: Vec<String> =
+        run_sh("ip -4 -o addr show scope global 2>/dev/null | awk '{print $2\": \"$4}'")
+            .await
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
 
     let ssh: Vec<String> = std::fs::read_to_string(home().join(".ssh/config"))
         .unwrap_or_default()
         .lines()
         .filter(|l| l.trim_start().to_lowercase().starts_with("host "))
-        .flat_map(|l| l.split_whitespace().skip(1).map(|s| s.to_string()).collect::<Vec<_>>())
+        .flat_map(|l| {
+            l.split_whitespace()
+                .skip(1)
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        })
         .filter(|h| !h.contains('*') && !h.contains('?'))
         .collect();
 
@@ -776,7 +818,11 @@ pub async fn wifi_connect(ssid: String, password: Option<String>) -> Result<Stri
     }
     let out = run_out("nmcli", &args).await?;
     if out.contains("Error") {
-        return Err(out.lines().next().unwrap_or("connection failed").to_string());
+        return Err(out
+            .lines()
+            .next()
+            .unwrap_or("connection failed")
+            .to_string());
     }
     crate::shell::poke_sync(); // the new Wi-Fi profile travels in the sync bundle
     Ok(out)
@@ -806,13 +852,22 @@ pub async fn connection_set(name: String, up: bool) -> Result<String, String> {
 async fn install_face(tmp: &std::path::Path) -> Result<String, String> {
     let face = home().join(".face");
     std::fs::copy(tmp, &face).map_err(|e| format!("could not save ~/.face: {e}"))?;
-    let uid = run_out("id", &["-u"]).await.unwrap_or_default().trim().to_string();
+    let uid = run_out("id", &["-u"])
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let obj = format!("/org/freedesktop/Accounts/User{uid}");
     let out = run_out(
         "busctl",
         &[
-            "call", "org.freedesktop.Accounts", &obj, "org.freedesktop.Accounts.User",
-            "SetIconFile", "s", &face.to_string_lossy(),
+            "call",
+            "org.freedesktop.Accounts",
+            &obj,
+            "org.freedesktop.Accounts.User",
+            "SetIconFile",
+            "s",
+            &face.to_string_lossy(),
         ],
     )
     .await
@@ -834,7 +889,7 @@ pub async fn save_avatar(png_base64: String) -> Result<String, String> {
     if !bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         return Err("not a PNG".into());
     }
-    let tmp = home().join(".cache/hypr-shell-avatar.png");
+    let tmp = home().join(".cache/ewe-avatar.png");
     if let Some(d) = tmp.parent() {
         let _ = std::fs::create_dir_all(d);
     }
@@ -853,7 +908,7 @@ pub async fn avatar_from_url(url: String) -> Result<String, String> {
     if !ok || url.len() > 1024 {
         return Err("only Google profile photo URLs are allowed here".into());
     }
-    let tmp = home().join(".cache/hypr-shell-avatar.png");
+    let tmp = home().join(".cache/ewe-avatar.png");
     if let Some(d) = tmp.parent() {
         let _ = std::fs::create_dir_all(d);
     }
@@ -876,18 +931,31 @@ pub async fn set_real_name(name: String) -> Result<(), String> {
     if n.is_empty() || n.len() > 128 || n.contains(':') || n.contains('\n') {
         return Err("invalid name".into());
     }
-    let uid = run_out("id", &["-u"]).await.unwrap_or_default().trim().to_string();
+    let uid = run_out("id", &["-u"])
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let obj = format!("/org/freedesktop/Accounts/User{uid}");
     let out = run_out(
         "busctl",
         &[
-            "call", "org.freedesktop.Accounts", &obj, "org.freedesktop.Accounts.User",
-            "SetRealName", "s", n,
+            "call",
+            "org.freedesktop.Accounts",
+            &obj,
+            "org.freedesktop.Accounts.User",
+            "SetRealName",
+            "s",
+            n,
         ],
     )
     .await?;
     if out.to_lowercase().contains("error") {
-        return Err(out.lines().next().unwrap_or("AccountsService refused").to_string());
+        return Err(out
+            .lines()
+            .next()
+            .unwrap_or("AccountsService refused")
+            .to_string());
     }
     Ok(())
 }
@@ -895,7 +963,11 @@ pub async fn set_real_name(name: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn user_info() -> Result<Value, String> {
     let user = std::env::var("USER").unwrap_or_default();
-    let host = run_out("uname", &["-n"]).await.unwrap_or_default().trim().to_string();
+    let host = run_out("uname", &["-n"])
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let real = run_out("getent", &["passwd", &user])
         .await
         .unwrap_or_default()
@@ -906,9 +978,15 @@ pub async fn user_info() -> Result<Value, String> {
         .next()
         .unwrap_or("")
         .to_string();
-    let uptime = run_sh("uptime -p 2>/dev/null").await.unwrap_or_default().trim().to_string();
+    let uptime = run_sh("uptime -p 2>/dev/null")
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let has_face = home().join(".face").is_file();
-    Ok(json!({ "user": user, "host": host, "realName": real, "uptime": uptime, "hasFace": has_face }))
+    Ok(
+        json!({ "user": user, "host": host, "realName": real, "uptime": uptime, "hasFace": has_face }),
+    )
 }
 
 // Minimal base64 decoder (standard alphabet, padding optional) — not worth a

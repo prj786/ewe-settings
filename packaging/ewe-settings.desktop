@@ -2,9 +2,9 @@
 Type=Application
 Name=Settings
 Comment=Appearance, displays, input, power and startup
-Exec=hypr-settings
-Icon=hypr-settings
+Exec=ewe-settings
+Icon=ewe-settings
 Terminal=false
 Categories=Settings;DesktopSettings;
 Keywords=settings;preferences;appearance;display;power;
-StartupWMClass=Settings
+StartupWMClass=ewe-settings

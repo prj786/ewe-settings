@@ -186,7 +186,7 @@
         </div>
       {:else if !google.configured}
         <div class="px-4 py-3 text-sm text-zinc-400">
-          Not configured — add a client ID to google-oauth.json (see the hypr-shell README).
+          Not configured — add a client ID to google-oauth.json (see the ewe README).
         </div>
       {:else if !google.signedIn}
         <div class="flex items-center justify-between gap-3 px-4 py-3">

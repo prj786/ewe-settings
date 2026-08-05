@@ -3,20 +3,20 @@
   import { ACCENTS } from "../hypr.js";
   import {
     setAccent,
-    setColorScheme,
     setTransparency,
     setAnimationSpeed,
     setPrefs,
     applyBorder
   } from "../overrides.js";
 
-  // Mirrors the shell's presets: Normal ≈ 500 ms window animations,
-  // Snappy ≈ 350 ms, Fast ≈ 200 ms (the multiplier divides the base speeds).
+  // Mirrors the shell's presets: Off/Fast/Normal/Slow = shell durations
+  // 0/150/300/500 ms (the multiplier divides the base durations) — steps far
+  // enough apart to actually feel different.
   const animSpeeds = [
     { label: "Off", value: 0 },
+    { label: "Fast", value: 2 },
     { label: "Normal", value: 1 },
-    { label: "Snappy", value: 1.43 },
-    { label: "Fast", value: 2.5 }
+    { label: "Slow", value: 0.6 }
   ];
 
   const shellStyles = [
@@ -98,29 +98,8 @@
   <section>
     <div class="section-title">Windows & animations</div>
     <div class="card divide-y divide-zinc-200 dark:divide-zinc-700/60">
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
-        <div>
-          <div class="text-sm font-medium">App colour scheme</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">
-            GTK and Qt apps follow this; the shell itself is always dark.
-          </div>
-        </div>
-        <div class="flex gap-1.5">
-          {#each [["dark", "Dark"], ["light", "Light"]] as [id, label] (id)}
-            <button
-              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-                {($prefs.colorScheme || 'dark') === id
-                ? 'text-white'
-                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
-              style={($prefs.colorScheme || "dark") === id ? "background: var(--accent)" : ""}
-              disabled={busy}
-              on:click={() => run(() => setColorScheme(id))}
-            >
-              {label}
-            </button>
-          {/each}
-        </div>
-      </div>
+      <!-- Light mode is parked until it is actually fully light — the DE is
+           dark-only for now, so no colour-scheme toggle here. -->
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Tint window borders</div>

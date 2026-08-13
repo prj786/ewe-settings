@@ -1,22 +1,18 @@
 <script>
+  import { Switch } from "./switch/index.js";
   export let on = false;
   export let disabled = false;
   export let toggled = () => {};
 </script>
 
-<button
-  type="button"
-  role="switch"
-  aria-checked={on}
-  aria-label="Toggle"
+<!-- Controlled: `on` stays the single source of truth, so the switch is told
+     its state and only ever reports intent back through toggled(). The
+     off-track override drops shadcn's dark 80% tint back to a flat zinc-600,
+     the colour this toggle has always used. -->
+<Switch
+  checked={on}
   {disabled}
-  class="relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40
-    {on ? '' : 'bg-zinc-300 dark:bg-zinc-600'}"
-  style={on ? "background: var(--accent)" : ""}
-  on:click={() => toggled()}
->
-  <span
-    class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
-    style="left: {on ? '18px' : '2px'}"
-  ></span>
-</button>
+  aria-label="Toggle"
+  class="dark:data-unchecked:bg-input"
+  onCheckedChange={() => toggled()}
+/>

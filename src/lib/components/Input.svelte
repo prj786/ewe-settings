@@ -11,6 +11,13 @@
   import SelectRow from "./ui/SelectRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
   import IconBtn from "./ui/IconBtn.svelte";
+  import * as Select from "./ui/select/index.js";
+
+  // "" is a real XKB variant (= the layout's default), but bits-ui reads ""
+  // as "nothing selected" — so it travels under a sentinel, same as SelectRow.
+  const V_EMPTY = " empty";
+  const vEnc = (v) => (v === "" || v == null ? V_EMPTY : String(v));
+  const vDec = (v) => (v === V_EMPTY ? "" : v);
 
   const icUp = '<path d="m18 15-6-6-6 6"/>';
   const icDown = '<path d="m6 9 6 6 6-6"/>';
@@ -162,15 +169,20 @@
           <div class="flex flex-wrap items-center gap-2 px-4 py-2.5">
             <span class="w-10 shrink-0 rounded bg-zinc-200/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase dark:bg-zinc-700/60">{l.code}</span>
             <span class="min-w-0 flex-1 truncate text-sm">{nameOf(l.code)}</span>
-            <select
-              class="input !w-auto min-w-24 text-xs"
-              value={l.variant}
-              on:change={(e) => kbSetVariant(i, e.currentTarget.value)}
+            <Select.Root
+              type="single"
+              value={vEnc(l.variant)}
+              onValueChange={(raw) => kbSetVariant(i, vDec(raw))}
             >
-              {#each variantOpts(l.code) as v (v.value)}
-                <option value={v.value}>{v.label}</option>
-              {/each}
-            </select>
+              <Select.Trigger size="sm" class="min-w-24 text-xs">
+                <span data-slot="select-value" class="truncate">{l.variant || "Default"}</span>
+              </Select.Trigger>
+              <Select.Content class="max-h-72 p-1">
+                {#each variantOpts(l.code) as v (vEnc(v.value))}
+                  <Select.Item value={vEnc(v.value)} label={v.label} />
+                {/each}
+              </Select.Content>
+            </Select.Root>
             <div class="flex items-center gap-0.5">
               <IconBtn icon={icUp} title="Move up" disabled={i === 0} go={() => kbMove(i, i - 1)} />
               <IconBtn icon={icDown} title="Move down" disabled={i === kbActive.length - 1} go={() => kbMove(i, i + 1)} />

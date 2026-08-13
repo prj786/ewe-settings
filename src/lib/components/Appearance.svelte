@@ -1,6 +1,7 @@
 <script>
   import { prefs } from "../stores.js";
   import { ACCENTS } from "../hypr.js";
+  import { Checkbox } from "./ui/checkbox/index.js";
   import {
     setAccent,
     setTransparency,
@@ -105,14 +106,13 @@
           <div class="text-sm font-medium">Tint window borders</div>
           <div class="text-xs text-zinc-400 dark:text-zinc-500">Active window border follows the accent.</div>
         </div>
-        <input
-          type="checkbox"
-          class="h-4 w-4 accent-[var(--accent)]"
+        <Checkbox
           checked={!!$prefs.tintBorders}
           disabled={busy}
-          on:change={(e) =>
+          aria-label="Tint window borders"
+          onCheckedChange={(v) =>
             run(async () => {
-              await setPrefs({ tintBorders: e.target.checked });
+              await setPrefs({ tintBorders: v });
               await applyBorder();
             })}
         />
@@ -122,12 +122,11 @@
           <div class="text-sm font-medium">Window transparency</div>
           <div class="text-xs text-zinc-400 dark:text-zinc-500">Unfocused windows slightly translucent.</div>
         </div>
-        <input
-          type="checkbox"
-          class="h-4 w-4 accent-[var(--accent)]"
+        <Checkbox
           checked={$prefs.windowTransparency !== false}
           disabled={busy}
-          on:change={(e) => run(() => setTransparency(e.target.checked))}
+          aria-label="Window transparency"
+          onCheckedChange={(v) => run(() => setTransparency(v))}
         />
       </div>
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">

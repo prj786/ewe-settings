@@ -324,6 +324,7 @@ fn parse_desktop_file(path: &std::path::Path) -> Option<Value> {
     let mut exec = String::new();
     let mut icon = String::new();
     let mut comment = String::new();
+    let mut wm_class = String::new();
     let mut in_entry = false;
     for line in text.lines() {
         let l = line.trim();
@@ -342,6 +343,9 @@ fn parse_desktop_file(path: &std::path::Path) -> Option<Value> {
                 "Exec" if exec.is_empty() => exec = v.trim().to_string(),
                 "Icon" if icon.is_empty() => icon = v.trim().to_string(),
                 "Comment" if comment.is_empty() => comment = v.trim().to_string(),
+                // window class for rule matching (Window Rules pane); absent
+                // for most Wayland apps, whose app-id equals the desktop id
+                "StartupWMClass" if wm_class.is_empty() => wm_class = v.trim().to_string(),
                 _ => {}
             }
         }
@@ -350,7 +354,9 @@ fn parse_desktop_file(path: &std::path::Path) -> Option<Value> {
         return None;
     }
     let id = path.file_stem()?.to_str()?.to_string();
-    Some(json!({ "id": id, "name": name, "exec": exec, "icon": icon, "comment": comment }))
+    Some(
+        json!({ "id": id, "name": name, "exec": exec, "icon": icon, "comment": comment, "wmClass": wm_class }),
+    )
 }
 
 /// Launchable applications, for the Startup pane's picker.

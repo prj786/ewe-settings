@@ -10,6 +10,7 @@
   import Displays from "./lib/components/Displays.svelte";
   import WallpaperPane from "./lib/components/WallpaperPane.svelte";
   import Input from "./lib/components/Input.svelte";
+  import WindowRules from "./lib/components/WindowRules.svelte";
   import Saver from "./lib/components/Saver.svelte";
   import PowerPane from "./lib/components/PowerPane.svelte";
   import DefaultApps from "./lib/components/DefaultApps.svelte";
@@ -29,6 +30,7 @@
   const panes = [
     ["appearance", "Appearance", 0xE6C8],
     ["layout", "Layout & Dock", 0xE6D6],
+    ["windowrules", "Window Rules", 0xE464],
     ["displays", "Displays", 0xE32E],
     ["network", "Networking", 0xE4EA],
     ["wallpaper", "Wallpaper", 0xE2CA],
@@ -92,6 +94,8 @@
       <Appearance />
     {:else if $pane === "layout"}
       <Layout />
+    {:else if $pane === "windowrules"}
+      <WindowRules />
     {:else if $pane === "displays"}
       <Displays />
     {:else if $pane === "network"}

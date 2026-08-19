@@ -501,9 +501,14 @@ export const cleanExec = (s) => String(s || "").replace(/%[a-zA-Z]/g, "").trim()
 // Per-app open rules: send to a workspace and/or force float/tile. Matching is
 // by window class (the Wayland app-id — usually the desktop-file id; X11/
 // Electron apps advertise theirs via StartupWMClass). The class is regex-
-// escaped and anchored so "zen" can never also catch "zen-beta". Rules are
-// NAMED, which makes a `hyprctl reload` after every save idempotent — the
-// reloaded config re-declares the same names instead of stacking duplicates.
+// escaped and anchored so "zen" can never also catch "zen-beta" — and matched
+// CASE-INSENSITIVELY ((?i), RE2 syntax): the desktop entry says "1Password"
+// and "Slack" while the mapped windows report app-ids "1password" and
+// "slack", and that one-character difference is a rule that silently never
+// fires (verified live 2026-08-19: workspace+float rules for both apps dead,
+// all-lowercase "kitty" fine). Rules are NAMED, which makes a `hyprctl
+// reload` after every save idempotent — the reloaded config re-declares the
+// same names instead of stacking duplicates.
 export const regexEsc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The full generated/windowrules.lua from the rules list. */
@@ -518,7 +523,7 @@ export function windowRulesLuaText(rules) {
     n += 1;
     s += "hl.window_rule({\n";
     s += `    name  = "user-rule-${n}",\n`;
-    s += `    match = { class = "^${luaEsc(regexEsc(klass))}$" },\n`;
+    s += `    match = { class = "(?i)^${luaEsc(regexEsc(klass))}$" },\n`;
     if (ws > 0) s += `    workspace = "${ws}",\n`;
     if (mode) s += `    ${mode} = true,\n`;
     s += "})\n";

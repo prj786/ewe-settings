@@ -1,24 +1,13 @@
 <script>
-  import { prefs } from "../stores.js";
+  import { prefs, pane } from "../stores.js";
   import { ACCENTS } from "../hypr.js";
   import { Checkbox } from "./ui/checkbox/index.js";
   import {
     setAccent,
     setTransparency,
-    setAnimationSpeed,
     setPrefs,
     applyBorder
   } from "../overrides.js";
-
-  // Mirrors the shell's presets: Off/Fast/Normal/Slow = shell durations
-  // 0/150/300/500 ms (the multiplier divides the base durations) — steps far
-  // enough apart to actually feel different.
-  const animSpeeds = [
-    { label: "Off", value: 0 },
-    { label: "Fast", value: 2 },
-    { label: "Normal", value: 1 },
-    { label: "Slow", value: 0.6 }
-  ];
 
   const shellStyles = [
     {
@@ -129,26 +118,17 @@
           onCheckedChange={(v) => run(() => setTransparency(v))}
         />
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
-          <div class="text-sm font-medium">Animation speed</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">Shell and window animations.</div>
+          <div class="text-sm font-medium">Animations</div>
+          <div class="text-xs text-zinc-400 dark:text-zinc-500">Speed, presets, curves and styles moved to their own page.</div>
         </div>
-        <div class="flex flex-wrap gap-1.5">
-          {#each animSpeeds as s (s.value)}
-            <button
-              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-                {Math.abs(($prefs.animationSpeed ?? 1) - s.value) < 0.01
-                ? 'text-white'
-                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
-              style={Math.abs(($prefs.animationSpeed ?? 1) - s.value) < 0.01 ? "background: var(--accent)" : ""}
-              disabled={busy}
-              on:click={() => run(() => setAnimationSpeed(s.value))}
-            >
-              {s.label}
-            </button>
-          {/each}
-        </div>
+        <button
+          class="shrink-0 rounded-full bg-zinc-200/70 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-600/60"
+          on:click={() => pane.set("animations")}
+        >
+          Open Animations
+        </button>
       </div>
     </div>
   </section>

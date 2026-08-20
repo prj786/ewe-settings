@@ -344,14 +344,17 @@ export function wallpapersConfText(mode, mute, map) {
 
 // ── user.lua (layout / theme overrides) ─────────────────────────────────────
 
+// Mirrors hyprland.lua's shipped animation block (the 0.8 "snappy" defaults) —
+// used only for the fallback speed-multiplier block in user.lua. The full
+// Animations pane below owns generated/animations.lua instead.
 export const ANIM_BASE = [
-  { leaf: "global", s: 9, bz: "easeOutQuint" },
-  { leaf: "border", s: 5.39, bz: "easeOutQuint" },
-  { leaf: "windows", s: 5, spring: "easy", style: "popin 88%" },
-  { leaf: "windowsOut", s: 3, bz: "linear", style: "popin 88%" },
-  { leaf: "fade", s: 3.5, bz: "quick" },
-  { leaf: "layers", s: 4, bz: "easeOutQuint", style: "fade" },
-  { leaf: "workspaces", s: 5, bz: "easeOutQuint", style: "slide" }
+  { leaf: "global", s: 3, bz: "snap" },
+  { leaf: "border", s: 3, bz: "easeOutQuint" },
+  { leaf: "windows", s: 2.8, bz: "snap", style: "popin 92%" },
+  { leaf: "windowsOut", s: 1.8, bz: "quick", style: "popin 92%" },
+  { leaf: "fade", s: 1.8, bz: "quick" },
+  { leaf: "layers", s: 2, bz: "quick", style: "fade" },
+  { leaf: "workspaces", s: 2.8, bz: "snap", style: "slide" }
 ];
 
 export function animLuaLines(m) {
@@ -370,6 +373,169 @@ export function animLuaLines(m) {
     L.push(s + " })");
   }
   return L;
+}
+
+// ── animations.lua (Settings → Animations; standalone app only) ─────────────
+// Per-animation control: enable, duration, curve, style. Source of truth is
+// ~/.config/quickshell/animations.json; the generated file is sourced by
+// hyprland.lua AFTER user.lua, so it wins over the simple speed-multiplier
+// block above. The generator defines every curve it references, so the file
+// stands alone regardless of which curves hyprland.lua happens to ship.
+// prefs.animationSpeed still divides every duration (and drives the QML
+// shell's own animations) — it is baked in at write time.
+
+export const ANIM_CURVES = [
+  { id: "snap", label: "Snap", pts: [[0.16, 1], [0.3, 1]] },
+  { id: "easeOutQuint", label: "Ease out", pts: [[0.23, 1], [0.32, 1]] },
+  { id: "quick", label: "Quick", pts: [[0.15, 0], [0.1, 1]] },
+  { id: "easeInOutCubic", label: "Smooth", pts: [[0.65, 0.05], [0.36, 1]] },
+  { id: "overshoot", label: "Overshoot", pts: [[0.34, 1.56], [0.64, 1]] },
+  { id: "linear", label: "Linear", pts: [[0, 0], [1, 1]] },
+  { id: "spring", label: "Spring", spring: { mass: 1, stiffness: 71.2633, dampening: 15.8273644 } }
+];
+const isSpringCurve = (id) => !!(ANIM_CURVES.find((c) => c.id === id) || {}).spring;
+
+export const ANIM_STYLE_LABELS = {
+  "": "Plain", popin: "Pop in", slide: "Slide", slidevert: "Slide vertical", fade: "Fade"
+};
+
+export const ANIM_LEAVES = [
+  { leaf: "windows", label: "Window open", styles: ["popin", "slide", ""] },
+  { leaf: "windowsOut", label: "Window close", styles: ["popin", "slide", ""] },
+  { leaf: "fade", label: "Window fade", styles: null },
+  { leaf: "workspaces", label: "Workspace switch", styles: ["slide", "slidevert", "fade"] },
+  { leaf: "layers", label: "Panels & popups", styles: ["fade", "slide", "popin"] },
+  { leaf: "border", label: "Border colour", styles: null }
+];
+
+// A preset is a complete per-leaf table plus the `global` fallback line
+// (covers sub-leaves the pane does not expose, e.g. specialWorkspace).
+export const ANIM_PRESETS = [
+  {
+    id: "snappy", name: "Snappy", sub: "Short and sharp — the ewe default.",
+    global: { ms: 300, curve: "snap" },
+    anims: {
+      windows: { on: true, ms: 280, curve: "snap", style: "popin", pct: 92 },
+      windowsOut: { on: true, ms: 180, curve: "quick", style: "popin", pct: 92 },
+      fade: { on: true, ms: 180, curve: "quick" },
+      workspaces: { on: true, ms: 280, curve: "snap", style: "slide" },
+      layers: { on: true, ms: 200, curve: "quick", style: "fade" },
+      border: { on: true, ms: 300, curve: "easeOutQuint" }
+    }
+  },
+  {
+    id: "smooth", name: "Smooth", sub: "The pre-0.8 feel — springy and relaxed.",
+    global: { ms: 900, curve: "easeOutQuint" },
+    anims: {
+      windows: { on: true, ms: 500, curve: "spring", style: "popin", pct: 88 },
+      windowsOut: { on: true, ms: 300, curve: "linear", style: "popin", pct: 88 },
+      fade: { on: true, ms: 350, curve: "quick" },
+      workspaces: { on: true, ms: 500, curve: "easeOutQuint", style: "slide" },
+      layers: { on: true, ms: 400, curve: "easeOutQuint", style: "fade" },
+      border: { on: true, ms: 540, curve: "easeOutQuint" }
+    }
+  },
+  {
+    id: "bouncy", name: "Bouncy", sub: "Springs and overshoot, a little playful.",
+    global: { ms: 400, curve: "overshoot" },
+    anims: {
+      windows: { on: true, ms: 450, curve: "spring", style: "popin", pct: 85 },
+      windowsOut: { on: true, ms: 220, curve: "quick", style: "popin", pct: 90 },
+      fade: { on: true, ms: 220, curve: "quick" },
+      workspaces: { on: true, ms: 380, curve: "overshoot", style: "slide" },
+      layers: { on: true, ms: 300, curve: "overshoot", style: "popin" },
+      border: { on: true, ms: 400, curve: "easeOutQuint" }
+    }
+  },
+  {
+    id: "minimal", name: "Minimal", sub: "Just quick fades, barely there.",
+    global: { ms: 150, curve: "quick" },
+    anims: {
+      windows: { on: true, ms: 160, curve: "quick", style: "" },
+      windowsOut: { on: true, ms: 140, curve: "quick", style: "" },
+      fade: { on: true, ms: 160, curve: "quick" },
+      workspaces: { on: true, ms: 200, curve: "quick", style: "fade" },
+      layers: { on: true, ms: 160, curve: "quick", style: "fade" },
+      border: { on: true, ms: 150, curve: "linear" }
+    }
+  }
+];
+
+const cloneAnims = (a) => JSON.parse(JSON.stringify(a));
+
+/** A full state from a preset (presets are always written enabled). */
+export const animStateFromPreset = (p) => ({
+  enabled: true, global: { ...p.global }, anims: cloneAnims(p.anims)
+});
+
+/** Fresh state = the shipped Snappy preset, enabled. */
+export const defaultAnimState = () => animStateFromPreset(ANIM_PRESETS[0]);
+
+/** Merge a stored state over defaults so new leaves/keys pick up sane values. */
+export function mergeAnimState(st) {
+  const d = defaultAnimState();
+  if (!st || typeof st !== "object") return d;
+  const out = {
+    enabled: st.enabled !== false,
+    global: { ...d.global, ...(st.global || {}) },
+    anims: d.anims
+  };
+  for (const { leaf } of ANIM_LEAVES)
+    if (st.anims && st.anims[leaf]) out.anims[leaf] = { ...d.anims[leaf], ...st.anims[leaf] };
+  return out;
+}
+
+/** Which preset the state matches exactly, or "" for custom. */
+export function animPresetMatch(state) {
+  for (const p of ANIM_PRESETS) {
+    const hit = ANIM_LEAVES.every(({ leaf }) => {
+      const a = state.anims[leaf], b = p.anims[leaf];
+      return a && a.on === b.on && a.ms === b.ms && a.curve === b.curve &&
+        (a.style || "") === (b.style || "") &&
+        ((a.style || "") !== "popin" || (a.pct ?? 88) === (b.pct ?? 88));
+    });
+    if (hit) return p.id;
+  }
+  return "";
+}
+
+export function animCurveLua(c) {
+  if (c.spring)
+    return `hl.curve("${c.id}", { type = "spring", mass = ${c.spring.mass}, stiffness = ${c.spring.stiffness}, dampening = ${c.spring.dampening} })`;
+  const p = c.pts;
+  return `hl.curve("${c.id}", { type = "bezier", points = { {${p[0][0]}, ${p[0][1]}}, {${p[1][0]}, ${p[1][1]}} } })`;
+}
+
+export const animStyleStr = (a) =>
+  !a.style ? "" : a.style === "popin" ? `popin ${Math.round(a.pct ?? 88)}%` : a.style;
+
+export function animLeafLua(leaf, a, mult) {
+  if (!a.on) return `hl.animation({ leaf = "${leaf}", enabled = false })`;
+  const sp = Math.max(0.1, a.ms / 100 / (mult > 0 ? mult : 1)).toFixed(2);
+  let s = `hl.animation({ leaf = "${leaf}", enabled = true, speed = ${sp}`;
+  s += isSpringCurve(a.curve) ? `, spring = "${a.curve}"` : `, bezier = "${a.curve}"`;
+  const st = animStyleStr(a);
+  if (st) s += `, style = "${st}"`;
+  return s + " })";
+}
+
+/** Every statement animations.lua carries — also the live-apply eval list. */
+export function animationsLuaLines(state, mult) {
+  const L = ANIM_CURVES.map(animCurveLua);
+  const on = !!state.enabled && mult > 0;
+  L.push(`hl.config({ animations = { enabled = ${boolLua(on)} } })`);
+  if (!on) return L;
+  L.push(animLeafLua("global", { on: true, ms: state.global.ms, curve: state.global.curve }, mult));
+  for (const { leaf } of ANIM_LEAVES) L.push(animLeafLua(leaf, state.anims[leaf], mult));
+  return L;
+}
+
+export function animationsLuaText(state, mult) {
+  return (
+    "-- AUTO-GENERATED by Settings → Animations (ewe-settings). Do not edit by hand.\n" +
+    "-- Sourced after user.lua, so these win over the fallback speed-multiplier block.\n" +
+    animationsLuaLines(state, mult).join("\n") + "\n"
+  );
 }
 
 export function transparencyLua(windowTransparency) {

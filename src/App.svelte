@@ -6,6 +6,7 @@
   } from "./lib/stores.js";
   import Toasts from "./lib/components/Toasts.svelte";
   import Appearance from "./lib/components/Appearance.svelte";
+  import Animations from "./lib/components/Animations.svelte";
   import Layout from "./lib/components/Layout.svelte";
   import Displays from "./lib/components/Displays.svelte";
   import WallpaperPane from "./lib/components/WallpaperPane.svelte";
@@ -29,6 +30,7 @@
   // so DE and app are one icon language (font in assets/, MIT).
   const panes = [
     ["appearance", "Appearance", 0xE6C8],
+    ["animations", "Animations", 0xE628],
     ["layout", "Layout & Dock", 0xE6D6],
     ["windowrules", "Window Rules", 0xE464],
     ["displays", "Displays", 0xE32E],
@@ -92,6 +94,8 @@
 
     {#if $pane === "appearance"}
       <Appearance />
+    {:else if $pane === "animations"}
+      <Animations />
     {:else if $pane === "layout"}
       <Layout />
     {:else if $pane === "windowrules"}

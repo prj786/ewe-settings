@@ -7,6 +7,7 @@ import { get, writable } from "svelte/store";
 import * as api from "./api.js";
 import { userLuaText, animLuaLines, transparencyLua, hex6 } from "./hypr.js";
 import { prefs, effectiveAccent, flashApplied, errorMsg } from "./stores.js";
+import { reapplyForSpeed } from "./animations.js";
 
 export const layout = writable({ gapsIn: 6, gapsOut: 14, borderSize: 1, rounding: 12 });
 
@@ -82,8 +83,11 @@ export async function applyGaps() {
 
 export async function setAnimationSpeed(m) {
   await setPrefs({ animationSpeed: Number(m) });
-  await evals(animLuaLines(Number(m)));
   await writeUserLua();
+  // Once the Animations pane owns generated/animations.lua the multiplier is
+  // baked into it, so a speed change regenerates + re-applies that file (it
+  // wins over user.lua). Only pane-less installs still eval the legacy block.
+  if (!(await reapplyForSpeed())) await evals(animLuaLines(Number(m)));
 }
 
 export async function setTransparency(on) {

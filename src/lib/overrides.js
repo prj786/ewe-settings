@@ -16,6 +16,12 @@ const firstInt = (block) => {
   return m ? parseInt(m[0]) : undefined;
 };
 
+/** True once the layout store reflects the real compositor state. Until then
+ *  it holds compiled-in defaults, and regenerating user.lua from those would
+ *  silently RESET the user's gaps/border/rounding — the classic "changed the
+ *  accent, next reload my gaps were gone" bug. */
+let layoutLoaded = false;
+
 /** Seed the layout store from the live compositor state. */
 export async function loadLayout() {
   try {
@@ -31,6 +37,7 @@ export async function loadLayout() {
       borderSize: bs ?? l.borderSize,
       rounding: rd ?? l.rounding
     }));
+    layoutLoaded = true;
   } catch (e) {
     console.error(e);
   }
@@ -52,8 +59,14 @@ function overridesInput() {
   };
 }
 
-/** Regenerate generated/user.lua from the current prefs + layout state. */
+/** Regenerate generated/user.lua from the current prefs + layout state.
+ *  ALWAYS seeds the layout store from the live compositor first if that has
+ *  not happened yet — every caller (accent, transparency, animation speed,
+ *  tiling) regenerates the WHOLE file, so stale defaults here would overwrite
+ *  gaps the user set in an earlier session. Mirrors Settings.qml's
+ *  sync-before-rewrite contract. */
 export async function writeUserLua() {
+  if (!layoutLoaded) await loadLayout();
   await api.writeConfig("hypr/generated/user.lua", userLuaText(overridesInput()));
 }
 

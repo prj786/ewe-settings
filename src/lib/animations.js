@@ -34,6 +34,9 @@ export async function applyAnim(next, msg = "Applied") {
     await api.writeConfig(JSON_PATH, JSON.stringify(next, null, 2) + "\n");
     await api.writeConfig(LUA_PATH, animationsLuaText(next, mult));
     await api.runEvals(animationsLuaLines(next, mult));
+    // the shell reads animations.json too (Theme.dur*/ease follow the pane) —
+    // ask it to re-read so both halves change feel in the same breath
+    await api.pokeShell();
     owned = true;
     flashApplied(msg);
   } catch (e) {

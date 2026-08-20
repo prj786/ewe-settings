@@ -122,23 +122,23 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
     Ok(cur)
 }
 
-/// The DE shell's qs pid (hypr-shell.service MainPID) — targeting it makes
-/// `qs ipc` unambiguous even when another qs instance exists (nested tests).
+/// The DE shell's qs pid — targeting it makes `qs ipc` unambiguous even when
+/// another qs instance exists (nested tests). The unit is `ewe.service` since
+/// the rename; `hypr-shell.service` is probed second for pre-rename installs.
 pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
-    let pid = Command::new("systemctl")
-        .args([
-            "--user",
-            "show",
-            "-p",
-            "MainPID",
-            "--value",
-            "hypr-shell.service",
-        ])
-        .output()
-        .await
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|p| !p.is_empty() && p != "0");
+    let mut pid: Option<String> = None;
+    for unit in ["ewe.service", "hypr-shell.service"] {
+        pid = Command::new("systemctl")
+            .args(["--user", "show", "-p", "MainPID", "--value", unit])
+            .output()
+            .await
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|p| !p.is_empty() && p != "0");
+        if pid.is_some() {
+            break;
+        }
+    }
     let mut cmd = Command::new("qs");
     cmd.arg("ipc");
     if let Some(p) = &pid {

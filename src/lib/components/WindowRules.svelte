@@ -44,8 +44,8 @@
 
   async function save() {
     try {
+      // RFC-001: routes through ewe-conf, which regenerates windowrules.lua
       await api.writeConfig("quickshell/window-rules.json", JSON.stringify({ rules }, null, 2));
-      await api.writeConfig("hypr/generated/windowrules.lua", windowRulesLuaText(rules));
       await api.reloadHyprland();
       flashApplied("Applied — takes effect when the app opens");
     } catch (e) {

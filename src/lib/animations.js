@@ -31,8 +31,9 @@ export async function applyAnim(next, msg = "Applied") {
   anim.set(next);
   const mult = Number(get(prefs).animationSpeed ?? 1);
   try {
+    // RFC-001: the JSON write routes through ewe-conf, which regenerates
+    // generated/animations.lua itself — one generator, no duplicate.
     await api.writeConfig(JSON_PATH, JSON.stringify(next, null, 2) + "\n");
-    await api.writeConfig(LUA_PATH, animationsLuaText(next, mult));
     await api.runEvals(animationsLuaLines(next, mult));
     // the shell reads animations.json too (Theme.dur*/ease follow the pane) —
     // ask it to re-read so both halves change feel in the same breath

@@ -60,9 +60,62 @@ fn conf_route(rel: &str) -> Option<(&'static str, Option<&'static str>)> {
     }
 }
 
+fn parse_wallpapers(text: &str) -> Value {
+    let mut outputs = serde_json::Map::new();
+    let mut w = serde_json::Map::new();
+    w.insert("mode".into(), "fill".into());
+    w.insert("mute".into(), Value::Bool(true));
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
+        match k {
+            "mode" => {
+                w.insert("mode".into(), v.into());
+            }
+            "mute" => {
+                w.insert("mute".into(), Value::Bool(v != "0" && v != "false"));
+            }
+            "backend" => {
+                w.insert("backend".into(), v.into());
+            }
+            "*" => {
+                w.insert("default".into(), v.into());
+            }
+            _ => {
+                outputs.insert(k.into(), v.into());
+            }
+        }
+    }
+    w.insert("outputs".into(), Value::Object(outputs));
+    Value::Object(w)
+}
+
 async fn write_via_ewe_conf(rel: &str, content: &str) -> Option<Result<(), String>> {
+    let bin_probe = ewe_conf_bin();
+    if rel == "hypr/generated/wallpapers.conf" {
+        let bin = bin_probe?;
+        let out = Command::new(bin)
+            .args(["set", "--no-hooks", "desktop.wallpapers"])
+            .arg(parse_wallpapers(content).to_string())
+            .stdin(Stdio::null())
+            .output()
+            .await;
+        return match out {
+            Ok(o) if o.status.success() => Some(Ok(())),
+            Ok(o) => Some(Err(format!(
+                "ewe-conf set desktop.wallpapers failed: {}",
+                String::from_utf8_lossy(&o.stderr)
+            ))),
+            Err(_) => None,
+        };
+    }
     let (key, pluck) = conf_route(rel)?;
-    let bin = ewe_conf_bin()?;
+    let bin = bin_probe?;
     let mut val: Value = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(e) => return Some(Err(format!("{rel}: not JSON: {e}"))),

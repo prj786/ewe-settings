@@ -106,16 +106,31 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
         }
     }
 
-    std::fs::create_dir_all(qs_dir()).map_err(estr)?;
-    let tmp = path.with_extension("json.tmp");
-    // trailing \n matches the shell's own writer, so alternating writers never
-    // churn the file by a single byte
-    let mut body = serde_json::to_vec_pretty(&cur).map_err(estr)?;
-    body.push(b'\n');
-    std::fs::write(&tmp, body).map_err(estr)?;
-    // rename is atomic on the same filesystem: the shell either sees the old
-    // file or the new one, never a half-written one.
-    std::fs::rename(&tmp, &path).map_err(estr)?;
+    // RFC-001: persist the merged object through ewe-conf (`absorb
+    // user-theme` owns the key mapping and regenerates user-theme.json).
+    // Fallback to the direct write only when ewe-conf is absent (pre-0.9 DE).
+    let absorbed = if let Some(bin) = crate::backend::ewe_conf_bin_pub() {
+        tokio::process::Command::new(bin)
+            .args(["absorb", "--no-hooks", "user-theme"])
+            .arg(cur.to_string())
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+    if !absorbed {
+        std::fs::create_dir_all(qs_dir()).map_err(estr)?;
+        let tmp = path.with_extension("json.tmp");
+        // trailing \n matches the shell's own writer, so alternating writers
+        // never churn the file by a single byte
+        let mut body = serde_json::to_vec_pretty(&cur).map_err(estr)?;
+        body.push(b'\n');
+        std::fs::write(&tmp, body).map_err(estr)?;
+        // rename is atomic: the shell either sees the old file or the new one.
+        std::fs::rename(&tmp, &path).map_err(estr)?;
+    }
 
     reload_shell().await?;
     poke_sync();

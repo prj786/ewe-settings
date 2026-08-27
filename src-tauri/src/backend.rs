@@ -23,6 +23,71 @@ fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into()))
 }
 
+// ── RFC-001: route state-file writes through ewe-conf ───────────────────────
+// The one file (~/.config/ewe/ewe.conf) has ONE writer, ewe-conf; this app
+// persists through it and the runtime JSONs the shell reads become build
+// artifacts. Unmatched paths (generated lua/conf, app caches) keep the direct
+// atomic write until RFC Phase 4 moves the generators too. When ewe-conf is
+// absent (a pre-0.9 DE) we fall back to the direct write, so this app keeps
+// working against older desktops.
+
+pub(crate) fn ewe_conf_bin_pub() -> Option<PathBuf> {
+    ewe_conf_bin()
+}
+
+fn ewe_conf_bin() -> Option<PathBuf> {
+    let farm = home().join(".config/quickshell/../../bin/ewe-conf");
+    if farm.exists() {
+        return Some(farm);
+    }
+    let usr = PathBuf::from("/usr/bin/ewe-conf");
+    if usr.exists() {
+        return Some(usr);
+    }
+    None
+}
+
+/// rel → (ewe.conf key, JSON pluck) for the state files ewe-conf owns.
+fn conf_route(rel: &str) -> Option<(&'static str, Option<&'static str>)> {
+    match rel {
+        "quickshell/pinned-apps.json" => Some(("apps.pinned", None)),
+        "quickshell/places.json" => Some(("apps.places", None)),
+        "quickshell/startup-apps.json" => Some(("apps.startup", Some("apps"))),
+        "quickshell/animations.json" => Some(("desktop.animations.detail", None)),
+        "quickshell/display-profiles.json" => Some(("desktop.displays", None)),
+        "quickshell/window-rules.json" => Some(("desktop.window_rules", Some("rules"))),
+        _ => None,
+    }
+}
+
+async fn write_via_ewe_conf(rel: &str, content: &str) -> Option<Result<(), String>> {
+    let (key, pluck) = conf_route(rel)?;
+    let bin = ewe_conf_bin()?;
+    let mut val: Value = match serde_json::from_str(content) {
+        Ok(v) => v,
+        Err(e) => return Some(Err(format!("{rel}: not JSON: {e}"))),
+    };
+    if let Some(field) = pluck {
+        val = val.get(field).cloned().unwrap_or(Value::Array(vec![]));
+    }
+    let out = Command::new(bin)
+        .args(["set", "--no-hooks", key])
+        .arg(val.to_string())
+        .stdin(Stdio::null())
+        .output()
+        .await;
+    match out {
+        Ok(o) if o.status.success() => Some(Ok(())),
+        Ok(o) => Some(Err(format!(
+            "ewe-conf set {key} failed: {}",
+            String::from_utf8_lossy(&o.stderr)
+        ))),
+        // exec failure (binary vanished between the check and the call):
+        // let the caller fall back to the direct write
+        Err(_) => None,
+    }
+}
+
 // ── config file access (allowlisted, atomic) ────────────────────────────────
 // Paths are relative to ~/.config. The allowlist is prefix+suffix based: the
 // generated dirs plus the shell's own JSON state. Nothing outside ever.
@@ -57,6 +122,12 @@ pub async fn read_config(rel: String) -> Result<String, String> {
 pub async fn write_config(rel: String, content: String) -> Result<(), String> {
     if !is_allowed_write(&rel) {
         return Err(format!("write not allowed: {rel}"));
+    }
+    // RFC-001: state files ewe-conf owns persist through it instead
+    if let Some(res) = write_via_ewe_conf(&rel, &content).await {
+        res?;
+        crate::shell::poke_sync();
+        return Ok(());
     }
     let path = config_path(&rel)?;
     if let Some(dir) = path.parent() {

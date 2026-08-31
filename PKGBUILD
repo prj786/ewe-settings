@@ -4,7 +4,7 @@
 # hard-won reasons — see the two notes below before changing anything here.
 
 pkgname=ewe-settings
-pkgver=0.9.5
+pkgver=0.9.6
 pkgrel=1
 pkgdesc="Settings for the ewe desktop"
 arch=('x86_64' 'aarch64')

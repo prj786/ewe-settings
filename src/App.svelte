@@ -20,6 +20,7 @@
   import SystemInfo from "./lib/components/SystemInfo.svelte";
   import Network from "./lib/components/Network.svelte";
   import UserPane from "./lib/components/UserPane.svelte";
+  import TimePlace from "./lib/components/TimePlace.svelte";
 
   // No window controls. Settings is part of ewe, and the shell's bar
   // already provides New / Float / Move / Close for every window.
@@ -42,6 +43,7 @@
     ["defaults", "Default Apps", 0xE5DA],
     ["startup", "Startup", 0xE3FE],
     ["shortcuts", "Shortcuts", 0xE1C4],
+    ["time", "Time & Place", 0xE28C],
     ["user", "User", 0xE4C2],
     ["system", "System", 0xE610]
   ];
@@ -118,6 +120,8 @@
       <Startup />
     {:else if $pane === "shortcuts"}
       <Shortcuts />
+    {:else if $pane === "time"}
+      <TimePlace />
     {:else if $pane === "user"}
       <UserPane />
     {:else}

@@ -309,6 +309,145 @@ pub async fn vrr_caps() -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Object(map))
 }
 
+/// The system xkb registry (/usr/share/X11/xkb/rules/base.lst): every layout
+/// and every variant xkeyboard-config ships — the same list other distros'
+/// settings UIs offer (~250 layouts, ~900 variants). Returned in the UI's
+/// {c, n} idiom; the curated KB_PRESETS array stays only as a fallback for
+/// the day the file is missing.
+#[tauri::command]
+pub async fn xkb_registry() -> Result<serde_json::Value, String> {
+    let text =
+        std::fs::read_to_string("/usr/share/X11/xkb/rules/base.lst").map_err(|e| e.to_string())?;
+    let mut layouts: Vec<(String, String, Vec<serde_json::Value>)> = Vec::new();
+    let mut index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut section = String::new();
+    for line in text.lines() {
+        let t = line.trim();
+        if let Some(s) = t.strip_prefix('!') {
+            section = s.trim().to_string();
+            continue;
+        }
+        if t.is_empty() {
+            continue;
+        }
+        match section.as_str() {
+            "layout" => {
+                if let Some((code, name)) = t.split_once(char::is_whitespace) {
+                    index.insert(code.to_string(), layouts.len());
+                    layouts.push((code.to_string(), name.trim().to_string(), Vec::new()));
+                }
+            }
+            "variant" => {
+                // "  intl            us: English (US, intl., with dead keys)"
+                if let Some((code, rest)) = t.split_once(char::is_whitespace) {
+                    if let Some((layout, desc)) = rest.trim().split_once(':') {
+                        if let Some(&i) = index.get(layout.trim()) {
+                            layouts[i].2.push(serde_json::json!({
+                                "c": code, "n": desc.trim()
+                            }));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let arr: Vec<serde_json::Value> = layouts
+        .into_iter()
+        .map(|(c, n, variants)| serde_json::json!({ "c": c, "n": n, "variants": variants }))
+        .collect();
+    Ok(serde_json::Value::Array(arr))
+}
+
+// ── Time & Place ────────────────────────────────────────────────────────────
+// The auto-timezone dispatcher (system/networkmanager/60-ewe-auto-timezone)
+// honours two root-owned flag files: /etc/ewe/manual-timezone ("a human chose
+// this zone, never touch it") and /etc/ewe/no-auto-timezone (kill switch).
+// This pane is the ONLY writer of the latch; zone/NTP changes go through
+// timedatectl, whose polkit policy prompts via the DE's own agent when needed.
+
+#[tauri::command]
+pub async fn time_info() -> Result<Value, String> {
+    let show = run_out("timedatectl", &["show"]).await?;
+    let mut tz = String::new();
+    let mut ntp = false;
+    let mut synced = false;
+    for line in show.lines() {
+        if let Some(v) = line.strip_prefix("Timezone=") {
+            tz = v.into();
+        } else if let Some(v) = line.strip_prefix("NTP=") {
+            ntp = v == "yes";
+        } else if let Some(v) = line.strip_prefix("NTPSynchronized=") {
+            synced = v == "yes";
+        }
+    }
+    Ok(json!({
+        "timezone": tz,
+        "ntp": ntp,
+        "ntpSynced": synced,
+        "auto": !std::path::Path::new("/etc/ewe/manual-timezone").exists(),
+        "killSwitch": std::path::Path::new("/etc/ewe/no-auto-timezone").exists(),
+    }))
+}
+
+#[tauri::command]
+pub async fn list_timezones() -> Result<Vec<String>, String> {
+    Ok(run_out("timedatectl", &["list-timezones"])
+        .await?
+        .lines()
+        .map(String::from)
+        .collect())
+}
+
+/// A manual pick sets the zone AND drops the latch, so auto-detect never
+/// fights the human's choice (the dispatcher checks the latch first).
+#[tauri::command]
+pub async fn set_timezone(tz: String) -> Result<(), String> {
+    let ok_charset = tz
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "/_+-".contains(c));
+    if !ok_charset || !std::path::Path::new(&format!("/usr/share/zoneinfo/{tz}")).exists() {
+        return Err(format!("unknown timezone: {tz}"));
+    }
+    run_out("timedatectl", &["set-timezone", &tz]).await?;
+    let _ = run_out(
+        "pkexec",
+        &[
+            "sh",
+            "-c",
+            "mkdir -p /etc/ewe && touch /etc/ewe/manual-timezone",
+        ],
+    )
+    .await;
+    Ok(())
+}
+
+/// Auto on: remove the latch, clear the flap-throttle stamp, and give the
+/// dispatcher an immediate shot instead of waiting for the next network
+/// event. Auto off: latch the current zone as the human's choice.
+#[tauri::command]
+pub async fn set_auto_timezone(on: bool) -> Result<(), String> {
+    let script = if on {
+        "rm -f /etc/ewe/manual-timezone /run/ewe-auto-timezone.stamp; \
+         [ -x /etc/NetworkManager/dispatcher.d/60-ewe-auto-timezone ] && \
+         exec /etc/NetworkManager/dispatcher.d/60-ewe-auto-timezone settings up || true"
+    } else {
+        "mkdir -p /etc/ewe && touch /etc/ewe/manual-timezone"
+    };
+    run_out("pkexec", &["sh", "-c", script]).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_ntp(on: bool) -> Result<(), String> {
+    run_out(
+        "timedatectl",
+        &["set-ntp", if on { "true" } else { "false" }],
+    )
+    .await?;
+    Ok(())
+}
+
 // ── named actions (fixed scripts, no free-form shell from the frontend) ─────
 
 async fn run_sh(script: &str) -> Result<String, String> {

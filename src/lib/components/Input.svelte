@@ -32,6 +32,9 @@
   let devTarget = ""; // "" = all pointing devices (global input{})
   let addQuery = "";
   let showAdd = false;
+  // full xkb registry from the system ([{c, n, variants: [{c, n}]}]);
+  // null until loaded — the curated KB_PRESETS/KB_VARIANTS fill in meanwhile
+  let registry = null;
 
   onMount(async () => {
     try {
@@ -56,6 +59,10 @@
       const j = JSON.parse((await api.readConfig("quickshell/input-devices.json")) || "{}");
       if (j && typeof j === "object") devOverrides = j;
     } catch {}
+    try {
+      const r = await api.xkbRegistry();
+      if (Array.isArray(r) && r.length) registry = r;
+    } catch {} // no registry file → curated fallback arrays
   });
 
   function writeInputFile() {
@@ -120,10 +127,18 @@
     l[i] = { code: l[i].code, variant: v };
     applyLayouts(l);
   };
-  const nameOf = (code) => KB_PRESETS.find((p) => p.c === code)?.n || code;
-  const variantOpts = (code) =>
-    (KB_VARIANTS[code] || [""]).map((v) => ({ label: v === "" ? "Default" : v, value: v }));
-  $: addCandidates = KB_PRESETS.filter(
+  $: presets = registry || KB_PRESETS;
+  $: nameOf = (code) => presets.find((p) => p.c === code)?.n || code;
+  $: variantOpts = (code) => {
+    const entry = registry && registry.find((p) => p.c === code);
+    if (entry)
+      return [
+        { label: "Default", value: "" },
+        ...entry.variants.map((v) => ({ label: v.n, value: v.c }))
+      ];
+    return (KB_VARIANTS[code] || [""]).map((v) => ({ label: v === "" ? "Default" : v, value: v }));
+  };
+  $: addCandidates = presets.filter(
     (p) =>
       !kbActive.some((l) => l.code === p.c) &&
       (addQuery.trim() === "" || p.n.toLowerCase().includes(addQuery.trim().toLowerCase()) || p.c.includes(addQuery.trim().toLowerCase()))

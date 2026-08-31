@@ -20,6 +20,12 @@ export const devices = async () => JSON.parse(await hyprctl(["devices", "-j"]));
 export const runEvals = (stmts) => invoke("run_evals", { stmts });
 export const dpmsOn = () => invoke("dpms_on");
 export const vrrCaps = () => invoke("vrr_caps");
+export const xkbRegistry = () => invoke("xkb_registry");
+export const timeInfo = () => invoke("time_info");
+export const listTimezones = () => invoke("list_timezones");
+export const setTimezone = (tz) => invoke("set_timezone", { tz });
+export const setAutoTimezone = (on) => invoke("set_auto_timezone", { on });
+export const setNtp = (on) => invoke("set_ntp", { on });
 export const reloadHyprland = () => invoke("hyprctl_reload");
 
 // wallpaper

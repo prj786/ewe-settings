@@ -9,7 +9,7 @@ import { animLuaLines, transparencyLua, hex6 } from "./hypr.js";
 import { prefs, effectiveAccent, flashApplied, errorMsg } from "./stores.js";
 import { reapplyForSpeed } from "./animations.js";
 
-export const layout = writable({ gapsIn: 6, gapsOut: 14, borderSize: 1, rounding: 12 });
+export const layout = writable({ gapsIn: 6, gapsOut: 14, borderSize: 1, rounding: 12, mode: "dwindle", columnWidth: 0.5 });
 
 const firstInt = (block) => {
   const m = String(block).match(/-?\d+/);
@@ -27,15 +27,20 @@ export async function loadLayout() {
   try {
     const text = await api.hyprctl([
       "--batch",
-      "getoption general:gaps_in; getoption general:gaps_out; getoption general:border_size; getoption decoration:rounding"
+      "getoption general:gaps_in; getoption general:gaps_out; getoption general:border_size; getoption decoration:rounding; getoption general:layout; getoption scrolling:column_width"
     ]);
     const blocks = text.split(/\n\s*\n/).filter((b) => b.trim() !== "");
-    const [gi, go, bs, rd] = blocks.map(firstInt);
+    const [gi, go, bs, rd] = blocks.slice(0, 4).map(firstInt);
+    // window layout: "str: dwindle" / "float: 0.500000" in getoption output
+    const modeM = String(blocks[4] || "").match(/str:\s*(\w+)/);
+    const cwM = String(blocks[5] || "").match(/float:\s*([0-9.]+)/);
     layout.update((l) => ({
       gapsIn: gi ?? l.gapsIn,
       gapsOut: go ?? l.gapsOut,
       borderSize: bs ?? l.borderSize,
-      rounding: rd ?? l.rounding
+      rounding: rd ?? l.rounding,
+      mode: modeM ? modeM[1] : l.mode,
+      columnWidth: cwM ? parseFloat(cwM[1]) : l.columnWidth
     }));
     layoutLoaded = true;
   } catch (e) {
@@ -68,8 +73,26 @@ export async function writeUserLua() {
   if (!layoutLoaded) await loadLayout();
   const l = get(layout);
   await api.setConf("desktop.layout", {
-    gaps_in: l.gapsIn, gaps_out: l.gapsOut, border_size: l.borderSize, rounding: l.rounding
+    gaps_in: l.gapsIn, gaps_out: l.gapsOut, border_size: l.borderSize, rounding: l.rounding,
+    mode: l.mode || "dwindle", column_width: l.columnWidth ?? 0.5
   });
+}
+
+/** Window layout (0.8): dwindle · master · scrolling (Hyprland's PaperWM-style
+ *  tape). Live-applied like the gaps, persisted through desktop.layout. */
+export async function setLayoutMode(mode) {
+  layout.update((l) => ({ ...l, mode }));
+  const l = get(layout);
+  const stmts = [`hl.config({ general = { layout = "${mode}" } })`];
+  if (mode === "scrolling")
+    stmts.push(`hl.config({ scrolling = { column_width = ${l.columnWidth ?? 0.5}, follow_focus = true, fullscreen_on_one_column = true } })`);
+  await evals(stmts);
+  await writeUserLua();
+}
+export async function setColumnWidth(v) {
+  layout.update((l) => ({ ...l, columnWidth: v }));
+  await evals([`hl.config({ scrolling = { column_width = ${v} } })`]);
+  await writeUserLua();
 }
 
 /** Persist a prefs patch (user-theme.json; the backend pokes the shell). */

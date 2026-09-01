@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { prefs } from "../stores.js";
-  import { layout, loadLayout, applyGaps, setTiling, setPrefs } from "../overrides.js";
+  import { layout, loadLayout, applyGaps, setTiling, setPrefs, setLayoutMode, setColumnWidth } from "../overrides.js";
   import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
@@ -12,6 +12,12 @@
     layout.update((l) => ({ ...l, ...patch }));
     applyGaps();
   }
+
+  const layoutModes = [
+    ["dwindle", "Dwindle", "Binary splits — each new window halves the focused one. The classic tiling feel."],
+    ["master", "Master", "One big window on the left, a stack on the right."],
+    ["scrolling", "Scrolling", "Windows sit on an endless horizontal tape, PaperWM-style; scroll with Super + Alt + [ / ]."]
+  ];
 
   const iconSizes = [
     ["small", "Small"],
@@ -32,6 +38,37 @@
         on={$prefs.tilingEnabled !== false}
         toggled={() => setTiling(!($prefs.tilingEnabled !== false))}
       />
+    </Card>
+  </section>
+
+  <section>
+    <div class="section-title">Window layout</div>
+    <Card>
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
+        <div>
+          <div class="text-sm font-medium">Tiling style</div>
+          <div class="text-xs text-zinc-400 dark:text-zinc-500">
+            {(layoutModes.find(([id]) => id === ($layout.mode || "dwindle")) || layoutModes[0])[2]}
+          </div>
+        </div>
+        <div class="flex gap-1.5">
+          {#each layoutModes as [id, label] (id)}
+            <button
+              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+                {($layout.mode || 'dwindle') === id
+                ? 'text-white'
+                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
+              style={($layout.mode || "dwindle") === id ? "background: var(--accent)" : ""}
+              on:click={() => setLayoutMode(id)}
+            >
+              {label}
+            </button>
+          {/each}
+        </div>
+      </div>
+      {#if $layout.mode === "scrolling"}
+        <SliderRow label="Column width" value={Math.round(($layout.columnWidth ?? 0.5) * 100)} from={20} to={100} unit=" %" moved={(v) => setColumnWidth(Math.round(v) / 100)} />
+      {/if}
     </Card>
   </section>
 

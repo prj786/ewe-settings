@@ -29,7 +29,8 @@
         "scope": [
           "$HOME/**",
           "$HOME/.face",
-          "$HOME/.cache/ewe-avatar.png"
+          "$HOME/.cache/ewe-avatar.png",
+          "/usr/share/ewe/**"
         ]
       }
     }

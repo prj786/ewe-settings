@@ -3,7 +3,7 @@
   import * as api from "../api.js";
   import {
     INPUT_DEFAULTS, INPUT_OPTIONS, parseInputBlocks, inputLua, deviceLua,
-    inputLuaText, kbActiveList, isTouchpadName, KB_PRESETS, KB_VARIANTS, GRP_OPTIONS
+    kbActiveList, isTouchpadName, KB_PRESETS, KB_VARIANTS, GRP_OPTIONS
   } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
   import Card from "./ui/Card.svelte";
@@ -65,8 +65,11 @@
     } catch {} // no registry file → curated fallback arrays
   });
 
+  // RFC-001 Phase 4 (0.6): input.lua + input-devices.json are ewe-conf build
+  // artifacts — one `set desktop.input` derives both; inputLua/deviceLua
+  // remain only for the live hyprctl eval.
   function writeInputFile() {
-    api.writeConfig("hypr/generated/input.lua", inputLuaText(inp, devOverrides)).catch((e) => errorMsg.set(String(e)));
+    api.setConf("desktop.input", { ...inp, devices: devOverrides }).catch((e) => errorMsg.set(String(e)));
   }
 
   async function applyInput(patch) {
@@ -90,7 +93,6 @@
       errorMsg.set(String(e));
     }
     writeInputFile();
-    api.writeConfig("quickshell/input-devices.json", JSON.stringify(devOverrides, null, 2)).catch(() => {});
   }
 
   // ── keyboard layouts (kb_layout/kb_variant are parallel lists) ────────────

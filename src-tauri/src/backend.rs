@@ -35,6 +35,38 @@ pub(crate) fn ewe_conf_bin_pub() -> Option<PathBuf> {
     ewe_conf_bin()
 }
 
+/// Direct `ewe-conf set` for the domains whose generators moved INTO
+/// ewe-conf (RFC-001 Phase 4 — desktop.input first): the pane sends its
+/// state object, ewe-conf derives every artifact. Key shape is validated
+/// so the frontend can't reach arbitrary keys by accident.
+#[tauri::command]
+pub async fn set_conf(key: String, value: Value) -> Result<(), String> {
+    if !key
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
+    {
+        return Err(format!("bad conf key: {key}"));
+    }
+    let Some(bin) = ewe_conf_bin() else {
+        return Err("ewe-conf not installed".into());
+    };
+    let out = Command::new(bin)
+        .args(["set", "--no-hooks", &key])
+        .arg(value.to_string())
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !out.status.success() {
+        return Err(format!(
+            "ewe-conf set {key} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        ));
+    }
+    crate::shell::poke_sync();
+    Ok(())
+}
+
 fn ewe_conf_bin() -> Option<PathBuf> {
     let farm = home().join(".config/quickshell/../../bin/ewe-conf");
     if farm.exists() {
@@ -541,7 +573,17 @@ const WP_EXTS: &[&str] = &[
 #[tauri::command]
 pub async fn default_wallpaper_dir() -> Result<String, String> {
     let h = home();
-    for d in [h.join("Pictures/Wallpapers"), h.join("Pictures"), h.clone()] {
+    // the shipped ewe set first (config-farm resolution finds the checkout's
+    // copy; /usr/share/ewe covers packaged installs), then the user's folders
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(farm) = std::fs::canonicalize(h.join(".config/quickshell")) {
+        if let Some(root) = farm.parent().and_then(|p| p.parent()) {
+            dirs.push(root.join("system/branding/wallpapers"));
+        }
+    }
+    dirs.push(PathBuf::from("/usr/share/ewe/system/branding/wallpapers"));
+    dirs.extend([h.join("Pictures/Wallpapers"), h.join("Pictures"), h.clone()]);
+    for d in dirs {
         if d.is_dir() {
             return Ok(d.to_string_lossy().to_string());
         }

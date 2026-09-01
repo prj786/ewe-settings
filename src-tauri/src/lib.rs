@@ -26,6 +26,7 @@ pub fn run() {
             shell::poke_shell,
             backend::read_config,
             backend::write_config,
+            backend::set_conf,
             backend::remove_config,
             backend::hyprctl_query,
             backend::run_evals,

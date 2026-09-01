@@ -480,6 +480,260 @@ pub async fn set_ntp(on: bool) -> Result<(), String> {
     Ok(())
 }
 
+// ── Language / locale ───────────────────────────────────────────────────────
+// The list source is glibc's /usr/share/i18n/SUPPORTED, UTF-8 entries only —
+// the same parse the ewe-os installer uses (installer/src-tauri/src/lib.rs
+// `locales`), so a machine offers the identical choices before and after
+// install. Which of them are actually generated comes from localectl; picking
+// an ungenerated one has to uncomment it in /etc/locale.gen and run
+// locale-gen, which is root work — one pkexec prompt for the whole thing.
+
+/// Only the locale shapes glibc itself accepts: "ll_CC.UTF-8", "C.UTF-8",
+/// "sr_RS.UTF-8@latin". Anything else never reaches the shell script below.
+fn valid_locale(l: &str) -> bool {
+    !l.is_empty()
+        && l.len() <= 64
+        && l.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.@-".contains(c))
+}
+
+/// SUPPORTED lines look like "en_US.UTF-8 UTF-8" (and a few "aa_ER UTF-8");
+/// the charset column is what decides, the first column is the LANG value.
+fn supported_locales() -> Vec<String> {
+    std::fs::read_to_string("/usr/share/i18n/SUPPORTED")
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let code = it.next()?;
+            let charset = it.next().unwrap_or("");
+            (charset == "UTF-8" || (charset.is_empty() && code.ends_with(".UTF-8")))
+                .then(|| code.to_string())
+        })
+        .filter(|c| valid_locale(c))
+        .collect()
+}
+
+/// Human label from the code: "ka_GE.UTF-8" → "Georgian (Georgia)". The maps
+/// cover what people actually pick; the rest fall back to the raw code, which
+/// is still searchable. Not a translation layer — English names on purpose,
+/// like the installer, so the list sorts and searches predictably.
+fn locale_label(code: &str) -> String {
+    if code == "C.UTF-8" || code == "C" || code == "POSIX" {
+        return "None (C / POSIX)".into();
+    }
+    // "sr_RS.UTF-8@latin" → modifier "latin", then charset off, then
+    // "sr_RS" → ("sr", "RS")
+    let (rest, modifier) = match code.split_once('@') {
+        Some((b, m)) => (b, Some(m)),
+        None => (code, None),
+    };
+    let base = rest.split('.').next().unwrap_or(rest);
+    let (lang, region) = match base.split_once('_') {
+        Some((l, r)) => (l, Some(r)),
+        None => (base, None),
+    };
+    let lang_name = LANG_NAMES
+        .iter()
+        .find(|(c, _)| *c == lang)
+        .map(|(_, n)| (*n).to_string())
+        .unwrap_or_else(|| lang.to_string());
+    let mut out = lang_name;
+    if let Some(r) = region {
+        let rn = REGION_NAMES
+            .iter()
+            .find(|(c, _)| *c == r)
+            .map(|(_, n)| *n)
+            .unwrap_or(r);
+        out.push_str(&format!(" ({rn})"));
+    }
+    if let Some(m) = modifier {
+        let mn = match m {
+            "latin" => "Latin script",
+            "cyrillic" => "Cyrillic script",
+            "devanagari" => "Devanagari script",
+            "euro" => "Euro",
+            "valencia" => "Valencian",
+            "abegede" => "Abegede",
+            "saaho" => "Saaho",
+            "iqtelif" => "İQTElif",
+            other => other,
+        };
+        out.push_str(&format!(", {mn}"));
+    }
+    out
+}
+
+const LANG_NAMES: &[(&str, &str)] = &[
+    ("aa", "Afar"), ("af", "Afrikaans"), ("am", "Amharic"), ("ar", "Arabic"),
+    ("as", "Assamese"), ("az", "Azerbaijani"), ("be", "Belarusian"), ("bg", "Bulgarian"),
+    ("bn", "Bengali"), ("br", "Breton"), ("bs", "Bosnian"), ("ca", "Catalan"),
+    ("cs", "Czech"), ("cy", "Welsh"), ("da", "Danish"), ("de", "German"),
+    ("el", "Greek"), ("en", "English"), ("eo", "Esperanto"), ("es", "Spanish"),
+    ("et", "Estonian"), ("eu", "Basque"), ("fa", "Persian"), ("fi", "Finnish"),
+    ("fil", "Filipino"), ("fo", "Faroese"), ("fr", "French"), ("fy", "Frisian"),
+    ("ga", "Irish"), ("gd", "Scottish Gaelic"), ("gl", "Galician"), ("gu", "Gujarati"),
+    ("he", "Hebrew"), ("hi", "Hindi"), ("hr", "Croatian"), ("hu", "Hungarian"),
+    ("hy", "Armenian"), ("id", "Indonesian"), ("is", "Icelandic"), ("it", "Italian"),
+    ("ja", "Japanese"), ("ka", "Georgian"), ("kk", "Kazakh"), ("km", "Khmer"),
+    ("kn", "Kannada"), ("ko", "Korean"), ("ku", "Kurdish"), ("ky", "Kyrgyz"),
+    ("lb", "Luxembourgish"), ("lo", "Lao"), ("lt", "Lithuanian"), ("lv", "Latvian"),
+    ("mg", "Malagasy"), ("mk", "Macedonian"), ("ml", "Malayalam"), ("mn", "Mongolian"),
+    ("mr", "Marathi"), ("ms", "Malay"), ("mt", "Maltese"), ("my", "Burmese"),
+    ("nb", "Norwegian Bokmål"), ("ne", "Nepali"), ("nl", "Dutch"), ("nn", "Norwegian Nynorsk"),
+    ("oc", "Occitan"), ("or", "Odia"), ("pa", "Punjabi"), ("pl", "Polish"),
+    ("ps", "Pashto"), ("pt", "Portuguese"), ("ro", "Romanian"), ("ru", "Russian"),
+    ("si", "Sinhala"), ("sk", "Slovak"), ("sl", "Slovenian"), ("sq", "Albanian"),
+    ("sr", "Serbian"), ("sv", "Swedish"), ("sw", "Swahili"), ("ta", "Tamil"),
+    ("te", "Telugu"), ("tg", "Tajik"), ("th", "Thai"), ("tk", "Turkmen"),
+    ("tl", "Tagalog"), ("tr", "Turkish"), ("tt", "Tatar"), ("ug", "Uyghur"),
+    ("uk", "Ukrainian"), ("ur", "Urdu"), ("uz", "Uzbek"), ("vi", "Vietnamese"),
+    ("wa", "Walloon"), ("yi", "Yiddish"), ("zh", "Chinese"), ("zu", "Zulu"),
+];
+
+const REGION_NAMES: &[(&str, &str)] = &[
+    ("AE", "United Arab Emirates"), ("AR", "Argentina"), ("AT", "Austria"), ("AU", "Australia"),
+    ("AZ", "Azerbaijan"), ("BA", "Bosnia and Herzegovina"), ("BD", "Bangladesh"), ("BE", "Belgium"),
+    ("BG", "Bulgaria"), ("BO", "Bolivia"), ("BR", "Brazil"), ("BY", "Belarus"),
+    ("CA", "Canada"), ("CH", "Switzerland"), ("CL", "Chile"), ("CN", "China"),
+    ("CO", "Colombia"), ("CR", "Costa Rica"), ("CU", "Cuba"), ("CY", "Cyprus"),
+    ("CZ", "Czechia"), ("DE", "Germany"), ("DK", "Denmark"), ("DO", "Dominican Republic"),
+    ("DZ", "Algeria"), ("EC", "Ecuador"), ("EE", "Estonia"), ("EG", "Egypt"),
+    ("ES", "Spain"), ("FI", "Finland"), ("FO", "Faroe Islands"), ("FR", "France"),
+    ("GB", "United Kingdom"), ("GE", "Georgia"), ("GR", "Greece"), ("GT", "Guatemala"),
+    ("HK", "Hong Kong"), ("HN", "Honduras"), ("HR", "Croatia"), ("HU", "Hungary"),
+    ("ID", "Indonesia"), ("IE", "Ireland"), ("IL", "Israel"), ("IN", "India"),
+    ("IQ", "Iraq"), ("IR", "Iran"), ("IS", "Iceland"), ("IT", "Italy"),
+    ("JO", "Jordan"), ("JP", "Japan"), ("KE", "Kenya"), ("KG", "Kyrgyzstan"),
+    ("KH", "Cambodia"), ("KR", "South Korea"), ("KW", "Kuwait"), ("KZ", "Kazakhstan"),
+    ("LA", "Laos"), ("LB", "Lebanon"), ("LK", "Sri Lanka"), ("LT", "Lithuania"),
+    ("LU", "Luxembourg"), ("LV", "Latvia"), ("LY", "Libya"), ("MA", "Morocco"),
+    ("ME", "Montenegro"), ("MG", "Madagascar"), ("MK", "North Macedonia"), ("MM", "Myanmar"),
+    ("MN", "Mongolia"), ("MT", "Malta"), ("MX", "Mexico"), ("MY", "Malaysia"),
+    ("NG", "Nigeria"), ("NI", "Nicaragua"), ("NL", "Netherlands"), ("NO", "Norway"),
+    ("NP", "Nepal"), ("NZ", "New Zealand"), ("OM", "Oman"), ("PA", "Panama"),
+    ("PE", "Peru"), ("PH", "Philippines"), ("PK", "Pakistan"), ("PL", "Poland"),
+    ("PR", "Puerto Rico"), ("PT", "Portugal"), ("PY", "Paraguay"), ("QA", "Qatar"),
+    ("RO", "Romania"), ("RS", "Serbia"), ("RU", "Russia"), ("SA", "Saudi Arabia"),
+    ("SE", "Sweden"), ("SG", "Singapore"), ("SI", "Slovenia"), ("SK", "Slovakia"),
+    ("SV", "El Salvador"), ("SY", "Syria"), ("TH", "Thailand"), ("TJ", "Tajikistan"),
+    ("TM", "Turkmenistan"), ("TN", "Tunisia"), ("TR", "Türkiye"), ("TW", "Taiwan"),
+    ("TZ", "Tanzania"), ("UA", "Ukraine"), ("UG", "Uganda"), ("US", "United States"),
+    ("UY", "Uruguay"), ("UZ", "Uzbekistan"), ("VE", "Venezuela"), ("VN", "Vietnam"),
+    ("YE", "Yemen"), ("ZA", "South Africa"), ("ZW", "Zimbabwe"),
+];
+
+/// Current LANG plus every choice. localectl is the authority (it is what
+/// `set-locale` writes through); /etc/locale.conf is the fallback for a
+/// session where localed is not reachable.
+#[tauri::command]
+pub async fn locale_info() -> Result<Value, String> {
+    let mut current = String::new();
+    for line in run_out("localectl", &["status"]).await.unwrap_or_default().lines() {
+        // "   System Locale: LANG=en_US.UTF-8" — later lines carry LC_* only
+        if let Some(v) = line.trim().strip_prefix("System Locale: LANG=") {
+            current = v.split_whitespace().next().unwrap_or("").to_string();
+        }
+    }
+    if current.is_empty() {
+        current = std::fs::read_to_string("/etc/locale.conf")
+            .unwrap_or_default()
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("LANG=").map(|v| v.trim_matches('"').to_string()))
+            .unwrap_or_default();
+    }
+    let generated: std::collections::HashSet<String> = run_out("localectl", &["list-locales"])
+        .await
+        .unwrap_or_default()
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let mut choices: Vec<Value> = supported_locales()
+        .into_iter()
+        .map(|c| {
+            json!({
+                "code": c,
+                "label": locale_label(&c),
+                "generated": generated.contains(&c),
+            })
+        })
+        .collect();
+    // Generated (ready-to-use) locales first, then alphabetical by label —
+    // the ones you can switch to without a locale-gen wait float to the top.
+    choices.sort_by(|a, b| {
+        let ga = a["generated"].as_bool().unwrap_or(false);
+        let gb = b["generated"].as_bool().unwrap_or(false);
+        gb.cmp(&ga).then_with(|| {
+            a["label"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["label"].as_str().unwrap_or(""))
+        })
+    });
+    Ok(json!({
+        "current": current,
+        "currentLabel": locale_label(&current),
+        "generated": generated.contains(&current),
+        "choices": choices,
+    }))
+}
+
+/// One pkexec prompt does everything: uncomment (or append) the entry in
+/// /etc/locale.gen, generate it if it is not already, then set LANG through
+/// localectl (which as root needs no second polkit round-trip). An already
+/// generated locale skips locale-gen — it takes seconds per entry and there
+/// is nothing to build. The locale must come from SUPPORTED: the charset
+/// check above is what keeps the string shell-safe inside the script.
+#[tauri::command]
+pub async fn set_locale(locale: String) -> Result<(), String> {
+    let l = locale.trim().to_string();
+    if !valid_locale(&l) || !supported_locales().contains(&l) {
+        return Err(format!("unknown locale: {l}"));
+    }
+    let generated = run_out("localectl", &["list-locales"])
+        .await
+        .unwrap_or_default()
+        .lines()
+        .any(|x| x.trim() == l);
+    let gen_part = if generated {
+        String::new()
+    } else {
+        // "en_US.UTF-8 UTF-8" is the locale.gen row shape; a locale missing
+        // from the file entirely (a trimmed template) gets appended.
+        format!(
+            "if grep -q '^{l} ' /etc/locale.gen; then :; \
+             elif grep -q '^#{l} ' /etc/locale.gen; then sed -i 's|^#{l} |{l} |' /etc/locale.gen; \
+             else printf '%s UTF-8\\n' '{l}' >> /etc/locale.gen; fi && \
+             locale-gen >/dev/null && "
+        )
+    };
+    let script = format!(
+        "{gen_part}( localectl set-locale LANG='{l}' || printf 'LANG=%s\\n' '{l}' > /etc/locale.conf )"
+    );
+    // Unlike the latch writes above, a cancelled or refused prompt has to
+    // surface here — otherwise the pane would report a language it never set.
+    let out = Command::new("pkexec")
+        .args(["sh", "-c", &script])
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let line = err
+            .lines()
+            .rev()
+            .find(|x| !x.trim().is_empty())
+            .unwrap_or("not authorised")
+            .trim();
+        return Err(format!("could not set locale: {line}"));
+    }
+    Ok(())
+}
+
 // ── named actions (fixed scripts, no free-form shell from the frontend) ─────
 
 async fn run_sh(script: &str) -> Result<String, String> {

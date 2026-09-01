@@ -39,6 +39,8 @@ pub fn run() {
             backend::set_timezone,
             backend::set_auto_timezone,
             backend::set_ntp,
+            backend::locale_info,
+            backend::set_locale,
             backend::wallpaper_backend,
             backend::wallpaper_reapply,
             backend::restart_hypridle,

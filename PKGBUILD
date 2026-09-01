@@ -22,7 +22,7 @@ conflicts=('hypr-shell-settings')
 replaces=('hypr-shell-settings')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('feb83e3148eb118f1ec8cc2fe8ba56f76d1f8258bcb828a0c4674332fdd069db')
+sha256sums=('f23cf9d995a15134805a8b9e57255cc901184196d59feb1c5e2a483835b26bcd')
 
 # Arch enables LTO in makepkg.conf, which injects -flto into CFLAGS/LDFLAGS.
 # Any crate shipping hand-written assembly (ring, via rustls) fails to link with

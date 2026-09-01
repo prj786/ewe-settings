@@ -120,6 +120,18 @@
       </div>
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
+          <div class="text-sm font-medium">Event sounds</div>
+          <div class="text-xs text-zinc-400 dark:text-zinc-500">Chimes for notifications, volume, screenshots and power events.</div>
+        </div>
+        <Checkbox
+          checked={$prefs.eventSounds !== false}
+          disabled={busy}
+          aria-label="Event sounds"
+          onCheckedChange={(v) => run(() => setPrefs({ eventSounds: v }))}
+        />
+      </div>
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <div>
           <div class="text-sm font-medium">Animations</div>
           <div class="text-xs text-zinc-400 dark:text-zinc-500">Speed, presets, curves and styles moved to their own page.</div>
         </div>

@@ -5,7 +5,7 @@
 
 import { get, writable } from "svelte/store";
 import * as api from "./api.js";
-import { userLuaText, animLuaLines, transparencyLua, hex6 } from "./hypr.js";
+import { animLuaLines, transparencyLua, hex6 } from "./hypr.js";
 import { prefs, effectiveAccent, flashApplied, errorMsg } from "./stores.js";
 import { reapplyForSpeed } from "./animations.js";
 
@@ -59,15 +59,17 @@ function overridesInput() {
   };
 }
 
-/** Regenerate generated/user.lua from the current prefs + layout state.
- *  ALWAYS seeds the layout store from the live compositor first if that has
- *  not happened yet — every caller (accent, transparency, animation speed,
- *  tiling) regenerates the WHOLE file, so stale defaults here would overwrite
- *  gaps the user set in an earlier session. Mirrors Settings.qml's
- *  sync-before-rewrite contract. */
+/** RFC-001 Phase 4 (0.6): user.lua is an ewe-conf build artifact — this
+ *  sends only the four layout numbers; tint/accent/transparency/speed/tiling
+ *  flow in from their own conf domains (setPrefs lands them first). Still
+ *  seeds the layout store from the live compositor before the first write,
+ *  so stale compiled-in defaults never overwrite the user's gaps. */
 export async function writeUserLua() {
   if (!layoutLoaded) await loadLayout();
-  await api.writeConfig("hypr/generated/user.lua", userLuaText(overridesInput()));
+  const l = get(layout);
+  await api.setConf("desktop.layout", {
+    gaps_in: l.gapsIn, gaps_out: l.gapsOut, border_size: l.borderSize, rounding: l.rounding
+  });
 }
 
 /** Persist a prefs patch (user-theme.json; the backend pokes the shell). */

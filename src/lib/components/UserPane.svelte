@@ -1,4 +1,12 @@
 <script>
+  // User — who you are on this machine, and your account in the cloud.
+  //
+  // RFC-005: the account is a Nextcloud account (the shell's Cloud singleton,
+  // IPC target "cloud"): identity, the sync of the one file, restore. Mail is
+  // any IMAP inbox (ewe-mail) or Gmail. Google is an OPTIONAL extra for mail
+  // and the Drive folder and only with the user's own client file — this app
+  // never touches a token; every verb goes through the shell over IPC.
+  // RFC-006: the account card becomes a launcher for Flock later; keep it flat.
   import { onMount, onDestroy } from "svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { convertFileSrc } from "@tauri-apps/api/core";
@@ -9,18 +17,44 @@
   import KV from "./ui/KV.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
+  import KeyringNotes from "./KeyringNotes.svelte";
 
   let info = null;
-  let google = null; // parsed `qs ipc call google status` (null = shell absent)
+  let cloud = null; // `qs ipc call cloud status` (null = shell absent)
+  let google = null; // `qs ipc call google status`
+  let mail = null; // `qs ipc call mail status`
+  let gclient = null; // google_client_info
   let faceVersion = 0;
   let nameEdit = "";
   let editingName = false;
-  let gBusy = false;
+  let busy = false; // an IPC verb is in flight
   let timer;
   let online = true; // NetworkManager connectivity == full
+  let server = ""; // the Nextcloud server field
+  let avatarVersion = 0;
+
+  // mail form
+  let mailOpen = false;
+  let mHost = "";
+  let mPort = 993;
+  let mUser = "";
+  let mPass = "";
+  let mStarttls = false;
+  let mBusy = false;
+  let mError = "";
 
   const home = () => info?.user ? `/home/${info.user}` : "";
   $: faceUrl = info?.hasFace ? convertFileSrc(`${home()}/.face`) + `?v=${faceVersion}` : "";
+  $: cloudAvatar = cloud?.avatarPath ? convertFileSrc(cloud.avatarPath) + `?v=${avatarVersion}` : "";
+
+  async function ipcStatus(target) {
+    try {
+      const raw = (await api.qsIpc(target, "status")).trim();
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null; // shell not running
+    }
+  }
 
   async function refresh() {
     try {
@@ -28,11 +62,16 @@
     } catch (e) {
       errorMsg.set(String(e));
     }
+    const wasSigned = cloud?.signedIn;
+    cloud = await ipcStatus("cloud");
+    google = await ipcStatus("google");
+    mail = await ipcStatus("mail");
+    if (cloud && !server) server = cloud.lastServer || "";
+    if (cloud?.signedIn && !wasSigned) avatarVersion++;
     try {
-      const raw = (await api.qsIpc("google", "status")).trim();
-      google = raw ? JSON.parse(raw) : null;
+      gclient = await api.googleClientInfo();
     } catch {
-      google = null; // shell not running — the account card says so
+      gclient = null;
     }
     try {
       online = (await api.netConnectivity()) === "full";
@@ -42,11 +81,19 @@
   }
   onMount(() => {
     refresh();
+    let n = 0;
     timer = setInterval(async () => {
-      // keep the Google card live while signing in / syncing, and keep the
-      // offline gate honest while signed out (Wi-Fi joined from the Network
-      // pane must re-enable Sign in without a reopen)
-      if (google && (google.busy || google.syncState === "syncing" || !google.signedIn)) await refresh();
+      n++;
+      // live while anything is in flight or signed out (Wi-Fi joined from the
+      // Network pane must re-enable Sign in without a reopen); every 15 s otherwise
+      const live =
+        !cloud ||
+        cloud.busy ||
+        cloud.syncState === "syncing" ||
+        cloud.pendingRestore ||
+        !cloud.signedIn ||
+        (google && google.busy);
+      if (live || n % 7 === 0) await refresh();
     }, 2000);
   });
   onDestroy(() => clearInterval(timer));
@@ -84,12 +131,20 @@
     }
   }
 
-  async function useGooglePhoto() {
-    if (!google?.profile?.picture) return;
-    let url = String(google.profile.picture);
-    url = /=s\d+(-c)?$/.test(url) ? url.replace(/=s\d+(-c)?$/, "=s512-c") : url;
+  /** The account's avatar (already cached by ewe-cloud) as ~/.face. */
+  async function useCloudPhoto() {
+    if (!cloud?.avatarPath) return;
     try {
-      const warn = await api.avatarFromUrl(url);
+      const img = new Image();
+      img.src = cloudAvatar;
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error("could not read the account avatar"));
+      });
+      const c = document.createElement("canvas");
+      c.width = c.height = 512;
+      c.getContext("2d").drawImage(img, 0, 0, 512, 512);
+      const warn = await api.saveAvatar(c.toDataURL("image/png").split(",")[1]);
       if (warn) errorMsg.set(warn);
       else flashApplied("Avatar updated");
       faceVersion++;
@@ -111,15 +166,76 @@
     }
   }
 
-  async function g(verb, arg) {
-    gBusy = true;
+  /** One shell verb; the pane re-reads status shortly after. */
+  async function call(target, verb, arg) {
+    busy = true;
     try {
-      await api.qsIpc("google", verb, arg);
+      await api.qsIpc(target, verb, arg);
       setTimeout(refresh, 800);
     } catch (e) {
       errorMsg.set(String(e));
     }
-    gBusy = false;
+    busy = false;
+  }
+  const c = (verb, arg) => call("cloud", verb, arg);
+  const g = (verb, arg) => call("google", verb, arg);
+
+  function signInCloud() {
+    let s = server.trim();
+    if (!s) return;
+    if (!/^https?:\/\//.test(s)) s = "https://" + s;
+    s = s.replace(/\/+$/, "");
+    if (!/^https:\/\/[A-Za-z0-9.\-_~%:/]+$/.test(s)) {
+      errorMsg.set("The server must be an https:// address.");
+      return;
+    }
+    server = s;
+    c("signIn", s);
+  }
+
+  async function addMail() {
+    mError = "";
+    if (!mHost.trim() || !mUser.trim() || !mPass) {
+      mError = "Server, user and password are all needed.";
+      return;
+    }
+    mBusy = true;
+    try {
+      const r = await api.mailLogin(mHost.trim(), Number(mPort) || 993, mUser.trim(), mPass, mStarttls);
+      if (r?.ok) {
+        mPass = "";
+        mailOpen = false;
+        flashApplied("Mail account added");
+        try {
+          await api.qsIpc("mail", "refresh");
+        } catch {
+          /* shell absent: the badge picks it up at the next login */
+        }
+        setTimeout(refresh, 800);
+      } else {
+        mError = r?.message || r?.error || "Could not sign in to the mail server.";
+      }
+    } catch (e) {
+      mError = String(e);
+    }
+    mBusy = false;
+  }
+
+  async function removeMail() {
+    mBusy = true;
+    try {
+      const r = await api.mailLogout();
+      if (r && r.ok === false) errorMsg.set(r.message || r.error);
+      try {
+        await api.qsIpc("mail", "refresh");
+      } catch {
+        /* shell absent */
+      }
+      setTimeout(refresh, 800);
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+    mBusy = false;
   }
 
   const shapes = [
@@ -135,19 +251,26 @@
       return iso;
     }
   };
+  const fmtBytes = (n) => {
+    n = Number(n) || 0;
+    const u = ["B", "KB", "MB", "GB", "TB"];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) {
+      n /= 1024;
+      i++;
+    }
+    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
+  };
 
-  // ── keyring states (mirrors the shell's Welcome / account card) ──────────
-  // The refresh token lives ONLY in the login keyring. PAM creates it with the
-  // login password at the greeter; a keyring made with any other password
-  // (typed into a prompt that was hidden behind the first-run overlay) rejects
-  // the login password forever — the one repair is a fresh one at next login.
-  $: keyringState = google?.keyringState || (google && google.keyringOk === false ? "unavailable" : "ok");
-  $: keyringTrouble = keyringState === "locked" || String(google?.errorCode || "").indexOf("keyring-") === 0;
-  $: keyringResetDone = !!google?.keyringResetDone;
-  $: backupBy = google?.remoteMachine || google?.cloudInfo?.device || "";
-  $: backupAt = google?.remoteModified || google?.cloudInfo?.updatedAt || "";
-  $: localSyncedAt = google?.localSyncedAt || google?.lastSync || "";
-  $: neverSynced = !google?.lastSync;
+  // ── derived ────────────────────────────────────────────────────────────────
+  $: cKeyring = cloud?.keyringState || (cloud && cloud.keyringOk === false ? "unavailable" : "ok");
+  $: cTrouble = !!cloud?.keyringTrouble || cKeyring === "locked";
+  $: neverSynced = !cloud?.lastSync;
+  $: quotaPct = cloud?.quota?.total > 0 ? Math.min(100, Math.round((cloud.quota.used / cloud.quota.total) * 100)) : null;
+  $: gKeyring = google?.keyringState || (google && google.keyringOk === false ? "unavailable" : "ok");
+  $: gTrouble = !!google?.keyringTrouble || gKeyring === "locked";
+  $: clientPath = gclient?.path || google?.clientPath || "~/.config/ewe/oauth-client.json";
+  $: mailSource = mail?.source || (mail?.imapConfigured ? "imap" : google?.signedIn ? "gmail" : "");
 </script>
 
 <div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
@@ -183,8 +306,8 @@
       </div>
       <div class="flex flex-col gap-1.5">
         <button class="btn-ghost !py-1 text-xs" on:click={pickAvatar}>Change avatar…</button>
-        {#if google?.signedIn && google?.profile?.picture}
-          <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={useGooglePhoto}>Use Google photo</button>
+        {#if cloud?.signedIn && cloud?.avatarPath}
+          <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={useCloudPhoto}>Use account photo</button>
         {/if}
       </div>
     </div>
@@ -198,81 +321,282 @@
     {#if info?.uptime}<KV k="Session" v={info.uptime} />{/if}
   </Card>
 
+  <!-- ── Your account · Nextcloud ─────────────────────────────────────────── -->
   <section>
-    <div class="section-title">Google account</div>
+    <div class="section-title">Your account · Nextcloud</div>
     <Card>
-      {#if google === null}
+      {#if cloud === null}
         <div class="px-4 py-3 text-sm text-zinc-400">
-          The shell is not running — the Google account is managed through it.
+          The shell is not running — your account is managed through it.
         </div>
-      {:else if !google.configured}
+      {:else if !cloud.signedIn}
+        <div class="px-4 py-3">
+          <div class="text-sm font-medium">Sign in to your Nextcloud</div>
+          <div class="text-xs text-zinc-400">
+            {cloud.busy === "signin"
+              ? "Waiting for the browser — sign in on your server's page and allow “ewe”."
+              : !online
+                ? "You are offline — sign-in needs a connection. Join a network in Network first."
+                : "Settings sync, your files as a folder, your calendar. Your own server, or a hosted account."}
+          </div>
+          <form class="mt-3 flex gap-2" on:submit|preventDefault={signInCloud}>
+            <input class="input flex-1" placeholder="https://cloud.example.org" bind:value={server}
+              disabled={busy || cloud.busy === "signin"} />
+            {#if cloud.busy === "signin"}
+              <button type="button" class="btn-ghost !py-1.5 text-xs" disabled={busy} on:click={() => c("cancelSignIn")}>Cancel</button>
+            {:else}
+              <button type="submit" class="btn-primary !py-1.5 text-xs"
+                disabled={busy || !online || !server.trim() || cKeyring === "unavailable"}>
+                Sign in
+              </button>
+            {/if}
+          </form>
+        </div>
+        {#if cloud.reason === "revoked"}
+          <div class="px-4 py-2.5 text-xs text-amber-500">
+            The server no longer accepts this machine's app password (it was revoked in Security → Devices). Sign in again.
+          </div>
+        {/if}
+        {#if google?.legacyGoogleSync}
+          <div class="px-4 py-2.5 text-xs text-zinc-400">
+            Settings sync now uses a Nextcloud account — sign in to keep your backups going. Your
+            previous Google backup stays untouched on Drive.
+          </div>
+        {/if}
+        <KeyringNotes state={cKeyring} trouble={cTrouble} resetDone={!!cloud.keyringResetDone}
+          busy={cloud.busy === "signin"} {online} disabled={busy}
+          onReset={() => c("keyringReset")} onLogOut={() => c("logOut")} />
+        {#if cloud.error}
+          <div class="px-4 py-2.5 text-xs text-amber-500">{cloud.error}</div>
+        {/if}
+        {#if cloud.loginUrl && cloud.busy === "signin"}
+          <div class="flex items-center gap-4 px-4 py-2.5 text-xs">
+            <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => c("openLoginUrl")}>Open the sign-in page</button>
+            <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => c("copyLoginUrl")}>Copy the link</button>
+          </div>
+        {/if}
+      {:else}
+        <div class="flex items-center gap-3 px-4 py-3">
+          {#if cloudAvatar}
+            <img src={cloudAvatar} alt="" class="h-10 w-10 rounded-full object-cover" />
+          {:else}
+            <div class="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-white" style="background: var(--accent)">
+              {(cloud.displayName || cloud.user || "?").slice(0, 1).toUpperCase()}
+            </div>
+          {/if}
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium">{cloud.displayName || cloud.user}</div>
+            <div class="truncate text-xs text-zinc-400">
+              {cloud.email ? `${cloud.email} · ` : ""}{cloud.serverHost || cloud.server}
+              {#if cloud.offline}<span class="text-amber-500"> · offline</span>{/if}
+            </div>
+          </div>
+          <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => c("signOut")}>Sign out</button>
+        </div>
+        {#if cloud.quota && cloud.quota.total > 0}
+          <div class="px-4 py-2.5">
+            <div class="flex items-baseline justify-between text-xs">
+              <span class="text-zinc-400">Storage</span>
+              <span>{fmtBytes(cloud.quota.used)} of {fmtBytes(cloud.quota.total)}</span>
+            </div>
+            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+              <div class="h-full rounded-full" style="width: {quotaPct}%; background: var(--accent)"></div>
+            </div>
+          </div>
+        {:else if cloud.quota}
+          <KV k="Storage" v={`${fmtBytes(cloud.quota.used)} used`} />
+        {/if}
+        <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"} (mounted)` : cloud.filesPath ? `${cloud.filesPath} (not mounted)` : "—"} />
+        <KV k="Calendar" v={cloud.calState === "ok" ? `${cloud.eventCount} upcoming event${cloud.eventCount === 1 ? "" : "s"}` : cloud.calState || "—"} />
+        <KeyringNotes state={cKeyring} trouble={cTrouble} resetDone={!!cloud.keyringResetDone}
+          busy={false} {online} disabled={busy}
+          onReset={() => c("keyringReset")} onLogOut={() => c("logOut")} />
+        {#if cloud.error}
+          <div class="px-4 py-2.5 text-xs text-amber-500">{cloud.error}</div>
+        {/if}
+      {/if}
+    </Card>
+  </section>
+
+  <!-- ── Settings sync ────────────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Settings sync</div>
+    <Card>
+      {#if !cloud?.signedIn}
         <div class="px-4 py-3 text-sm text-zinc-400">
-          Not configured — add a client ID to google-oauth.json (see the ewe README).
+          Sign in to your Nextcloud to keep this machine's settings, app list and looks in your account —
+          and to bring them back on the next one.
+        </div>
+      {:else}
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <div class="text-sm font-medium">The one file</div>
+            <div class="text-xs text-zinc-400">
+              {cloud.syncState === "syncing"
+                ? "Syncing…"
+                : cloud.syncConflict
+                  ? `Another machine${cloud.remoteMachine ? ` (“${cloud.remoteMachine}”)` : ""} saved newer settings — restore it first, or push anyway.`
+                  : cloud.syncError
+                    ? cloud.syncError
+                    : neverSynced
+                      ? "Nothing is uploaded until you back this machine up."
+                      : cloud.inSync
+                        ? "Up to date."
+                        : "Changes since the last sync."}
+            </div>
+          </div>
+          <div class="flex shrink-0 gap-2">
+            {#if cloud.syncConflict}
+              <button class="btn-ghost !py-1 text-xs" disabled={busy || cloud.syncState === "syncing"} on:click={() => c("pushForce")}>
+                Push anyway
+              </button>
+            {/if}
+            <button class="btn-primary !py-1 text-xs" disabled={busy || cloud.syncState === "syncing" || cloud.offline}
+              on:click={() => c(neverSynced ? "backUpNow" : "syncNow")}>
+              {neverSynced ? "Back up this machine" : "Sync now"}
+            </button>
+          </div>
+        </div>
+        <KV k="Backup in your account"
+          v={cloud.remoteMachine || cloud.remoteModified ? `saved by “${cloud.remoteMachine || "another machine"}” · ${fmtSync(cloud.remoteModified)}` : "none yet"} />
+        <KV k="This machine last synced"
+          v={cloud.localSyncedAt ? fmtSync(cloud.localSyncedAt) + (cloud.inSync ? " · up to date" : "") : "never — nothing is uploaded until you back it up"} />
+        <ToggleRow
+          title="Auto-sync"
+          sub="Push the one file to your account shortly after it changes — Settings, Komble, anything."
+          on={!!cloud.autoSync}
+          toggled={() => c("setAutoSync", cloud.autoSync ? "false" : "true")}
+        />
+        {#if cloud.pendingRestore}
+          <div class="px-4 py-3">
+            <div class="text-sm font-medium">Restore this backup?</div>
+            <div class="mt-1 text-xs text-zinc-400">
+              {cloud.restoreSummary || "Your desktop, looks, app list and places from the backup replace this machine's."}
+              This machine's current file is kept as a .bak next to it.
+            </div>
+            <div class="mt-3 flex gap-2">
+              <button class="btn-primary !py-1 text-xs" disabled={busy} on:click={() => c("applyRestore")}>Restore</button>
+              <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => c("cancelRestore")}>Cancel</button>
+            </div>
+          </div>
+        {:else if cloud.remoteMachine || cloud.remoteModified}
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div class="text-xs text-zinc-400">
+              Bring the backup{cloud.remoteMachine ? ` from “${cloud.remoteMachine}”` : ""} onto this machine. Apps
+              it lists appear in Komble → For you.
+            </div>
+            <button class="btn-ghost !py-1 text-xs" disabled={busy || cloud.syncState === "syncing" || cloud.offline}
+              on:click={() => c("requestRestore")}>Restore…</button>
+          </div>
+        {/if}
+      {/if}
+    </Card>
+  </section>
+
+  <!-- ── Mail ─────────────────────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Mail</div>
+    <Card>
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <div class="min-w-0">
+          <div class="text-sm font-medium">
+            {mailSource === "imap"
+              ? mail?.imapUser || "IMAP account"
+              : mailSource === "gmail"
+                ? "Gmail"
+                : "No mail account"}
+          </div>
+          <div class="truncate text-xs text-zinc-400">
+            {mailSource === "imap"
+              ? `${mail?.imapHost || ""}${mail?.state === "auth" ? " · the server rejected the password" : mail?.state === "offline" ? " · offline" : mail?.unread ? ` · ${mail.unread} unread` : ""}`
+              : mailSource === "gmail"
+                ? "Through your Google client · unread badge in the Control Center"
+                : "The inbox your provider gives you with the Nextcloud account, or any IMAP server."}
+          </div>
+        </div>
+        <div class="flex shrink-0 gap-2">
+          {#if mailSource === "imap"}
+            <button class="btn-ghost !py-1 text-xs" disabled={mBusy} on:click={removeMail}>Remove</button>
+          {/if}
+          <button class="btn-ghost !py-1 text-xs" disabled={mBusy} on:click={() => (mailOpen = !mailOpen)}>
+            {mailOpen ? "Close" : mailSource === "imap" ? "Change…" : "Add mail account…"}
+          </button>
+        </div>
+      </div>
+      {#if mail?.error && mailSource === "imap"}
+        <div class="px-4 py-2 text-xs text-amber-500">{mail.error}</div>
+      {/if}
+      {#if mailOpen}
+        <form class="space-y-2 px-4 py-3" on:submit|preventDefault={addMail}>
+          <div class="grid grid-cols-3 gap-2">
+            <input class="input col-span-2" placeholder="imap.example.org" bind:value={mHost} disabled={mBusy} />
+            <input class="input" type="number" min="1" max="65535" placeholder="993" bind:value={mPort} disabled={mBusy} />
+          </div>
+          <input class="input w-full" placeholder="you@example.org" bind:value={mUser} disabled={mBusy} autocomplete="username" />
+          <input class="input w-full" type="password" placeholder="Password" bind:value={mPass} disabled={mBusy} autocomplete="current-password" />
+          <label class="flex items-center gap-2 text-xs text-zinc-400">
+            <input type="checkbox" bind:checked={mStarttls} disabled={mBusy} />
+            STARTTLS (port 143 servers) instead of TLS
+          </label>
+          {#if mError}<div class="text-xs text-amber-500">{mError}</div>{/if}
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs text-zinc-400">The password goes into the system keyring; only the server and user are recorded in ewe.conf.</div>
+            <button type="submit" class="btn-primary !py-1 text-xs" disabled={mBusy}>{mBusy ? "Signing in…" : "Sign in"}</button>
+          </div>
+        </form>
+      {/if}
+      {#if mail && mailSource}
+        <ToggleRow
+          title="Notifications"
+          sub="A notification for new mail while the desktop is up."
+          on={!!mail.notify}
+          toggled={() => call("mail", "setNotify", mail.notify ? "false" : "true")}
+        />
+      {/if}
+    </Card>
+  </section>
+
+  <!-- ── Google · optional ────────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Google · optional</div>
+    <Card>
+      <div class="px-4 py-3 text-xs text-zinc-400">
+        For Gmail notifications and a Drive folder. ewe ships no Google client of its own — bring
+        your own OAuth client (a Desktop-app client from the Google Cloud console) and drop it at
+        <span class="font-mono">{clientPath}</span>.
+      </div>
+      <KV k="Client file" v={gclient ? (gclient.valid ? "found" : gclient.exists ? "found, but not a Desktop-app client JSON" : "missing") : google?.configured ? "found" : "missing"} />
+      {#if google === null}
+        <div class="px-4 py-3 text-sm text-zinc-400">The shell is not running — Google is managed through it.</div>
+      {:else if !google.configured}
+        <div class="px-4 py-2.5 text-xs text-zinc-400">
+          Nothing to connect until the client file is there. Details: docs/GOOGLE-CLIENT.md in the ewe repo.
         </div>
       {:else if !google.signedIn}
         <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <div class="text-sm font-medium">Sign in with Google</div>
-            <div class="text-xs text-zinc-400">
-              {google.busy === "signin"
-                ? "Waiting for the browser…"
-                : !online
-                  ? "You are offline — sign-in needs a connection. Join a network in Network first."
-                  : "Calendar, Gmail badge and settings sync."}
-            </div>
+          <div class="text-xs text-zinc-400">
+            {google.busy === "signin"
+              ? "Waiting for the browser…"
+              : !online
+                ? "You are offline — connecting needs a connection."
+                : "Connect your Google account with your own client."}
           </div>
-          <button class="btn-primary !py-1.5 text-xs"
-            disabled={gBusy || google.busy === "signin" || !online || keyringState === "unavailable"}
-            on:click={() => g("signIn")}>
-            Sign in
-          </button>
+          {#if google.busy === "signin"}
+            <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => g("cancelSignIn")}>Cancel</button>
+          {:else}
+            <button class="btn-primary !py-1 text-xs" disabled={busy || !online || gKeyring === "unavailable"} on:click={() => g("signIn")}>Connect</button>
+          {/if}
         </div>
-        {#if online && keyringState === "locked" && !keyringResetDone}
-          <div class="px-4 py-2.5 text-xs text-zinc-400">
-            Your keyring is locked: a small “Unlock keyring” prompt will appear during sign-in — answer it
-            with your login password.
-          </div>
-        {:else if online && keyringState === "missing" && !keyringResetDone}
-          <div class="px-4 py-2.5 text-xs text-zinc-400">
-            A small “Choose password for new keyring” prompt will appear during sign-in — use your login
-            password so it unlocks by itself at every login.
-          </div>
-        {:else if keyringState === "unavailable"}
-          <div class="px-4 py-2.5 text-xs text-amber-500">
-            No Secret Service keyring is running — gnome-keyring must be installed and started for this
-            session before sign-in can store its token.
-          </div>
-        {/if}
+        <KeyringNotes state={gKeyring} trouble={gTrouble} resetDone={!!google.keyringResetDone}
+          busy={google.busy === "signin"} {online} disabled={busy}
+          onReset={() => g("keyringReset")} onLogOut={() => g("logOut")} />
         {#if google.error}
           <div class="px-4 py-2.5 text-xs text-amber-500">{google.error}</div>
         {/if}
-        <!-- the link itself, for when the browser hand-off did not happen -->
         {#if google.consentUrl}
           <div class="flex items-center gap-4 px-4 py-2.5 text-xs">
-            <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={() => g("openConsentUrl")}>Open the sign-in page</button>
-            <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={() => g("copyConsentUrl")}>Copy the link</button>
-          </div>
-        {/if}
-        <!-- a keyring that rejects the login password can only be replaced:
-             PAM makes a fresh one at the next login -->
-        {#if keyringResetDone}
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <div class="text-xs text-zinc-400">
-              Keyring reset — log out and back in (it is recreated with your login password), then sign in
-              again.
-            </div>
-            <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={() => g("logOut")}>Log out now</button>
-          </div>
-        {:else if keyringTrouble && google.busy !== "signin"}
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <div class="text-xs text-zinc-400">
-              {keyringState === "locked"
-                ? "The keyring is locked and PAM could not unlock it with your login password."
-                : "The keyring refused to store the token."}
-              Replacing it makes a fresh keyring at the next login; the old files are kept in
-              ~/.local/share/keyrings.bak.
-            </div>
-            <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={() => g("keyringReset")}>Reset the keyring</button>
+            <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => g("openConsentUrl")}>Open the sign-in page</button>
+            <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => g("copyConsentUrl")}>Copy the link</button>
           </div>
         {/if}
       {:else}
@@ -284,49 +608,13 @@
             <div class="truncate text-sm font-medium">{google.profile?.name || "Google"}</div>
             <div class="truncate text-xs text-zinc-400">{google.profile?.email || ""}</div>
           </div>
-          <button class="btn-ghost !py-1 text-xs" disabled={gBusy} on:click={() => g("signOut")}>Sign out</button>
+          <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={() => g("signOut")}>Disconnect</button>
         </div>
-        <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <div class="text-sm font-medium">Settings sync</div>
-            <div class="text-xs text-zinc-400">
-              {google.syncState === "syncing"
-                ? "Syncing…"
-                : google.syncConflict
-                  ? `Another machine${backupBy ? ` (“${backupBy}”)` : ""} saved newer settings — restore it first, or push anyway.`
-                  : google.syncError
-                    ? google.syncError
-                    : neverSynced
-                      ? "Nothing is uploaded until you back this machine up."
-                      : google.inSync
-                        ? "Up to date."
-                        : "Changes since the last sync."}
-            </div>
-          </div>
-          <div class="flex shrink-0 gap-2">
-            {#if google.syncConflict}
-              <button class="btn-ghost !py-1 text-xs" disabled={gBusy || google.syncState === "syncing"} on:click={() => g("pushForce")}>
-                Push anyway
-              </button>
-            {/if}
-            <button class="btn-primary !py-1 text-xs" disabled={gBusy || google.syncState === "syncing"}
-              on:click={() => g(neverSynced ? "backUpNow" : "syncNow")}>
-              {neverSynced ? "Back up this machine" : "Sync now"}
-            </button>
-          </div>
-        </div>
-        <KV k="Backup in Drive" v={backupBy || backupAt ? `saved by “${backupBy || "another machine"}” · ${fmtSync(backupAt)}` : "none yet"} />
-        <KV k="This machine last synced" v={localSyncedAt ? fmtSync(localSyncedAt) + (google.inSync ? " · up to date" : "") : "never — nothing is uploaded until you back it up"} />
-        <ToggleRow
-          title="Auto-sync"
-          sub="Push a settings bundle to Drive shortly after Settings closes, when something changed."
-          on={!!google.autoSync}
-          toggled={() => g("setAutoSync", google.autoSync ? "false" : "true")}
-        />
-        <div class="px-4 py-2.5 text-xs text-zinc-400">
-          Restoring a backup (including the package list) runs in the shell after sign-in on a fresh
-          install; tokens stay in the system keyring and never pass through this app.
-        </div>
+        <KV k="Gmail" v={google.mailState === "scope" ? "no mail permission — disconnect and connect again" : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
+        <KV k="Drive folder" v="~/Google Drive (mounted at sign-in)" />
+        <KeyringNotes state={gKeyring} trouble={gTrouble} resetDone={!!google.keyringResetDone}
+          busy={false} {online} disabled={busy}
+          onReset={() => g("keyringReset")} onLogOut={() => g("logOut")} />
       {/if}
     </Card>
   </section>

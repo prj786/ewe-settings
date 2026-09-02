@@ -54,6 +54,12 @@ export const setMimeDefault = (desktopId, mimes, setBrowser) =>
 
 // shell ipc (allowlisted verbs: google account, saver preview)
 export const qsIpc = (target, func, arg) => invoke("qs_ipc", { target, func, arg });
+// RFC-005: any IMAP inbox for the Control Center badge (password on stdin, keyring after)
+export const mailLogin = (host, port, user, password, starttls = false) =>
+  invoke("mail_login", { host, port, user, password, starttls });
+export const mailStatus = () => invoke("mail_status");
+export const mailLogout = () => invoke("mail_logout");
+export const googleClientInfo = () => invoke("google_client_info");
 
 // networking
 export const netStatus = () => invoke("net_status");

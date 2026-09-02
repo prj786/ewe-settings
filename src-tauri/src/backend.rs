@@ -68,11 +68,17 @@ pub async fn set_conf(key: String, value: Value) -> Result<(), String> {
 }
 
 fn ewe_conf_bin() -> Option<PathBuf> {
-    let farm = home().join(".config/quickshell/../../bin/ewe-conf");
+    ewe_tool("ewe-conf")
+}
+
+/// One of the DE's CLI tools (ewe-conf, ewe-mail, …): the deployed payload
+/// first (the symlink farm's `bin/`), then the packaged copy.
+fn ewe_tool(name: &str) -> Option<PathBuf> {
+    let farm = home().join(format!(".config/quickshell/../../bin/{name}"));
     if farm.exists() {
         return Some(farm);
     }
-    let usr = PathBuf::from("/usr/bin/ewe-conf");
+    let usr = PathBuf::from(format!("/usr/bin/{name}"));
     if usr.exists() {
         return Some(usr);
     }
@@ -1373,18 +1379,45 @@ pub async fn set_kbd_backlight(value: i64) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result<String, String> {
+    // RFC-005: the account is the shell's Cloud singleton (target "cloud");
+    // Google is the optional mail/Drive client; Mail is its own target.
     const ALLOWED: &[(&str, &[&str])] = &[
         (
-            "google",
+            "cloud",
             &[
                 "signIn",
+                "cancelSignIn",
                 "signOut",
+                "keyringReset",
+                "openLoginUrl",
+                "copyLoginUrl",
+                "logOut",
                 "syncNow",
+                "backUpNow",
+                "pushForce",
+                "requestRestore",
+                "applyRestore",
+                "cancelRestore",
                 "refresh",
                 "setAutoSync",
                 "status",
             ],
         ),
+        (
+            "google",
+            &[
+                "signIn",
+                "cancelSignIn",
+                "signOut",
+                "keyringReset",
+                "openConsentUrl",
+                "copyConsentUrl",
+                "logOut",
+                "refresh",
+                "status",
+            ],
+        ),
+        ("mail", &["refresh", "fetch", "setNotify", "status"]),
         ("saver", &["show"]),
     ];
     let ok = ALLOWED
@@ -1394,8 +1427,18 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
         return Err(format!("ipc not allowed: {target} {func}"));
     }
     if let Some(a) = &arg {
-        if a != "true" && a != "false" {
-            return Err("only boolean ipc arguments are allowed".into());
+        let is_bool = a == "true" || a == "false";
+        // the one string argument: the Nextcloud server for cloud.signIn —
+        // an https URL and nothing that could be read as another argument
+        let is_server = target == "cloud"
+            && func == "signIn"
+            && a.starts_with("https://")
+            && a.len() <= 200
+            && a.chars().all(|c| {
+                c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '/' | ':' | '~' | '%')
+            });
+        if !is_bool && !is_server {
+            return Err("ipc argument not allowed".into());
         }
     }
     let mut args = vec![target.as_str(), func.as_str()];
@@ -1406,6 +1449,106 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
     let mut s = String::from_utf8_lossy(&out.stdout).to_string();
     s.push_str(&String::from_utf8_lossy(&out.stderr));
     Ok(s)
+}
+
+// ── mail account (ewe-mail — any IMAP inbox; RFC-005) ───────────────────────
+
+fn valid_host(h: &str) -> bool {
+    !h.is_empty()
+        && h.len() <= 253
+        && h.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && !h.starts_with('-')
+}
+
+async fn ewe_mail(args: &[&str], stdin_line: Option<&str>) -> Result<Value, String> {
+    let Some(bin) = ewe_tool("ewe-mail") else {
+        return Err("ewe-mail not installed".into());
+    };
+    let mut cmd = Command::new("python3");
+    cmd.arg(bin)
+        .args(args)
+        .stdin(if stdin_line.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(estr)?;
+    if let Some(line) = stdin_line {
+        use tokio::io::AsyncWriteExt;
+        if let Some(mut si) = child.stdin.take() {
+            si.write_all(line.as_bytes()).await.map_err(estr)?;
+            si.write_all(b"\n").await.map_err(estr)?;
+            drop(si);
+        }
+    }
+    let out = child.wait_with_output().await.map_err(estr)?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    serde_json::from_str(text.trim())
+        .map_err(|_| format!("ewe-mail: unreadable reply: {}", text.trim()))
+}
+
+/// Test + store an IMAP login. The password travels on stdin, never argv;
+/// ewe-mail keeps it in the keyring and records host/user/port in ewe.conf.
+#[tauri::command]
+pub async fn mail_login(
+    host: String,
+    port: u16,
+    user: String,
+    password: String,
+    starttls: Option<bool>,
+) -> Result<Value, String> {
+    if !valid_host(&host) {
+        return Err("invalid mail server name".into());
+    }
+    if user.is_empty() || user.len() > 200 || user.chars().any(|c| c.is_control()) {
+        return Err("invalid mail user".into());
+    }
+    if port == 0 {
+        return Err("invalid port".into());
+    }
+    if password.is_empty() || password.contains('\n') || password.contains('\r') {
+        return Err("invalid password".into());
+    }
+    let port_s = port.to_string();
+    let mut args = vec!["login", host.as_str(), user.as_str(), "--port", port_s.as_str()];
+    if starttls.unwrap_or(false) {
+        args.push("--starttls");
+    }
+    ewe_mail(&args, Some(&password)).await
+}
+
+#[tauri::command]
+pub async fn mail_status() -> Result<Value, String> {
+    ewe_mail(&["status"], None).await
+}
+
+#[tauri::command]
+pub async fn mail_logout() -> Result<Value, String> {
+    ewe_mail(&["logout"], None).await
+}
+
+// ── the optional Google client file (RFC-005: ewe ships none) ───────────────
+
+/// {path, exists, valid}: the personal OAuth client the Google card needs.
+#[tauri::command]
+pub async fn google_client_info() -> Result<Value, String> {
+    let path = home().join(".config/ewe/oauth-client.json");
+    let exists = path.exists();
+    let valid = exists
+        && std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .map(|v| {
+                let c = v.get("installed").or_else(|| v.get("web"));
+                c.and_then(|c| c.get("client_id"))
+                    .and_then(|i| i.as_str())
+                    .map(|i| !i.is_empty())
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+    Ok(json!({
+        "path": path.to_string_lossy(),
+        "exists": exists,
+        "valid": valid,
+    }))
 }
 
 // ── networking (nmcli — argv vectors, never a shell string) ─────────────────

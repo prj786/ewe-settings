@@ -60,6 +60,10 @@ export const netStatus = () => invoke("net_status");
 export const netConnectivity = () => invoke("net_connectivity");
 export const wifiSet = (on) => invoke("wifi_set", { on });
 export const wifiConnect = (ssid, password) => invoke("wifi_connect", { ssid, password });
+export const vpnInfo = (name) => invoke("vpn_info", { name });
+export const vpnSetSecrets = (name, user, password, psk) => invoke("vpn_set_secrets", { name, user, password, psk });
+export const vpnAddL2tp = (name, gateway, user, password, psk) => invoke("vpn_add_l2tp", { name, gateway, user, password, psk });
+export const vpnImport = (kind, path) => invoke("vpn_import", { kind, path });
 export const connectionSet = (name, up) => invoke("connection_set", { name, up });
 
 // user account

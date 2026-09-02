@@ -1,6 +1,6 @@
 [package]
 name = "ewe-settings"
-version = "0.9.12"
+version = "0.9.13"
 description = "Settings for the ewe desktop"
 authors = ["scubba"]
 license = "MIT"

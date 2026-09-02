@@ -1588,6 +1588,220 @@ pub async fn connection_set(name: String, up: bool) -> Result<String, String> {
     Ok(out)
 }
 
+// ── VPN profiles (nmcli, argv-only) ─────────────────────────────────────────
+//
+// Nothing in ewe is a NetworkManager secret agent, so a profile without
+// stored secrets can only fail with "secrets were required … --ask". The
+// pane answers with an inline credentials form and stores them IN the
+// profile (`password-flags=0` — GNOME's "store for all users": a root-only
+// file under /etc/NetworkManager), after which the toggle just works.
+// L2TP/IPsec (gateway + user + password + pre-shared key) is what surfaced
+// this on the first bare-metal install (2026-09-02).
+
+fn nm_dict_escape(v: &str) -> String {
+    // nmcli splits dict-property values on ',' — a comma in a password must
+    // survive as '\,'
+    v.replace(',', "\\,")
+}
+
+fn valid_conn_name(name: &str) -> bool {
+    !name.is_empty() && name.len() <= 128 && !name.starts_with('-')
+}
+
+fn nm_failed(out: &str) -> Option<String> {
+    if out.contains("Error") {
+        Some(
+            out.lines()
+                .find(|l| l.contains("Error"))
+                .unwrap_or("failed")
+                .trim()
+                .to_string(),
+        )
+    } else {
+        None
+    }
+}
+
+/// What kind of profile is asking: {service, data, user, needsPsk}.
+#[tauri::command]
+pub async fn vpn_info(name: String) -> Result<Value, String> {
+    if !valid_conn_name(&name) {
+        return Err("invalid connection name".into());
+    }
+    let out = run_out(
+        "nmcli",
+        &[
+            "-t",
+            "-g",
+            "vpn.service-type,vpn.data",
+            "connection",
+            "show",
+            name.as_str(),
+        ],
+    )
+    .await?;
+    let mut rows = out.lines();
+    let service = rows.next().unwrap_or("").trim().to_string();
+    let data = rows.next().unwrap_or("").trim().to_string();
+    let user = data
+        .split(',')
+        .filter_map(|p| p.split_once('='))
+        .find(|(k, _)| matches!(k.trim(), "user" | "username"))
+        .map(|(_, v)| v.trim().to_string())
+        .unwrap_or_default();
+    Ok(json!({
+        "service": service,
+        "data": data,
+        "user": user,
+        "needsPsk": service.ends_with("l2tp"),
+    }))
+}
+
+/// Store username / password / (L2TP) pre-shared key in the profile.
+#[tauri::command]
+pub async fn vpn_set_secrets(
+    name: String,
+    user: String,
+    password: String,
+    psk: Option<String>,
+) -> Result<(), String> {
+    if !valid_conn_name(&name) {
+        return Err("invalid connection name".into());
+    }
+    if user.is_empty() || password.is_empty() {
+        return Err("username and password are required".into());
+    }
+    let service = run_out(
+        "nmcli",
+        &["-t", "-g", "vpn.service-type", "connection", "show", name.as_str()],
+    )
+    .await
+    .unwrap_or_default()
+    .trim()
+    .to_string();
+    let l2tp = service.ends_with("l2tp");
+    let ovpn = service.ends_with("openvpn");
+    let user_kv = format!("user={}", nm_dict_escape(&user));
+    let username_kv = format!("username={}", nm_dict_escape(&user));
+    let pw_kv = format!("password={}", nm_dict_escape(&password));
+    let psk = psk.unwrap_or_default();
+    let psk_kv = format!("ipsec-psk={}", nm_dict_escape(&psk));
+    let mut args: Vec<&str> = vec![
+        "connection",
+        "modify",
+        name.as_str(),
+        "vpn.user-name",
+        user.as_str(),
+        "+vpn.data",
+        "password-flags=0",
+    ];
+    if l2tp {
+        args.extend(["+vpn.data", user_kv.as_str()]);
+    }
+    if ovpn {
+        args.extend(["+vpn.data", username_kv.as_str()]);
+    }
+    args.extend(["+vpn.secrets", pw_kv.as_str()]);
+    if l2tp && !psk.is_empty() {
+        args.extend([
+            "+vpn.data",
+            "ipsec-enabled=yes",
+            "+vpn.data",
+            "ipsec-psk-flags=0",
+            "+vpn.secrets",
+            psk_kv.as_str(),
+        ]);
+    }
+    let out = run_out("nmcli", &args).await?;
+    if let Some(e) = nm_failed(&out) {
+        return Err(e);
+    }
+    Ok(())
+}
+
+/// A new L2TP/IPsec profile from its four facts — no file involved.
+#[tauri::command]
+pub async fn vpn_add_l2tp(
+    name: String,
+    gateway: String,
+    user: String,
+    password: String,
+    psk: Option<String>,
+) -> Result<(), String> {
+    if !valid_conn_name(&name) {
+        return Err("invalid connection name".into());
+    }
+    if gateway.is_empty() || gateway.len() > 253 || gateway.contains([',', ' ']) {
+        return Err("invalid gateway".into());
+    }
+    if user.is_empty() || password.is_empty() {
+        return Err("username and password are required".into());
+    }
+    let psk = psk.unwrap_or_default();
+    let mut data = format!(
+        "gateway={}, user={}, password-flags=0",
+        nm_dict_escape(&gateway),
+        nm_dict_escape(&user)
+    );
+    let mut secrets = format!("password={}", nm_dict_escape(&password));
+    if psk.is_empty() {
+        data.push_str(", ipsec-enabled=no");
+    } else {
+        data.push_str(", ipsec-enabled=yes, ipsec-psk-flags=0");
+        secrets.push_str(&format!(", ipsec-psk={}", nm_dict_escape(&psk)));
+    }
+    let out = run_out(
+        "nmcli",
+        &[
+            "connection",
+            "add",
+            "type",
+            "vpn",
+            "ifname",
+            "*",
+            "con-name",
+            name.as_str(),
+            "vpn-type",
+            "l2tp",
+            "vpn.user-name",
+            user.as_str(),
+            "vpn.data",
+            data.as_str(),
+            "vpn.secrets",
+            secrets.as_str(),
+        ],
+    )
+    .await?;
+    if let Some(e) = nm_failed(&out) {
+        return Err(e);
+    }
+    crate::shell::poke_sync(); // the definition travels in ewe.conf; secrets never
+    Ok(())
+}
+
+/// Import an OpenVPN (.ovpn) or WireGuard (.conf) file as a profile.
+#[tauri::command]
+pub async fn vpn_import(kind: String, path: String) -> Result<String, String> {
+    let kind = match kind.as_str() {
+        "openvpn" | "wireguard" => kind,
+        _ => return Err("kind must be openvpn or wireguard".into()),
+    };
+    let p = std::path::Path::new(&path);
+    if !p.is_file() {
+        return Err("no such file".into());
+    }
+    let out = run_out(
+        "nmcli",
+        &["connection", "import", "type", kind.as_str(), "file", path.as_str()],
+    )
+    .await?;
+    if let Some(e) = nm_failed(&out) {
+        return Err(e);
+    }
+    crate::shell::poke_sync();
+    Ok(out.trim().to_string())
+}
+
 // ── user account (avatar / name / session facts) ────────────────────────────
 
 /// ~/.face + AccountsService — the same pipeline the in-shell pane used, so

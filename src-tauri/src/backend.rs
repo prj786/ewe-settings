@@ -1673,7 +1673,14 @@ pub async fn vpn_set_secrets(
     }
     let service = run_out(
         "nmcli",
-        &["-t", "-g", "vpn.service-type", "connection", "show", name.as_str()],
+        &[
+            "-t",
+            "-g",
+            "vpn.service-type",
+            "connection",
+            "show",
+            name.as_str(),
+        ],
     )
     .await
     .unwrap_or_default()
@@ -1792,7 +1799,14 @@ pub async fn vpn_import(kind: String, path: String) -> Result<String, String> {
     }
     let out = run_out(
         "nmcli",
-        &["connection", "import", "type", kind.as_str(), "file", path.as_str()],
+        &[
+            "connection",
+            "import",
+            "type",
+            kind.as_str(),
+            "file",
+            path.as_str(),
+        ],
     )
     .await?;
     if let Some(e) = nm_failed(&out) {

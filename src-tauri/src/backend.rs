@@ -1456,7 +1456,8 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
 fn valid_host(h: &str) -> bool {
     !h.is_empty()
         && h.len() <= 253
-        && h.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && h.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
         && !h.starts_with('-')
 }
 
@@ -1467,7 +1468,11 @@ async fn ewe_mail(args: &[&str], stdin_line: Option<&str>) -> Result<Value, Stri
     let mut cmd = Command::new("python3");
     cmd.arg(bin)
         .args(args)
-        .stdin(if stdin_line.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stdin(if stdin_line.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = cmd.spawn().map_err(estr)?;
@@ -1508,7 +1513,13 @@ pub async fn mail_login(
         return Err("invalid password".into());
     }
     let port_s = port.to_string();
-    let mut args = vec!["login", host.as_str(), user.as_str(), "--port", port_s.as_str()];
+    let mut args = vec![
+        "login",
+        host.as_str(),
+        user.as_str(),
+        "--port",
+        port_s.as_str(),
+    ];
     if starttls.unwrap_or(false) {
         args.push("--starttls");
     }

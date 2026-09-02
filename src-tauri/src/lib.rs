@@ -64,6 +64,8 @@ pub fn run() {
             backend::google_client_info,
             backend::net_status,
             backend::net_connectivity,
+            backend::sync_app_installed,
+            backend::open_sync_app,
             backend::wifi_set,
             backend::wifi_connect,
             backend::connection_set,

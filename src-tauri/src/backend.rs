@@ -1557,6 +1557,27 @@ pub async fn google_client_info() -> Result<Value, String> {
 /// The User pane gates "Sign in with Google" on it — an offline sign-in only
 /// ever produced "Waiting for the browser…" (first bare-metal install,
 /// 2026-09-02).
+/// The account app (RFC-006): installed? Only the packaged binary counts.
+#[tauri::command]
+pub fn sync_app_installed() -> bool {
+    std::path::Path::new("/usr/bin/ewe-sync").exists()
+}
+
+/// Open ewe-sync — argv only, detached, nothing inherited from this process.
+#[tauri::command]
+pub async fn open_sync_app() -> Result<bool, String> {
+    if !sync_app_installed() {
+        return Ok(false);
+    }
+    Command::new("/usr/bin/ewe-sync")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(estr)?;
+    Ok(true)
+}
+
 #[tauri::command]
 pub async fn net_connectivity() -> Result<String, String> {
     Ok(run_out("nmcli", &["networking", "connectivity", "check"])

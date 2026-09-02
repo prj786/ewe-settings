@@ -20,6 +20,8 @@
   import KeyringNotes from "./KeyringNotes.svelte";
 
   let info = null;
+  let syncApp = false; // ewe-sync (RFC-006) installed → "Manage in ewe-sync"
+  api.syncAppInstalled().then((v) => (syncApp = !!v)).catch(() => {});
   let cloud = null; // `qs ipc call cloud status` (null = shell absent)
   let google = null; // `qs ipc call google status`
   let mail = null; // `qs ipc call mail status`
@@ -418,6 +420,16 @@
     </Card>
   </section>
 
+  {#if syncApp && cloud?.signedIn}
+    <!-- the account app (RFC-006): machines, folder sync, conflicts -->
+    <div class="card mb-4 flex items-center gap-3 px-4 py-3">
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-medium">ewe-sync</div>
+        <div class="text-xs text-zinc-400">Your machines, folder sync and conflicts live in the account app (the tray icon).</div>
+      </div>
+      <button class="btn-primary !py-1.5 text-xs" on:click={() => api.openSyncApp().catch(() => {})}>Manage in ewe-sync</button>
+    </div>
+  {/if}
   <!-- ── Settings sync ────────────────────────────────────────────────────── -->
   <section>
     <div class="section-title">Settings sync</div>

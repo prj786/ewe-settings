@@ -64,6 +64,8 @@ export const googleClientInfo = () => invoke("google_client_info");
 // networking
 export const netStatus = () => invoke("net_status");
 export const netConnectivity = () => invoke("net_connectivity");
+export const syncAppInstalled = () => invoke("sync_app_installed");
+export const openSyncApp = () => invoke("open_sync_app");
 export const wifiSet = (on) => invoke("wifi_set", { on });
 export const wifiConnect = (ssid, password) => invoke("wifi_connect", { ssid, password });
 export const vpnInfo = (name) => invoke("vpn_info", { name });

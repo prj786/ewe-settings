@@ -1410,6 +1410,18 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
 
 // ── networking (nmcli — argv vectors, never a shell string) ─────────────────
 
+/// NetworkManager's own verdict: full | limited | portal | none | unknown.
+/// The User pane gates "Sign in with Google" on it — an offline sign-in only
+/// ever produced "Waiting for the browser…" (first bare-metal install,
+/// 2026-09-02).
+#[tauri::command]
+pub async fn net_connectivity() -> Result<String, String> {
+    Ok(run_out("nmcli", &["networking", "connectivity", "check"])
+        .await
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unknown".into()))
+}
+
 #[tauri::command]
 pub async fn net_status() -> Result<Value, String> {
     let has_wifi = run_out("nmcli", &["-t", "-f", "TYPE", "device", "status"])

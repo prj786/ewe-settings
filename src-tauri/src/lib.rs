@@ -59,6 +59,7 @@ pub fn run() {
             backend::set_kbd_backlight,
             backend::qs_ipc,
             backend::net_status,
+            backend::net_connectivity,
             backend::wifi_set,
             backend::wifi_connect,
             backend::connection_set,

@@ -57,6 +57,7 @@ export const qsIpc = (target, func, arg) => invoke("qs_ipc", { target, func, arg
 
 // networking
 export const netStatus = () => invoke("net_status");
+export const netConnectivity = () => invoke("net_connectivity");
 export const wifiSet = (on) => invoke("wifi_set", { on });
 export const wifiConnect = (ssid, password) => invoke("wifi_connect", { ssid, password });
 export const connectionSet = (name, up) => invoke("connection_set", { name, up });

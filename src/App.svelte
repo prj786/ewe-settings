@@ -58,29 +58,33 @@
   });
 </script>
 
-<div class="flex h-full">
+<div class="surface flex h-full">
   <!-- Collapses to an icon rail on narrow (tiled) windows. -->
-  <aside class="flex w-14 shrink-0 flex-col border-r border-zinc-800/60 bg-black/20 md:w-56">
-    <div class="hidden px-4 pb-2 pt-5 text-sm font-semibold md:block">Settings</div>
-    <div class="h-3 md:hidden"></div>
-    <nav class="flex-1 space-y-0.5 overflow-y-auto px-1.5 py-2 md:px-2">
+  <!-- .rail / .rail-* — the chrome shared with Komble and ewe-sync (app.css) -->
+  <aside class="rail">
+    <div class="rail-brand">
+      <!-- the gear mark, in the same 32 px tile the other apps use -->
+      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style="background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #1c1c1e))">
+        <span class="ph-i text-[18px]">{String.fromCodePoint(0xE228)}</span>
+      </div>
+      <div class="rail-brand-name">Settings</div>
+    </div>
+    <nav class="rail-nav">
       {#each panes as [id, label, icon] (id)}
         <button
           title={label}
-          class="flex w-full items-center justify-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors md:justify-start md:px-3
-                 {$pane === id ? 'text-white' : 'hover:bg-white/5'}"
-          style={$pane === id ? "background: var(--accent)" : ""}
+          class="rail-item {$pane === id ? 'is-active' : ''}"
           on:click={() => pane.set(id)}
         >
-          <span class="ph-i w-4 shrink-0 text-center text-[16px]">{String.fromCodePoint(icon)}</span>
-          <span class="hidden min-w-0 flex-1 truncate md:block">{label}</span>
+          <span class="ph-i">{String.fromCodePoint(icon)}</span>
+          <span class="rail-label">{label}</span>
         </button>
       {/each}
     </nav>
 
     <!-- ewe's version, not this app's: Settings is part of the desktop
          rather than a separate product. -->
-    <div class="hidden px-4 py-3 text-[11px] text-zinc-500 md:block">
+    <div class="rail-foot">
       ewe {$version}
       {#if !$shellUp}<div class="mt-1 text-amber-500">shell not running — changes apply at next start</div>{/if}
     </div>

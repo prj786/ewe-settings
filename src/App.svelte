@@ -67,7 +67,10 @@
     ["system", "System", 0xE610]
   ];
 
-  $: document.documentElement.style.setProperty("--accent", $effectiveAccent);
+  // only when the user actually picked one — otherwise the theme default in
+  // tokens.css stands
+  $: if ($effectiveAccent) document.documentElement.style.setProperty("--accent", $effectiveAccent);
+     else document.documentElement.style.removeProperty("--accent");
   $: document.documentElement.classList.toggle("blacksheep", ($prefs.themeName || "flock") === "blacksheep");
   $: applyThemeTokens($prefs.themeName || "flock");
 

@@ -5,9 +5,11 @@ export const pane = writable("appearance");
 export const version = writable("");
 export const shellUp = writable(true);
 
-// Two looks ("flock" / "blacksheep") share every token except the neutral
-// surfaces — the accent the user picked is always the effective one.
-export const effectiveAccent = derived(prefs, (p) => p.accent || "#0a84ff");
+// The accent the user picked is always the effective one. "" means they never
+// picked: the theme's own default (--accent-default, from ewe-theme.conf) then
+// stands, so flock opens yellow and blacksheep blue instead of an invented
+// colour overriding both.
+export const effectiveAccent = derived(prefs, (p) => p.accent || "");
 
 // Transient status shared by every pane: a green "Applied" flash and a red
 // dismissable error banner — the same two signals the in-shell Settings had.

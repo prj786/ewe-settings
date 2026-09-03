@@ -13,13 +13,13 @@
     {
       id: "flock",
       name: "Flock",
-      sub: "The ewe look in soft dark greys.",
+      sub: "Bauhaus: square, thick-ruled, flat blocks of colour.",
       swatch: "#1c1c1e"
     },
     {
       id: "blacksheep",
       name: "Black Sheep",
-      sub: "The same look on absolute black (#020202) surfaces.",
+      sub: "Alexandria: soft corners, hairline outlines, tonal surfaces.",
       swatch: "#020202"
     }
   ];
@@ -59,7 +59,7 @@
         {/each}
       </div>
       <p class="text-xs text-dim dark:text-dim">
-        Bar, dock and panels follow the style; shape, Phosphor icons and your accent stay identical. Applies instantly.
+        Bar, dock, panels and the apps all follow. The two looks differ in shape as well as colour — corners, border weight and depth. Your accent and the Phosphor icons stay yours. Applies instantly.
       </p>
     </div>
   </section>

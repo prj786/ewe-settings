@@ -86,3 +86,6 @@ export const powerInfo = () => invoke("power_info");
 export const setPowerProfile = (profile) => invoke("set_power_profile", { profile });
 export const setChargeLimit = (pct) => invoke("set_charge_limit", { pct });
 export const setKbdBacklight = (value) => invoke("set_kbd_backlight", { value });
+
+/** the generated look, from ewe-theme.conf — injected at runtime by App.svelte */
+export const themeTokens = (theme) => invoke("theme_tokens", { theme });

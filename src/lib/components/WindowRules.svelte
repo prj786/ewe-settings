@@ -103,7 +103,7 @@
             on:click={() => add(a)}
           >
             <span class="min-w-0 flex-1 truncate">{a.name}</span>
-            <span class="max-w-48 truncate text-xs text-zinc-400">{a.comment || a.exec}</span>
+            <span class="max-w-48 truncate text-xs text-dim">{a.comment || a.exec}</span>
           </button>
         {/each}
       </div>
@@ -111,7 +111,7 @@
   {/if}
 
   {#if rules.length === 0}
-    <div class="card p-6 text-center text-sm text-zinc-400">
+    <div class="card p-6 text-center text-sm text-dim">
       No rules yet. Add one to always open an app on a chosen desktop, or force it to float or tile.
     </div>
   {:else}
@@ -121,7 +121,7 @@
           <div class="min-w-0 flex-1 basis-40">
             <div class="truncate text-sm font-medium">{r.name || r.class}</div>
             <input
-              class="mt-0.5 w-full max-w-48 border-0 bg-transparent p-0 font-mono text-xs text-zinc-400 outline-none focus:text-zinc-200 dark:text-zinc-500"
+              class="mt-0.5 w-full max-w-48 border-0 bg-transparent p-0 font-mono text-xs text-dim outline-none focus:text-fg dark:text-dim"
               title="Window class the rule matches (edit if the app's real class differs)"
               value={r.class}
               on:change={(e) => patch(i, { class: e.target.value.trim() || r.class })}
@@ -165,7 +165,7 @@
     </Card>
   {/if}
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">
     Rules apply when the app's window opens: "Desktop N" sends it to that workspace, "Floating"/"Tiled"
     overrides how it joins the layout. Matching is by window class — edit the small value under the app
     name if a window isn't caught (find the real class with <code>hyprctl activewindow</code>).

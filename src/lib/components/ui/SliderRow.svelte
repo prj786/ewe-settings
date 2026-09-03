@@ -24,7 +24,7 @@
 <div class="px-4 py-3 {dim ? 'pointer-events-none opacity-50' : ''}">
   <div class="mb-2 flex items-center justify-between">
     <span class="text-sm font-medium">{label}</span>
-    <span class="text-xs tabular-nums text-zinc-400">{shown}{unit}</span>
+    <span class="text-xs tabular-nums text-dim">{shown}{unit}</span>
   </div>
   <Slider
     type="single"

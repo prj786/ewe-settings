@@ -45,9 +45,9 @@
   <h1 class="text-lg font-semibold">Screensaver</h1>
 
   {#if !hypridleOk}
-    <div class="card border-amber-400/40 p-4 text-xs text-amber-600 dark:text-amber-400">
+    <div class="card border-[var(--warning)] p-4 text-xs text-warning dark:text-warning">
       hypridle is not installed — the screensaver (and idle auto-lock) needs it:
-      <code class="rounded bg-zinc-100 px-1 dark:bg-zinc-700">sudo pacman -S hypridle</code>
+      <code class="rounded bg-elevated px-1 ">sudo pacman -S hypridle</code>
     </div>
   {/if}
 
@@ -114,11 +114,11 @@
     >
       Preview
     </button>
-    <span class="text-xs text-zinc-400">Shows the saver now — any key dismisses it.</span>
+    <span class="text-xs text-dim">Shows the saver now — any key dismisses it.</span>
   </div>
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">Current timeline: {policy}</p>
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">Current timeline: {policy}</p>
+  <p class="text-xs text-dim dark:text-dim">
     With the saver disabled the stock behaviour stays: auto-lock after 5 minutes idle.
     Idle-suspend on battery (15 min) is always kept, and every stage lands sooner on battery.
     Playing media, a fullscreen window, or the bar's Insomnia toggle keep all of this away.

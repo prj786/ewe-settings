@@ -1526,6 +1526,31 @@ pub async fn mail_login(
     ewe_mail(&args, Some(&password)).await
 }
 
+/// The generated theme tokens for one look, from `ewe-theme show` — which
+/// reads ewe-theme.conf, the single source of truth for every colour and shape
+/// in ewe. tokens.css is compiled in as the fallback; this is what lets an
+/// edit to the conf recolour the app WITHOUT rebuilding it. The generator is
+/// reused rather than reimplemented, so the mapping lives in one place.
+#[tauri::command]
+pub async fn theme_tokens(theme: String) -> Result<Value, String> {
+    if theme.is_empty()
+        || theme.len() > 64
+        || !theme.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("bad theme name".into());
+    }
+    let Some(bin) = ewe_tool("ewe-theme") else {
+        return Err("ewe-theme not installed".into());
+    };
+    let out = Command::new("python3")
+        .arg(bin)
+        .args(["show", theme.as_str()])
+        .output()
+        .await
+        .map_err(estr)?;
+    serde_json::from_slice(&out.stdout).map_err(|_| "ewe-theme: unreadable reply".to_string())
+}
+
 #[tauri::command]
 pub async fn mail_status() -> Result<Value, String> {
     ewe_mail(&["status"], None).await

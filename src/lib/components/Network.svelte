@@ -183,7 +183,7 @@
   <h1 class="text-lg font-semibold">Networking</h1>
 
   {#if !st}
-    <p class="text-sm text-zinc-400">Checking network state…</p>
+    <p class="text-sm text-dim">Checking network state…</p>
   {:else}
     {#if st.hasWifi}
       <section>
@@ -200,13 +200,13 @@
                   class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5"
                   on:click={() => connect(w)}
                 >
-                  <span class="w-10 shrink-0 font-mono text-xs text-zinc-400">{bars(w.signal)}</span>
+                  <span class="w-10 shrink-0 font-mono text-xs text-dim">{bars(w.signal)}</span>
                   <span class="min-w-0 flex-1 truncate text-sm {w.active ? 'font-semibold' : ''}">{w.ssid}</span>
-                  {#if w.sec}<span class="text-xs text-zinc-500">🔒</span>{/if}
+                  {#if w.sec}<span class="text-xs text-dim">🔒</span>{/if}
                   {#if w.active}
                     <span class="text-xs font-medium" style="color: var(--accent)">Connected</span>
                   {:else if busy === w.ssid}
-                    <span class="text-xs text-zinc-400">Connecting…</span>
+                    <span class="text-xs text-dim">Connecting…</span>
                   {/if}
                 </button>
                 {#if pwTarget === w.ssid && !w.active}
@@ -227,7 +227,7 @@
                 {/if}
               </div>
             {:else}
-              <div class="px-4 py-3 text-sm text-zinc-400">No networks found.</div>
+              <div class="px-4 py-3 text-sm text-dim">No networks found.</div>
             {/each}
           {/if}
         </Card>
@@ -240,7 +240,7 @@
         {#each st.active as c (c.name + c.dev)}
           <KV k={c.name} v={`${c.type} · ${c.dev} · ${c.state}`} />
         {:else}
-          <div class="px-4 py-3 text-sm text-zinc-400">Nothing connected.</div>
+          <div class="px-4 py-3 text-sm text-dim">Nothing connected.</div>
         {/each}
         {#each st.ips as ip (ip)}
           <KV k="IP" v={ip} />
@@ -257,14 +257,14 @@
               <div class="flex items-center justify-between gap-3 px-4 py-2.5">
                 <span class="min-w-0 flex-1 truncate text-sm {v.active ? 'font-semibold' : ''}">{v.name}</span>
                 {#if busy === v.name}
-                  <span class="text-xs text-zinc-400">…</span>
+                  <span class="text-xs text-dim">…</span>
                 {:else}
                   <Toggle on={v.active} toggled={() => vpnToggle(v)} />
                 {/if}
               </div>
               {#if credTarget === v.name && !v.active}
                 <form class="space-y-2 px-4 pb-3" on:submit|preventDefault={() => saveCredentials(v)}>
-                  <p class="text-xs text-zinc-400">
+                  <p class="text-xs text-dim">
                     This VPN needs your credentials once — they are kept in the profile, so the toggle
                     works from then on.
                   </p>
@@ -280,7 +280,7 @@
                     />
                   {/if}
                   {#if credError}
-                    <div class="text-xs text-amber-500">{credError}</div>
+                    <div class="text-xs text-warning">{credError}</div>
                   {/if}
                   <div class="flex justify-end gap-2">
                     <button class="btn-ghost !py-1 text-xs" type="button" on:click={closeCredentials}>Cancel</button>
@@ -329,10 +329,10 @@
               </div>
             {/if}
             {#if addError}
-              <div class="text-xs text-amber-500">{addError}</div>
+              <div class="text-xs text-warning">{addError}</div>
             {/if}
             <div class="flex items-center justify-between gap-3">
-              <span class="text-xs text-zinc-500">
+              <span class="text-xs text-dim">
                 {addKind === "l2tp"
                   ? "Stored in the profile; the definition syncs, the secrets never do."
                   : "Imported into NetworkManager; credentials are asked once on first connect."}
@@ -356,13 +356,13 @@
         <div class="section-title">SSH hosts (~/.ssh/config)</div>
         <Card>
           {#each st.sshHosts as h (h)}
-            <div class="px-4 py-2 font-mono text-xs text-zinc-400">{h}</div>
+            <div class="px-4 py-2 font-mono text-xs text-dim">{h}</div>
           {/each}
         </Card>
       </section>
     {/if}
 
-    <p class="text-xs text-zinc-400 dark:text-zinc-500">
+    <p class="text-xs text-dim dark:text-dim">
       Managed by NetworkManager. VPN profiles can also be toggled from the Control Center's VPN card;
       the first connect asks for credentials once and keeps them in the profile.
     </p>

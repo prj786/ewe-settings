@@ -16,17 +16,17 @@
 </script>
 
 {#if online && state === "locked" && !resetDone}
-  <div class="px-4 py-2.5 text-xs text-zinc-400">
+  <div class="px-4 py-2.5 text-xs text-dim">
     Your keyring is locked: a small “Unlock keyring” prompt will appear during sign-in — answer it
     with your login password.
   </div>
 {:else if online && state === "missing" && !resetDone}
-  <div class="px-4 py-2.5 text-xs text-zinc-400">
+  <div class="px-4 py-2.5 text-xs text-dim">
     A small “Choose password for new keyring” prompt will appear during sign-in — use your login
     password so it unlocks by itself at every login.
   </div>
 {:else if state === "unavailable"}
-  <div class="px-4 py-2.5 text-xs text-amber-500">
+  <div class="px-4 py-2.5 text-xs text-warning">
     No Secret Service keyring is running — gnome-keyring must be installed and started for this
     session before sign-in can store its token.
   </div>
@@ -34,7 +34,7 @@
 
 {#if resetDone}
   <div class="flex items-center justify-between gap-3 px-4 py-3">
-    <div class="text-xs text-zinc-400">
+    <div class="text-xs text-dim">
       Keyring reset — log out and back in (it is recreated with your login password), then sign in
       again.
     </div>
@@ -42,7 +42,7 @@
   </div>
 {:else if trouble && !busy}
   <div class="flex items-center justify-between gap-3 px-4 py-3">
-    <div class="text-xs text-zinc-400">
+    <div class="text-xs text-dim">
       {state === "locked"
         ? "The keyring is locked and PAM could not unlock it with your login password."
         : "The keyring refused to store the token."}

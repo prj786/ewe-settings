@@ -47,7 +47,7 @@
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Tiling style</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">
+          <div class="text-xs text-dim dark:text-dim">
             {(layoutModes.find(([id]) => id === ($layout.mode || "dwindle")) || layoutModes[0])[2]}
           </div>
         </div>
@@ -57,7 +57,7 @@
               class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                 {($layout.mode || 'dwindle') === id
                 ? 'text-white'
-                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
+                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
               style={($layout.mode || "dwindle") === id ? "background: var(--accent)" : ""}
               on:click={() => setLayoutMode(id)}
             >
@@ -104,7 +104,7 @@
       >
         <div>
           <div class="text-sm font-medium">Icon size</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">How big the dock buttons and workspace boxes are.</div>
+          <div class="text-xs text-dim dark:text-dim">How big the dock buttons and workspace boxes are.</div>
         </div>
         <div class="flex gap-1.5">
           {#each iconSizes as [id, label] (id)}
@@ -112,7 +112,7 @@
               class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                 {($prefs.dockIconSize || 'normal') === id
                 ? 'text-white'
-                : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
+                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
               style={($prefs.dockIconSize || "normal") === id ? "background: var(--accent)" : ""}
               on:click={() => setPrefs({ dockIconSize: id })}
             >

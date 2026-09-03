@@ -71,7 +71,7 @@
         toggled={() => setPrefs({ lidDockedSuspend: !($prefs.lidDockedSuspend === true) })}
       />
     </Card>
-    <p class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+    <p class="mt-2 text-xs text-dim dark:text-dim">
       With the laptop alone, closing the lid always suspends. The session locks on the way down,
       before the machine sleeps.
     </p>
@@ -95,15 +95,15 @@
             picked={chargeLimit}
           />
         {:else if bat.chargeLimit != null}
-          <div class="px-4 py-2.5 text-xs text-amber-500">
+          <div class="px-4 py-2.5 text-xs text-warning">
             Charge ceiling is {bat.chargeLimit}%, but the attribute is root-only here.
             Re-run install.sh to add the udev rule, or manage it with asusctl.
           </div>
         {:else}
-          <div class="px-4 py-2.5 text-xs text-zinc-400">This machine's battery exposes no charge-ceiling control.</div>
+          <div class="px-4 py-2.5 text-xs text-dim">This machine's battery exposes no charge-ceiling control.</div>
         {/if}
       {:else}
-        <div class="px-4 py-3 text-sm text-zinc-400">No battery detected.</div>
+        <div class="px-4 py-3 text-sm text-dim">No battery detected.</div>
       {/if}
     </Card>
   </section>

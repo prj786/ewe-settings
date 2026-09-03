@@ -1,3 +1,3 @@
-<div class="card divide-y divide-zinc-200 overflow-hidden dark:divide-zinc-700/60">
+<div class="card divide-y divide-hairline overflow-hidden ">
   <slot />
 </div>

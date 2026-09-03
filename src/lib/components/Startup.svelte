@@ -77,7 +77,7 @@
             on:click={() => add(a)}
           >
             <span class="min-w-0 flex-1 truncate">{a.name}</span>
-            <span class="max-w-48 truncate text-xs text-zinc-400">{a.comment || a.exec}</span>
+            <span class="max-w-48 truncate text-xs text-dim">{a.comment || a.exec}</span>
           </button>
         {/each}
       </div>
@@ -85,7 +85,7 @@
   {/if}
 
   {#if apps.length === 0}
-    <div class="card p-6 text-center text-sm text-zinc-400">
+    <div class="card p-6 text-center text-sm text-dim">
       Nothing starts automatically. Add an application to launch it at every login.
     </div>
   {:else}
@@ -94,7 +94,7 @@
         <div class="flex items-center gap-3 px-4 py-2.5 {a.enabled === false ? 'opacity-50' : ''}">
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-medium">{a.name}</div>
-            <div class="truncate text-xs text-zinc-400">{a.exec}</div>
+            <div class="truncate text-xs text-dim">{a.exec}</div>
           </div>
           <Toggle on={a.enabled !== false} toggled={() => toggle(i)} />
           <IconBtn icon={'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'} title="Remove" danger go={() => remove(i)} />
@@ -103,7 +103,7 @@
     </Card>
   {/if}
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">
     Enabled entries are launched by the shell's autostart at login. Changes apply at the next login.
   </p>
 </div>

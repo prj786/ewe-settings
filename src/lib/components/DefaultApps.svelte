@@ -45,13 +45,13 @@
       {:else}
         <div class="flex items-center justify-between px-4 py-3">
           <span class="text-sm font-medium">{c.key}</span>
-          <span class="text-xs text-zinc-400">no handlers installed</span>
+          <span class="text-xs text-dim">no handlers installed</span>
         </div>
       {/if}
     {/each}
   </Card>
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">
     Stored in ~/.config/mimeapps.list — read natively by every GTK app and by xdg-open.
   </p>
 </div>

@@ -121,9 +121,9 @@
     <Card>
       <div class="px-4 py-5 text-center">
         <div class="font-mono text-4xl font-semibold tabular-nums">{timeText(now)}</div>
-        <div class="mt-1 text-sm text-zinc-400 dark:text-zinc-500">{dateText(now)}</div>
+        <div class="mt-1 text-sm text-dim dark:text-dim">{dateText(now)}</div>
         {#if info}
-          <div class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+          <div class="mt-2 text-xs text-dim dark:text-dim">
             {info.timezone}
             {#if info.ntp}&nbsp;·&nbsp;{info.ntpSynced ? "clock synced" : "syncing…"}{/if}
           </div>
@@ -157,7 +157,7 @@
         picked={setZone}
       />
     </Card>
-    <p class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+    <p class="mt-2 text-xs text-dim dark:text-dim">
       Picking a zone by hand pins it: automatic detection stays out of the way until you turn it
       back on. The clock itself is always network-synced (below) — the zone is the only thing that
       goes stale when you travel.
@@ -182,7 +182,7 @@
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
         <div class="min-w-0">
           <div class="text-sm font-medium">Display language</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">
+          <div class="text-xs text-dim dark:text-dim">
             {#if loc}
               <span class="font-mono">{loc.current || "unset"}</span>
               {#if loc.current && !loc.generated}&nbsp;·&nbsp;not generated{/if}
@@ -202,22 +202,22 @@
         <div class="px-4 py-3 {langBusy ? 'pointer-events-none opacity-50' : ''}">
           <!-- svelte-ignore a11y_autofocus -->
           <input class="input mb-2" placeholder="Search languages…" bind:value={langQuery} autofocus />
-          <div class="max-h-64 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700/60">
+          <div class="max-h-64 overflow-y-auto rounded-lg border border-hairline">
             {#each langCandidates.slice(0, 40) as c (c.code)}
               <button
                 class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 {c.code === loc?.current ? 'font-medium' : ''}"
                 on:click={() => setLocale(c)}
               >
                 <span class="min-w-0 flex-1 truncate">{c.label}</span>
-                <span class="shrink-0 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">{c.code}</span>
+                <span class="shrink-0 font-mono text-[11px] text-dim dark:text-dim">{c.code}</span>
                 {#if c.generated}
-                  <span class="w-16 shrink-0 rounded bg-zinc-200/70 px-1.5 py-0.5 text-center text-[10px] uppercase dark:bg-zinc-700/60">ready</span>
+                  <span class="w-16 shrink-0 rounded bg-elevated/70 px-1.5 py-0.5 text-center text-[10px] uppercase /60">ready</span>
                 {:else}
-                  <span class="w-16 shrink-0 text-center text-[10px] uppercase text-zinc-400 dark:text-zinc-500">generate</span>
+                  <span class="w-16 shrink-0 text-center text-[10px] uppercase text-dim dark:text-dim">generate</span>
                 {/if}
               </button>
             {:else}
-              <div class="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">No match.</div>
+              <div class="px-3 py-2 text-xs text-dim dark:text-dim">No match.</div>
             {/each}
           </div>
           <button class="btn-ghost mt-2 !py-1 text-xs" on:click={() => ((showLang = false), (langQuery = ""))}>
@@ -226,7 +226,7 @@
         </div>
       {/if}
     </Card>
-    <p class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+    <p class="mt-2 text-xs text-dim dark:text-dim">
       Sets the system language (LANG) for every app. Locales marked "generate" are built first,
       which takes a moment and asks for your password. Running apps keep their current language —
       sign out and back in to see the change everywhere.

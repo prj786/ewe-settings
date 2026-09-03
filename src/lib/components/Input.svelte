@@ -177,14 +177,14 @@
   <h1 class="text-lg font-semibold">Keyboard & Mouse</h1>
 
   {#if !loaded}
-    <p class="text-sm text-zinc-400">Reading input configuration…</p>
+    <p class="text-sm text-dim">Reading input configuration…</p>
   {:else}
     <section>
       <div class="section-title">Keyboard layouts</div>
       <Card>
         {#each kbActive as l, i (l.code + i)}
           <div class="flex flex-wrap items-center gap-2 px-4 py-2.5">
-            <span class="w-10 shrink-0 rounded bg-zinc-200/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase dark:bg-zinc-700/60">{l.code}</span>
+            <span class="w-10 shrink-0 rounded bg-elevated/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase /60">{l.code}</span>
             <span class="min-w-0 flex-1 truncate text-sm">{nameOf(l.code)}</span>
             <Select.Root
               type="single"
@@ -210,10 +210,10 @@
         <div class="px-4 py-3">
           {#if showAdd}
             <input class="input mb-2" placeholder="Search layouts…" bind:value={addQuery} />
-            <div class="max-h-48 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700/60">
+            <div class="max-h-48 overflow-y-auto rounded-lg border border-hairline">
               {#each addCandidates.slice(0, 30) as p (p.c)}
                 <button class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5" on:click={() => kbAdd(p.c)}>
-                  <span class="w-10 rounded bg-zinc-200/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase dark:bg-zinc-700/60">{p.c}</span>
+                  <span class="w-10 rounded bg-elevated/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase /60">{p.c}</span>
                   {p.n}
                 </button>
               {/each}

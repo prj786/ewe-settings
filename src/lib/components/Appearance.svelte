@@ -48,17 +48,17 @@
             class="rounded-lg border p-3 text-left transition-colors
               {($prefs.themeName || 'flock') === st.id
               ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
-              : 'border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800/60'}"
+              : 'border-hairline hover:bg-elevated  dark:hover:bg-elevated/60'}"
             disabled={busy}
             on:click={() => run(() => setPrefs({ themeName: st.id }))}
           >
-            <span class="mb-2 block h-8 w-full rounded border border-zinc-700/60" style="background: {st.swatch}"></span>
+            <span class="mb-2 block h-8 w-full rounded border border-hairline" style="background: {st.swatch}"></span>
             <span class="block text-sm font-medium">{st.name}</span>
-            <span class="block text-xs text-zinc-400 dark:text-zinc-500">{st.sub}</span>
+            <span class="block text-xs text-dim dark:text-dim">{st.sub}</span>
           </button>
         {/each}
       </div>
-      <p class="text-xs text-zinc-400 dark:text-zinc-500">
+      <p class="text-xs text-dim dark:text-dim">
         Bar, dock and panels follow the style; shape, Phosphor icons and your accent stay identical. Applies instantly.
       </p>
     </div>
@@ -79,7 +79,7 @@
             ></button>
           {/each}
         </div>
-        <p class="text-xs text-zinc-400 dark:text-zinc-500">
+        <p class="text-xs text-dim dark:text-dim">
           Applies to the shell, window borders and GTK/Qt apps.
         </p>
     </div>
@@ -87,13 +87,13 @@
 
   <section>
     <div class="section-title">Windows & animations</div>
-    <div class="card divide-y divide-zinc-200 dark:divide-zinc-700/60">
+    <div class="card divide-y divide-hairline">
       <!-- Light mode is parked until it is actually fully light — the DE is
            dark-only for now, so no colour-scheme toggle here. -->
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Tint window borders</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">Active window border follows the accent.</div>
+          <div class="text-xs text-dim dark:text-dim">Active window border follows the accent.</div>
         </div>
         <Checkbox
           checked={!!$prefs.tintBorders}
@@ -109,7 +109,7 @@
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Window transparency</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">Unfocused windows slightly translucent.</div>
+          <div class="text-xs text-dim dark:text-dim">Unfocused windows slightly translucent.</div>
         </div>
         <Checkbox
           checked={$prefs.windowTransparency !== false}
@@ -121,7 +121,7 @@
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Event sounds</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">Chimes for notifications, volume, screenshots and power events.</div>
+          <div class="text-xs text-dim dark:text-dim">Chimes for notifications, volume, screenshots and power events.</div>
         </div>
         <Checkbox
           checked={$prefs.eventSounds !== false}
@@ -133,10 +133,10 @@
       <div class="flex items-center justify-between gap-3 px-4 py-3">
         <div>
           <div class="text-sm font-medium">Animations</div>
-          <div class="text-xs text-zinc-400 dark:text-zinc-500">Speed, presets, curves and styles moved to their own page.</div>
+          <div class="text-xs text-dim dark:text-dim">Speed, presets, curves and styles moved to their own page.</div>
         </div>
         <button
-          class="shrink-0 rounded-full bg-zinc-200/70 px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-200 dark:hover:bg-zinc-600/60"
+          class="shrink-0 rounded-full bg-elevated/70 px-3 py-1 text-xs font-medium text-dim transition-colors hover:bg-hover /60  dark:hover:bg-hover"
           on:click={() => pane.set("animations")}
         >
           Open Animations

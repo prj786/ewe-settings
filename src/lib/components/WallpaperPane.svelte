@@ -140,12 +140,12 @@
           {@const cur = currentFor(target) === f}
           <button
             class="group relative aspect-video overflow-hidden rounded-lg border transition-shadow hover:shadow-md
-              {cur ? 'border-transparent ring-2' : 'border-zinc-200 dark:border-zinc-700/60'}"
+              {cur ? 'border-transparent ring-2' : 'border-hairline'}"
             style={cur ? "--tw-ring-color: var(--accent)" : ""}
             on:click={() => assign(f)}
           >
             {#if isVideo(f)}
-              <div class="flex h-full w-full items-center justify-center bg-zinc-200 text-2xl dark:bg-zinc-700">🎬</div>
+              <div class="flex h-full w-full items-center justify-center bg-elevated text-2xl ">🎬</div>
             {:else}
               <img src={convertFileSrc(f)} alt="" loading="lazy" class="h-full w-full object-cover" />
             {/if}
@@ -162,16 +162,16 @@
       </div>
     </section>
   {:else if dir}
-    <p class="text-sm text-zinc-400">No images or videos in {dir} — use “Choose file…”.</p>
+    <p class="text-sm text-dim">No images or videos in {dir} — use “Choose file…”.</p>
   {/if}
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">
     Applied live and restored at every login by wallpaper.sh; a newly plugged-in monitor gets its
     wallpaper automatically. Static images → {imgBackend || "no backend"}, GIFs animate via swww,
     video plays via mpvpaper (always looped). Backend: {backendLabel}.
   </p>
   {#if anyAnimated}
-    <p class="text-xs text-amber-500">
+    <p class="text-xs text-warning">
       Animated wallpapers keep the GPU decoding continuously — expect measurable battery drain.
     </p>
   {/if}

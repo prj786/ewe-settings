@@ -25,7 +25,7 @@
       <KV k="Memory" v={d.mem || "—"} />
       <KV k="Disk (/)" v={d.disk || "—"} />
     {:else}
-      <div class="px-4 py-3 text-sm text-zinc-400">Checking…</div>
+      <div class="px-4 py-3 text-sm text-dim">Checking…</div>
     {/if}
   </Card>
 
@@ -41,9 +41,9 @@
         ] as [label, state] (label)}
           <div class="flex items-center justify-between px-4 py-2.5">
             <span class="text-sm">{label}</span>
-            <span class="flex items-center gap-2 text-xs text-zinc-400">
+            <span class="flex items-center gap-2 text-xs text-dim">
               {state || "—"}
-              <span class="h-2.5 w-2.5 rounded-full {state === 'active' ? 'bg-green-500' : 'bg-red-500'}"></span>
+              <span class="h-2.5 w-2.5 rounded-full {state === 'active' ? 'bg-[color-mix(in_srgb,var(--success)_14%,transparent)]0' : 'bg-[color-mix(in_srgb,var(--danger)_14%,transparent)]0'}"></span>
             </span>
           </div>
         {/each}

@@ -74,7 +74,7 @@
     profiles = { ...profiles, [key]: list };
     lastKey = key;
     await api.writeConfig(
-      "quickshell/display-profiles.json",
+    "quickshell/display-profiles.json",
       JSON.stringify({ version: 1, lastKey, profiles }, null, 2)
     );
     await api.writeConfig("hypr/generated/monitors.lua", monitorsLuaText(profiles, lastKey));
@@ -326,16 +326,16 @@
   </div>
 
   {#if !loaded}
-    <p class="text-sm text-zinc-400">Reading monitors…</p>
+    <p class="text-sm text-dim">Reading monitors…</p>
   {:else if specs.length === 0}
-    <p class="text-sm text-zinc-400">No monitors reported. Is the shell session running?</p>
+    <p class="text-sm text-dim">No monitors reported. Is the shell session running?</p>
   {/if}
 
   {#if loaded && activeSpecs.length > 1}
     <section>
       <div class="section-title">Arrangement</div>
       <Card>
-        <div class="px-4 pt-3 text-xs text-zinc-400 dark:text-zinc-500">
+        <div class="px-4 pt-3 text-xs text-dim dark:text-dim">
           Drag a display to choose which side it sits on. Displays snap edge to edge.
         </div>
         <div class="px-4 pb-3" bind:clientWidth={cw}>
@@ -344,14 +344,14 @@
               <div
                 role="button"
                 tabindex="-1"
-                class="absolute flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 bg-zinc-100 transition-shadow dark:bg-zinc-800
+                class="absolute flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 bg-elevated transition-shadow 
                        {dragging && dragging.name === r.s.name ? 'z-10 cursor-grabbing shadow-xl' : 'cursor-grab'}
-                       {r.s.primary ? 'border-[var(--accent)]' : 'border-zinc-300 dark:border-zinc-600'}"
+                       {r.s.primary ? 'border-[var(--accent)]' : 'border-hairline'}"
                 style={`left:${r.px}px;top:${r.py}px;width:${r.pw}px;height:${r.ph}px`}
                 on:pointerdown={(e) => startDrag(e, r)}
               >
                 <span class="pointer-events-none max-w-full truncate px-1 text-xs font-medium">{r.s.name}</span>
-                <span class="pointer-events-none text-[10px] text-zinc-400 dark:text-zinc-500">{modeRes(r.s.mode)}</span>
+                <span class="pointer-events-none text-[10px] text-dim dark:text-dim">{modeRes(r.s.mode)}</span>
               </div>
             {/each}
           </div>
@@ -368,12 +368,12 @@
     <section>
       <div class="section-title">
         {s.name}
-        {#if s.desc}<span class="ml-2 font-normal normal-case tracking-normal text-zinc-400">{s.desc}</span>{/if}
+        {#if s.desc}<span class="ml-2 font-normal normal-case tracking-normal text-dim">{s.desc}</span>{/if}
       </div>
       <Card>
         {#if s.disabled}
           <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-sm text-zinc-400">Disabled</span>
+            <span class="text-sm text-dim">Disabled</span>
             <button class="btn-primary !py-1 text-xs" on:click={() => riskyChange(s.name, { disabled: false })}>
               Enable
             </button>
@@ -433,7 +433,7 @@
           <div class="flex items-center justify-between px-4 py-3">
             <div>
               <div class="text-sm font-medium">Primary display</div>
-              <div class="text-xs text-zinc-400 dark:text-zinc-500">Anchors auto-arrange at 0,0.</div>
+              <div class="text-xs text-dim dark:text-dim">Anchors auto-arrange at 0,0.</div>
             </div>
             {#if s.primary}
               <span class="text-xs font-medium" style="color: var(--accent)">Primary</span>
@@ -444,7 +444,7 @@
           <KV k="Position" v={`${s.x}, ${s.y}`} />
           {#if specs.length > 1}
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-sm text-zinc-400">Turn off this display</span>
+              <span class="text-sm text-dim">Turn off this display</span>
               <button class="btn-ghost !py-1 text-xs" on:click={() => riskyChange(s.name, { disabled: true })}>
                 Disable
               </button>
@@ -455,7 +455,7 @@
     </section>
   {/each}
 
-  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+  <p class="text-xs text-dim dark:text-dim">
     One profile is saved per set of connected displays and re-applied automatically at boot,
     on hotplug and when docking. Risky changes revert by themselves unless you confirm.
   </p>
@@ -463,9 +463,9 @@
 
 {#if revertSpecs}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
-    <div class="card w-full max-w-sm !bg-white p-6 text-center shadow-2xl dark:!bg-zinc-900">
+    <div class="card w-full max-w-sm !bg-white p-6 text-center shadow-2xl dark:!bg-[var(--bg)]">
       <h2 class="text-base font-semibold">Keep these display settings?</h2>
-      <p class="mt-1 text-sm text-zinc-400">
+      <p class="mt-1 text-sm text-dim">
         Reverting to the previous configuration in {revertLeft}&nbsp;s.
       </p>
       <div class="mt-5 flex gap-2">

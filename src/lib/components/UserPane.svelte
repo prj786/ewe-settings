@@ -226,7 +226,7 @@
             {info?.realName || info?.user || "…"}
           </button>
         {/if}
-        <div class="truncate text-xs text-zinc-400">{info ? `${info.user}@${info.host}` : ""}</div>
+        <div class="truncate text-xs text-dim">{info ? `${info.user}@${info.host}` : ""}</div>
       </div>
       <div class="flex flex-col gap-1.5">
         <button class="btn-ghost !py-1 text-xs" on:click={pickAvatar}>Change avatar…</button>
@@ -251,14 +251,14 @@
     <div class="section-title">Your account · Nextcloud</div>
     <Card>
       {#if cloud === null}
-        <div class="px-4 py-3 text-sm text-zinc-400">
+        <div class="px-4 py-3 text-sm text-dim">
           The shell is not running — your account is managed through it.
         </div>
       {:else if !cloud.signedIn}
         <div class="flex items-center justify-between gap-3 px-4 py-3">
           <div class="min-w-0">
             <div class="text-sm font-medium">Not signed in</div>
-            <div class="text-xs text-zinc-400">
+            <div class="text-xs text-dim">
               Settings sync, your files as a folder, your calendar. Signing in happens in ewe-sync.
             </div>
           </div>
@@ -277,19 +277,19 @@
           {/if}
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-medium">{cloud.displayName || cloud.user}</div>
-            <div class="truncate text-xs text-zinc-400">
+            <div class="truncate text-xs text-dim">
               {cloud.email ? `${cloud.email} · ` : ""}{cloud.serverHost || cloud.server}
-              {#if cloud.offline}<span class="text-amber-500"> · offline</span>{/if}
+              {#if cloud.offline}<span class="text-warning"> · offline</span>{/if}
             </div>
           </div>
         </div>
         {#if cloud.quota && cloud.quota.total > 0}
           <div class="px-4 py-2.5">
             <div class="flex items-baseline justify-between text-xs">
-              <span class="text-zinc-400">Storage</span>
+              <span class="text-dim">Storage</span>
               <span>{fmtBytes(cloud.quota.used)} of {fmtBytes(cloud.quota.total)}</span>
             </div>
-            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-elevated">
               <div class="h-full rounded-full" style="width: {quotaPct}%; background: var(--accent)"></div>
             </div>
           </div>
@@ -299,7 +299,7 @@
         <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"} (mounted)` : cloud.filesPath ? `${cloud.filesPath} (not mounted)` : "—"} />
         <KV k="Calendar" v={cloud.calState === "ok" ? `${cloud.eventCount} upcoming event${cloud.eventCount === 1 ? "" : "s"}` : cloud.calState || "—"} />
         {#if cloud.error}
-          <div class="px-4 py-2.5 text-xs text-amber-500">{cloud.error}</div>
+          <div class="px-4 py-2.5 text-xs text-warning">{cloud.error}</div>
         {/if}
       {/if}
     </Card>
@@ -311,14 +311,14 @@
     <div class="section-title">Settings sync</div>
     <Card>
       {#if !cloud?.signedIn}
-        <div class="px-4 py-3 text-sm text-zinc-400">
+        <div class="px-4 py-3 text-sm text-dim">
           Sign in from ewe-sync to keep this machine's settings, app list and looks in your account —
           and to bring them back on the next one.
         </div>
       {:else}
         <div class="px-4 py-3">
           <div class="text-sm font-medium">The one file</div>
-          <div class="text-xs text-zinc-400">
+          <div class="text-xs text-dim">
             {cloud.syncState === "syncing"
               ? "Syncing…"
               : cloud.syncConflict
@@ -339,7 +339,7 @@
         <KV k="Auto-sync" v={cloud.autoSync ? "on" : "off"} />
         {#if syncApp}
           <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <div class="text-xs text-zinc-400">
+            <div class="text-xs text-dim">
               Backing up, restoring, your machines and folder sync all live in the account app.
             </div>
             <button class="btn-primary !py-1 shrink-0 text-xs" on:click={openSync}>Manage in ewe-sync</button>
@@ -362,7 +362,7 @@
               ? "Gmail"
               : "No mail account"}
         </div>
-        <div class="truncate text-xs text-zinc-400">
+        <div class="truncate text-xs text-dim">
           {mailSource === "imap"
             ? `${mail?.imapHost || ""}${mail?.state === "auth" ? " · the server rejected the password" : mail?.state === "offline" ? " · offline" : mail?.unread ? ` · ${mail.unread} unread` : ""}`
             : mailSource === "gmail"
@@ -371,7 +371,7 @@
         </div>
       </div>
       {#if mail?.error && mailSource === "imap"}
-        <div class="px-4 py-2 text-xs text-amber-500">{mail.error}</div>
+        <div class="px-4 py-2 text-xs text-warning">{mail.error}</div>
       {/if}
       {#if mail && mailSource}
         <ToggleRow
@@ -390,16 +390,16 @@
   <section>
     <div class="section-title">Google · optional</div>
     <Card>
-      <div class="px-4 py-3 text-xs text-zinc-400">
+      <div class="px-4 py-3 text-xs text-dim">
         For Gmail notifications and a Drive folder — never settings sync. ewe ships no Google client
         of its own; you bring your own OAuth client. ewe-sync → Google explains where it goes and
         connects the account.
       </div>
       <KV k="Client file" v={gclient ? (gclient.valid ? "found" : gclient.exists ? "found, but not a Desktop-app client JSON" : "missing") : google?.configured ? "found" : "missing"} />
       {#if google === null}
-        <div class="px-4 py-3 text-sm text-zinc-400">The shell is not running — Google is managed through it.</div>
+        <div class="px-4 py-3 text-sm text-dim">The shell is not running — Google is managed through it.</div>
       {:else if !google.signedIn}
-        <div class="px-4 py-2.5 text-xs text-zinc-400">Not connected.</div>
+        <div class="px-4 py-2.5 text-xs text-dim">Not connected.</div>
       {:else}
         <div class="flex items-center gap-3 px-4 py-3">
           {#if google.profile?.picture}
@@ -407,7 +407,7 @@
           {/if}
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-medium">{google.profile?.name || "Google"}</div>
-            <div class="truncate text-xs text-zinc-400">{google.profile?.email || ""}</div>
+            <div class="truncate text-xs text-dim">{google.profile?.email || ""}</div>
           </div>
         </div>
         <KV k="Gmail" v={google.mailState === "scope" ? "no mail permission — reconnect in ewe-sync" : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
@@ -415,7 +415,7 @@
       {/if}
       {#if syncApp}
         <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div class="text-xs text-zinc-400">Connecting and disconnecting happen in the account app.</div>
+          <div class="text-xs text-dim">Connecting and disconnecting happen in the account app.</div>
           <button class="btn-primary !py-1 shrink-0 text-xs" on:click={openSync}>Manage in ewe-sync</button>
         </div>
       {/if}

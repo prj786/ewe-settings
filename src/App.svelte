@@ -1,4 +1,23 @@
 <script>
+  // The look, live. tokens.css is compiled in as the fallback; these values
+  // come from ewe-theme.conf via `ewe-theme show`, so editing the conf
+  // recolours the app with no rebuild. Re-injected only when the theme name
+  // actually changes.
+  let injectedTheme = "";
+  async function applyThemeTokens(name) {
+    if (!name || name === injectedTheme) return;
+    try {
+      const t = await api.themeTokens(name);
+      if (!t || !t.css_vars) return;
+      for (const [k, v] of Object.entries(t.css_vars)) {
+        document.documentElement.style.setProperty(k, v);
+      }
+      injectedTheme = name;
+    } catch {
+      /* ewe-theme absent — the compiled-in tokens already carry this look */
+    }
+  }
+
   import { onMount } from "svelte";
   import * as api from "./lib/api.js";
   import {
@@ -50,6 +69,7 @@
 
   $: document.documentElement.style.setProperty("--accent", $effectiveAccent);
   $: document.documentElement.classList.toggle("blacksheep", ($prefs.themeName || "flock") === "blacksheep");
+  $: applyThemeTokens($prefs.themeName || "flock");
 
   onMount(async () => {
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
@@ -86,13 +106,13 @@
          rather than a separate product. -->
     <div class="rail-foot">
       ewe {$version}
-      {#if !$shellUp}<div class="mt-1 text-amber-500">shell not running — changes apply at next start</div>{/if}
+      {#if !$shellUp}<div class="mt-1 text-warning">shell not running — changes apply at next start</div>{/if}
     </div>
   </aside>
 
   <main class="relative min-w-0 flex-1 overflow-y-auto">
     {#if $errorMsg}
-      <div class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-950/90 px-4 py-2 text-sm text-red-200 backdrop-blur">
+      <div class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_20%,transparent)] px-4 py-2 text-sm text-danger backdrop-blur">
         <span class="min-w-0 truncate" title={$errorMsg}>{$errorMsg}</span>
         <button class="shrink-0 text-xs underline" on:click={() => errorMsg.set("")}>Dismiss</button>
       </div>

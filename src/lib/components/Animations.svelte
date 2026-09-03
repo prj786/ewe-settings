@@ -48,7 +48,7 @@
 
   {#if $anim}
     <section>
-      <div class="card divide-y divide-zinc-200 dark:divide-zinc-700/60">
+      <div class="card divide-y divide-hairline">
         <ToggleRow
           title="Animations"
           sub="Windows, workspaces, fades and panels."
@@ -59,7 +59,7 @@
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3 {allOn ? '' : 'pointer-events-none opacity-50'}">
           <div>
             <div class="text-sm font-medium">Speed</div>
-            <div class="text-xs text-zinc-400 dark:text-zinc-500">Paces the shell and every duration below.</div>
+            <div class="text-xs text-dim dark:text-dim">Paces the shell and every duration below.</div>
           </div>
           <div class="flex flex-wrap gap-1.5">
             {#each speeds as s (s.value)}
@@ -67,7 +67,7 @@
                 class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                   {Math.abs(mult - s.value) < 0.01
                   ? 'text-white'
-                  : 'bg-zinc-200/70 text-zinc-500 hover:bg-zinc-300/70 dark:bg-zinc-700/60 dark:text-zinc-300'}"
+                  : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
                 style={Math.abs(mult - s.value) < 0.01 ? "background: var(--accent)" : ""}
                 disabled={busy}
                 on:click={() => run(() => setAnimationSpeed(s.value))}
@@ -88,17 +88,17 @@
             class="card p-3 text-left transition-colors
               {activePreset === p.id
               ? '!border-[var(--accent)] ring-1 ring-[var(--accent)]'
-              : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60'}"
+              : 'hover:bg-elevated dark:hover:bg-elevated/60'}"
             disabled={busy}
             on:click={() => run(() => applyAnim(animStateFromPreset(p), p.name + " applied"))}
           >
             <span class="block text-sm font-medium">{p.name}</span>
-            <span class="block text-xs text-zinc-400 dark:text-zinc-500">{p.sub}</span>
+            <span class="block text-xs text-dim dark:text-dim">{p.sub}</span>
           </button>
         {/each}
       </div>
       {#if allOn && !activePreset}
-        <p class="mt-2 text-xs text-zinc-400 dark:text-zinc-500">Custom — your own mix from the controls below.</p>
+        <p class="mt-2 text-xs text-dim dark:text-dim">Custom — your own mix from the controls below.</p>
       {/if}
     </section>
 
@@ -107,7 +107,7 @@
       <div class="space-y-3">
         {#each ANIM_LEAVES as d (d.leaf)}
           {@const a = $anim.anims[d.leaf]}
-          <div class="card divide-y divide-zinc-200 dark:divide-zinc-700/60">
+          <div class="card divide-y divide-hairline">
             <ToggleRow
               title={d.label}
               on={!!a.on}
@@ -157,7 +157,7 @@
           </div>
         {/each}
       </div>
-      <p class="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+      <p class="mt-3 text-xs text-dim dark:text-dim">
         Every change applies instantly — open a window or switch a workspace to feel it.
       </p>
     </section>

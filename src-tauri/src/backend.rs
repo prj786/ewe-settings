@@ -1535,7 +1535,9 @@ pub async fn mail_login(
 pub async fn theme_tokens(theme: String) -> Result<Value, String> {
     if theme.is_empty()
         || theme.len() > 64
-        || !theme.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || !theme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return Err("bad theme name".into());
     }

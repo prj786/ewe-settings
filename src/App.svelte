@@ -1,20 +1,28 @@
 <script>
-  // The look, live. tokens.css is compiled in as the fallback; these values
-  // come from ewe-theme.conf via `ewe-theme show`, so editing the conf
-  // recolours the app with no rebuild. Re-injected only when the theme name
-  // actually changes.
-  let injectedTheme = "";
-  async function applyThemeTokens(name) {
-    if (!name || name === injectedTheme) return;
+  // The look, live. tokens.css is compiled in as the fallback, and it is built
+  // from the DEFAULT accent — so on its own the app wears the wrong greys the
+  // moment the user picks an accent. These values come from `ewe-theme show`,
+  // which reads THIS machine's ewe.conf, so the whole derived set lands:
+  // the brand ramp, and the neutrals carrying the accent's tint.
+  //
+  // Keyed on the ACCENT, not the theme name. There is one ewe look now — the
+  // name never changes, so keying on it meant injecting once at startup and
+  // never again, and every later accent change stopped at the app boundary.
+  let injectedKey = "";
+  async function applyThemeTokens(accent) {
+    const key = String(accent || "");
+    if (key === injectedKey) return;
+    injectedKey = key;
     try {
-      const t = await api.themeTokens(name);
+      const t = await api.themeTokens("ewe");
       if (!t || !t.css_vars) return;
       for (const [k, v] of Object.entries(t.css_vars)) {
         document.documentElement.style.setProperty(k, v);
       }
-      injectedTheme = name;
     } catch {
-      /* ewe-theme absent — the compiled-in tokens already carry this look */
+      injectedKey = "";   // let a later attempt retry
+      /* ewe-theme absent (dev, or ewe not deployed) — the compiled-in
+         tokens.css already carries the default look */
     }
   }
 
@@ -46,33 +54,35 @@
   // The shell is always dark; Settings matches it rather than the GTK scheme.
   document.documentElement.classList.add("dark");
 
-  // Phosphor Fill codepoints — the same glyphs the shell's own sidebar uses,
+  // Lucide codepoints — the same glyphs the shell's own sidebar uses,
   // so DE and app are one icon language (font in assets/, MIT).
   const panes = [
-    ["appearance", "Appearance", 0xE6C8],
-    ["animations", "Animations", 0xE628],
-    ["layout", "Layout & Dock", 0xE6D6],
-    ["windowrules", "Window Rules", 0xE464],
-    ["displays", "Displays", 0xE32E],
-    ["network", "Networking", 0xE4EA],
-    ["wallpaper", "Wallpaper", 0xE2CA],
-    ["input", "Keyboard & Mouse", 0xE2D8],
-    ["saver", "Screensaver", 0xE58E],
-    ["power", "Power", 0xE3DA],
-    ["defaults", "Default Apps", 0xE5DA],
-    ["startup", "Startup", 0xE3FE],
-    ["shortcuts", "Shortcuts", 0xE1C4],
-    ["time", "Time & Place", 0xE28C],
-    ["user", "User", 0xE4C2],
-    ["system", "System", 0xE610]
+    ["appearance", "Appearance", 0xE1DD],
+    ["animations", "Animations", 0xE1BF],
+    ["layout", "Layout & Dock", 0xE1C1],
+    ["windowrules", "Window Rules", 0xE0FF],
+    ["displays", "Displays", 0xE11D],
+    ["network", "Networking", 0xE1AE],
+    ["wallpaper", "Wallpaper", 0xE0F6],
+    ["input", "Keyboard & Mouse", 0xE284],
+    ["saver", "Screensaver", 0xE410],
+    ["power", "Power", 0xE140],
+    ["defaults", "Default Apps", 0xE426],
+    ["startup", "Startup", 0xE286],
+    ["shortcuts", "Shortcuts", 0xE09A],
+    ["time", "Time & Place", 0xE0E8],
+    ["user", "User", 0xE19F],
+    ["system", "System", 0xE0A9]
   ];
 
   // only when the user actually picked one — otherwise the theme default in
   // tokens.css stands
   $: if ($effectiveAccent) document.documentElement.style.setProperty("--accent", $effectiveAccent);
      else document.documentElement.style.removeProperty("--accent");
-  $: document.documentElement.classList.toggle("blacksheep", ($prefs.themeName || "flock") === "blacksheep");
-  $: applyThemeTokens($prefs.themeName || "flock");
+  // One look now, so nothing keys off a theme NAME any more. The accent is
+  // the seed the whole token set is derived from, so it is what the injection
+  // watches: pick a new one and every grey, stroke and brand step follows.
+  $: applyThemeTokens($effectiveAccent);
 
   onMount(async () => {
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
@@ -88,7 +98,7 @@
     <div class="rail-brand">
       <!-- the gear mark, in the same 32 px tile the other apps use -->
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style="background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #1c1c1e))">
-        <span class="ph-i text-[18px]">{String.fromCodePoint(0xE228)}</span>
+        <span class="icon text-[18px]">{String.fromCodePoint(0xE29A)}</span>
       </div>
       <div class="rail-brand-name">Settings</div>
     </div>
@@ -99,7 +109,7 @@
           class="rail-item {$pane === id ? 'is-active' : ''}"
           on:click={() => pane.set(id)}
         >
-          <span class="ph-i">{String.fromCodePoint(icon)}</span>
+          <span class="icon">{String.fromCodePoint(icon)}</span>
           <span class="rail-label">{label}</span>
         </button>
       {/each}

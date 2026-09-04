@@ -1,4 +1,6 @@
 <script>
+  import { onMount } from "svelte";
+  import * as api from "../api.js";
   import { prefs, pane } from "../stores.js";
   import { ACCENTS } from "../hypr.js";
   import { Checkbox } from "./ui/checkbox/index.js";
@@ -9,20 +11,33 @@
     applyBorder
   } from "../overrides.js";
 
-  const shellStyles = [
-    {
-      id: "flock",
-      name: "Flock",
-      sub: "Bauhaus: square, thick-ruled, flat blocks of colour.",
-      swatch: "#1c1c1e"
-    },
-    {
-      id: "blacksheep",
-      name: "Black Sheep",
-      sub: "Alexandria: soft corners, hairline outlines, tonal surfaces.",
-      swatch: "#020202"
-    }
+  // There is ONE ewe look now (2026-09-04) — it is not picked from a list, it
+  // is DERIVED from the accent below. What is still a choice is its shape and
+  // how tightly it packs, and those are keys in ewe.conf [desktop.theme], so
+  // they sync with the rest of the machine instead of living in a second file
+  // that `ewe-conf pull` would quietly overwrite.
+  const shapeGroups = [
+    { key: "corner", title: "Corners", dflt: "medium",
+      opts: [["none", "Square"], ["small", "Slight"], ["medium", "Rounded"], ["large", "Soft"]] },
+    { key: "density", title: "Density", dflt: "comfortable",
+      opts: [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]] },
+    { key: "stroke", title: "Rules", dflt: "thin",
+      opts: [["thin", "Hairline"], ["thick", "Bold"]] }
   ];
+  // The live values come from the token file, which is what ewe-theme was
+  // last built from — never a second copy in this app that could disagree.
+  let shape = {};
+  async function loadShape() {
+    try {
+      const t = await api.themeTokens("ewe");
+      shape = (t && t.input) || {};
+    } catch { shape = {}; }
+  }
+  onMount(loadShape);
+  async function setShape(key, value) {
+    await run(() => api.setConf(`desktop.theme.${key}`, value));
+    await loadShape();
+  }
 
   let busy = false;
   async function run(fn) {
@@ -40,26 +55,28 @@
   <h1 class="text-lg font-semibold">Appearance</h1>
 
   <section>
-    <div class="section-title">Shell style</div>
-    <div class="card p-4">
-      <div class="mb-3 grid grid-cols-2 gap-2.5">
-        {#each shellStyles as st (st.id)}
-          <button
-            class="rounded-lg border p-3 text-left transition-colors
-              {($prefs.themeName || 'flock') === st.id
-              ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
-              : 'border-hairline hover:bg-elevated  dark:hover:bg-elevated/60'}"
-            disabled={busy}
-            on:click={() => run(() => setPrefs({ themeName: st.id }))}
-          >
-            <span class="mb-2 block h-8 w-full rounded border border-hairline" style="background: {st.swatch}"></span>
-            <span class="block text-sm font-medium">{st.name}</span>
-            <span class="block text-xs text-dim dark:text-dim">{st.sub}</span>
-          </button>
-        {/each}
-      </div>
+    <div class="section-title">Shape &amp; density</div>
+    <div class="card p-4 space-y-3">
+      {#each shapeGroups as g (g.key)}
+        <div>
+          <div class="mb-1.5 text-xs font-semibold text-secondary">{g.title}</div>
+          <div class="flex gap-2">
+            {#each g.opts as [val, label] (val)}
+              <button
+                class="flex-1 border px-3 py-2 text-sm font-medium transition-colors
+                  {(shape[g.key] || g.dflt) === val
+                  ? 'border-[var(--brand-bg)] bg-[var(--brand-bg)] text-[var(--fg-on-brand)]'
+                  : 'border-hairline hover:bg-hover'}"
+                style="border-radius: var(--radius-card)"
+                disabled={busy}
+                on:click={() => setShape(g.key, val)}
+              >{label}</button>
+            {/each}
+          </div>
+        </div>
+      {/each}
       <p class="text-xs text-dim dark:text-dim">
-        Bar, dock, panels and the apps all follow. The two looks differ in shape as well as colour — corners, border weight and depth. Your accent and the Phosphor icons stay yours. Applies instantly.
+        Every colour in ewe is derived from your accent — there is no palette to pick. These three set the shape of it: corner radius, spacing and control heights, and the weight of every rule. They live in ewe.conf, so they follow you to your other machines.
       </p>
     </div>
   </section>

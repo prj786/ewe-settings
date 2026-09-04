@@ -463,7 +463,7 @@
 
 {#if revertSpecs}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
-    <div class="card w-full max-w-sm !bg-white p-6 text-center shadow-2xl dark:!bg-[var(--bg)]">
+    <div class="card w-full max-w-sm !bg-white p-6 text-center shadow-2xl dark:!bg-[var(--bg-3)]">
       <h2 class="text-base font-semibold">Keep these display settings?</h2>
       <p class="mt-1 text-sm text-dim">
         Reverting to the previous configuration in {revertLeft}&nbsp;s.

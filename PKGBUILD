@@ -4,7 +4,15 @@
 # hard-won reasons — see the two notes below before changing anything here.
 
 pkgname=ewe-settings
-pkgver=0.12.0beta
+# The git TAG and the pacman pkgver are different strings and always
+# will be: a tag may carry -beta, an Arch pkgver may not contain a
+# hyphen. Of the legal spellings only 0.12.1beta sorts BELOW the
+# eventual 0.12.1 under vercmp. The archive is addressed by the TAG and
+# extracts to <repo>-<tag without the leading v>, so the source URL and
+# the directory below follow _tag, never pkgver. The release workflow
+# rewrites both.
+_tag=v0.12.1-beta
+pkgver=0.12.1beta
 pkgrel=1
 pkgdesc="Settings for the ewe desktop"
 arch=('x86_64' 'aarch64')
@@ -21,7 +29,7 @@ provides=('hypr-shell-settings')
 conflicts=('hypr-shell-settings')
 replaces=('hypr-shell-settings')
 
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/$_tag.tar.gz")
 sha256sums=('8e77c497cc5ae95d114224b261fc327a087bb34e400bd384f4911100fb1c2f2b')
 
 # Arch enables LTO in makepkg.conf, which injects -flto into CFLAGS/LDFLAGS.
@@ -31,7 +39,7 @@ sha256sums=('8e77c497cc5ae95d114224b261fc327a087bb34e400bd384f4911100fb1c2f2b')
 options=(!lto !debug)
 
 build() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$pkgname-${_tag#v}"
   npm ci
   # Through the Tauri CLI, NOT bare `cargo build`. tauri-build decides
   # dev-vs-production at compile time; a plain cargo build stays in dev mode and
@@ -41,7 +49,7 @@ build() {
 }
 
 package() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$pkgname-${_tag#v}"
   install -Dm755 src-tauri/target/release/ewe-settings "$pkgdir/usr/bin/ewe-settings"
   # A shell that predates the rename still launches `hypr-settings`.
   ln -s ewe-settings "$pkgdir/usr/bin/hypr-settings"

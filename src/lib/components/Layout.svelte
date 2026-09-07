@@ -56,9 +56,9 @@
             <button
               class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                 {($layout.mode || 'dwindle') === id
-                ? 'text-white'
+                ? 'text-[var(--fg-on-brand)]'
                 : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-              style={($layout.mode || "dwindle") === id ? "background: var(--accent)" : ""}
+              style={($layout.mode || "dwindle") === id ? "background: var(--brand-bg)" : ""}
               on:click={() => setLayoutMode(id)}
             >
               {label}
@@ -111,9 +111,9 @@
             <button
               class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                 {($prefs.dockIconSize || 'normal') === id
-                ? 'text-white'
+                ? 'text-[var(--fg-on-brand)]'
                 : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-              style={($prefs.dockIconSize || "normal") === id ? "background: var(--accent)" : ""}
+              style={($prefs.dockIconSize || "normal") === id ? "background: var(--brand-bg)" : ""}
               on:click={() => setPrefs({ dockIconSize: id })}
             >
               {label}

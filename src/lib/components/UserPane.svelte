@@ -210,7 +210,7 @@
             {($prefs.avatarShape || 'circle') === 'circle' ? 'rounded-full' : ($prefs.avatarShape || 'circle') === 'rounded' ? 'rounded-xl' : 'rounded-none'}"
         />
       {:else}
-        <div class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold text-white" style="background: var(--accent)">
+        <div class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">
           {(info?.realName || info?.user || "?").slice(0, 1).toUpperCase()}
         </div>
       {/if}
@@ -271,7 +271,7 @@
           {#if cloudAvatar}
             <img src={cloudAvatar} alt="" class="h-10 w-10 rounded-full object-cover" />
           {:else}
-            <div class="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-white" style="background: var(--accent)">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">
               {(cloud.displayName || cloud.user || "?").slice(0, 1).toUpperCase()}
             </div>
           {/if}

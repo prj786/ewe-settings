@@ -66,9 +66,9 @@
               <button
                 class="rounded-full px-3 py-1 text-xs font-medium transition-colors
                   {Math.abs(mult - s.value) < 0.01
-                  ? 'text-white'
+                  ? 'text-[var(--fg-on-brand)]'
                   : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-                style={Math.abs(mult - s.value) < 0.01 ? "background: var(--accent)" : ""}
+                style={Math.abs(mult - s.value) < 0.01 ? "background: var(--brand-bg)" : ""}
                 disabled={busy}
                 on:click={() => run(() => setAnimationSpeed(s.value))}
               >

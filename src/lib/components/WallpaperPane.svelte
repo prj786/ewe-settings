@@ -155,7 +155,7 @@
               </span>
             {/if}
             {#if cur}
-              <span class="absolute right-1 top-1 rounded-full px-1.5 text-[11px] font-bold text-white" style="background: var(--accent)">✓</span>
+              <span class="absolute right-1 top-1 rounded-full px-1.5 text-[11px] font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">✓</span>
             {/if}
           </button>
         {/each}

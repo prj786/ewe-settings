@@ -5,12 +5,14 @@
   // which reads THIS machine's ewe.conf, so the whole derived set lands:
   // the brand ramp, and the neutrals carrying the accent's tint.
   //
-  // Keyed on the ACCENT, not the theme name. There is one ewe look now — the
-  // name never changes, so keying on it meant injecting once at startup and
-  // never again, and every later accent change stopped at the app boundary.
+  // Keyed on the whole THEME INPUT — accent, corner, density, stroke and
+  // neutral tint — not on the accent alone. Keying on the accent meant that
+  // changing the corner radius or the density rewrote ewe.conf and moved the
+  // shell, then hit this guard, returned early, and never reached the app:
+  // "shape and density need a logout" was this one comparison.
   let injectedKey = "";
-  async function applyThemeTokens(accent) {
-    const key = String(accent || "");
+  async function applyThemeTokens(themeKey) {
+    const key = String(themeKey || "");
     if (key === injectedKey) return;
     injectedKey = key;
     try {
@@ -29,7 +31,7 @@
   import { onMount } from "svelte";
   import * as api from "./lib/api.js";
   import {
-    prefs, pane, version, shellUp, effectiveAccent, appliedMsg, errorMsg
+    prefs, pane, version, shellUp, effectiveAccent, themeKey, appliedMsg, errorMsg
   } from "./lib/stores.js";
   import Toasts from "./lib/components/Toasts.svelte";
   import Appearance from "./lib/components/Appearance.svelte";
@@ -82,7 +84,7 @@
   // One look now, so nothing keys off a theme NAME any more. The accent is
   // the seed the whole token set is derived from, so it is what the injection
   // watches: pick a new one and every grey, stroke and brand step follows.
-  $: applyThemeTokens($effectiveAccent);
+  $: applyThemeTokens($themeKey);
 
   onMount(async () => {
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
@@ -97,7 +99,7 @@
   <aside class="rail">
     <div class="rail-brand">
       <!-- the gear mark, in the same 32 px tile the other apps use -->
-      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style="background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #1c1c1e))">
+      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--fg-on-brand)]" style="background: linear-gradient(135deg, var(--brand-bg), color-mix(in srgb, var(--brand-bg) 55%, var(--bg-4)))">
         <span class="icon text-[18px]">{String.fromCodePoint(0xE29A)}</span>
       </div>
       <div class="rail-brand-name">Settings</div>
@@ -166,7 +168,7 @@
     {/if}
 
     {#if $appliedMsg}
-      <div class="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-medium text-white shadow-lg" style="background: var(--accent)">
+      <div class="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--fg-on-brand)] shadow-lg" style="background: var(--brand-bg)">
         {$appliedMsg}
       </div>
     {/if}

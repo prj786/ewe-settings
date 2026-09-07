@@ -18,6 +18,12 @@
   let outputs = [];
   let imgBackend = "";
   let videoBackend = "";
+  // Thumbnails the asset protocol would not serve. The scope in
+  // tauri.conf.json has to name every root a wallpaper can come from, and
+  // `$HOME/**` does NOT cover a leading-dot directory — which is why
+  // ~/.local/share/ewe (the deployed payload, where the shipped set lives) is
+  // listed separately, and why $HOME/.face was already listed beside it.
+  let broken = {};
 
   $: anyVideo = Object.values(map).some(isVideo);
   $: anyAnimated = Object.values(map).some((p) => isVideo(p) || isGif(p));
@@ -146,8 +152,23 @@
           >
             {#if isVideo(f)}
               <div class="flex h-full w-full items-center justify-center bg-elevated text-2xl ">🎬</div>
+            {:else if broken[f]}
+              <!-- A thumbnail the asset protocol refused. WebKit's own
+                   fallback is a bare "?" glyph, which says nothing and looks
+                   like a corrupt file — name the thing instead, so a scope
+                   miss is legible rather than mysterious. -->
+              <div class="flex h-full w-full flex-col items-center justify-center gap-1 bg-elevated px-2 text-center">
+                <span class="text-xs font-medium">{f.split("/").pop()}</span>
+                <span class="text-[10px] text-dim">preview unavailable</span>
+              </div>
             {:else}
-              <img src={convertFileSrc(f)} alt="" loading="lazy" class="h-full w-full object-cover" />
+              <img
+                src={convertFileSrc(f)}
+                alt=""
+                loading="lazy"
+                class="h-full w-full object-cover"
+                on:error={() => (broken = { ...broken, [f]: true })}
+              />
             {/if}
             {#if isVideo(f) || isGif(f)}
               <span class="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">

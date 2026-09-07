@@ -28,6 +28,8 @@
         "enable": true,
         "scope": [
           "$HOME/**",
+          "$HOME/Pictures/**",
+          "$HOME/.local/share/ewe/**",
           "$HOME/.face",
           "$HOME/.cache/ewe-avatar.png",
           "/usr/share/ewe/**"

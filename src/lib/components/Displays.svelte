@@ -3,7 +3,7 @@
   import * as api from "../api.js";
   import {
     snapshot, specFromMonitor, keyFor, luaArgs, monitorsLuaText,
-    modeMapFor, modeRes, specW, specH, verifyAgainst
+    modeMapFor, modeRes, specW, specH, verifyAgainst, scaleOptions, nearestValidScale
   } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
   import Card from "./ui/Card.svelte";
@@ -309,7 +309,13 @@
     { label: "180°", value: 2 },
     { label: "270°", value: 3 }
   ];
-  const scales = [1, 1.25, 1.5, 1.6, 1.75, 2, 2.5].map((s) => ({ label: `${Math.round(s * 100)}%`, value: s }));
+  // a new resolution may not divide by the current scale — snap the way
+  // Hyprland would, so what we ask for is what comes back
+  function pickResolution(s, res, hzs) {
+    if (!hzs.length) return;
+    const [w, h] = res.split("x").map(Number);
+    riskyChange(s.name, { mode: hzs[0].mode, scale: nearestValidScale(w, h, s.scale) });
+  }
 </script>
 
 <svelte:window on:pointermove={moveDrag} on:pointerup={endDrag} on:pointercancel={endDrag} />
@@ -383,10 +389,7 @@
             label="Resolution"
             options={mm.resList.map((r) => ({ label: r.replace("x", " × "), value: r }))}
             value={curRes}
-            picked={(v) => {
-              const hzs = mm.byRes[v] || [];
-              if (hzs.length) riskyChange(s.name, { mode: hzs[0].mode });
-            }}
+            picked={(v) => pickResolution(s, v, mm.byRes[v] || [])}
           />
           <SelectRow
             label="Refresh rate"
@@ -396,9 +399,8 @@
           />
           <SelectRow
             label="Scale"
-            options={scales.some((o) => Math.abs(o.value - s.scale) < 0.001)
-              ? scales
-              : [{ label: `${Math.round(s.scale * 100)}%`, value: s.scale }, ...scales]}
+            sub="Only scales this resolution divides cleanly — Hyprland rejects the rest."
+            options={scaleOptions(curRes, s.scale)}
             value={s.scale}
             picked={(v) => riskyChange(s.name, { scale: Number(v) })}
           />

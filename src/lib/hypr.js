@@ -164,6 +164,45 @@ export function modeMapFor(m, spec) {
   return { resList, byRes };
 }
 
+// ── scale validity (Hyprland src/output/Monitor.cpp) ───────────────────────
+// Hyprland refuses a scale that leaves the logical size fractional — it
+// walks a 1/120 grid outwards from the requested value and applies the first
+// scale that divides BOTH pixel dimensions cleanly (exact double compare,
+// like the compositor), falling back to 1.0. So 175% on a 2880×1800 panel
+// silently became 180% (1600×1000), the picker then showed a 180% nobody
+// picked, and 175% could never be set. Offer only what will stick.
+export function scaleValid(w, h, scale) {
+  if (!(scale > 0) || !(w > 0) || !(h > 0)) return false;
+  const lw = w / scale, lh = h / scale;
+  return lw === Math.round(lw) && lh === Math.round(lh);
+}
+
+/** The scale Hyprland will actually apply for a requested one. */
+export function nearestValidScale(w, h, scale) {
+  if (scaleValid(w, h, scale)) return scale;
+  const base = Math.round(scale * 120);
+  if (scaleValid(w, h, base / 120)) return base / 120;
+  for (let i = 1; i < 90; i++) {
+    const up = (base + i) / 120, down = (base - i) / 120;
+    if (scaleValid(w, h, up)) return up;
+    if (down > 0 && scaleValid(w, h, down)) return down;
+  }
+  return 1;
+}
+
+const NICE_SCALES = [1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.6, 1.7, 1.75, 1.8, 1.9, 2, 2.25, 2.5, 3];
+
+/** Picker options for a WxH mode: the valid round-number scales, plus the
+ *  current value when it is something else (so the row never lies about
+ *  what is live). Sorted ascending. */
+export function scaleOptions(res, current) {
+  const [w, h] = String(res).split("x").map(Number);
+  const vals = NICE_SCALES.filter((v) => scaleValid(w, h, v));
+  if (current > 0 && !vals.some((v) => Math.abs(v - current) < 0.001)) vals.push(current);
+  vals.sort((a, b) => a - b);
+  return vals.map((v) => ({ label: `${Math.round(v * 100)}%`, value: v }));
+}
+
 /** Logical (scaled, rotation-aware) size of a spec. */
 export function specW(s) {
   const p = modeRes(s.mode).split("x");

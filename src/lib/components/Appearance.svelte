@@ -4,6 +4,7 @@
   import { prefs, pane } from "../stores.js";
   import { ACCENTS } from "../hypr.js";
   import { Checkbox } from "./ui/checkbox/index.js";
+  import SliderRow from "./ui/SliderRow.svelte";
   import {
     setAccent,
     setTransparency,
@@ -22,14 +23,21 @@
     { key: "density", title: "Density", dflt: "comfortable",
       opts: [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]] },
     { key: "stroke", title: "Rules", dflt: "thin",
-      opts: [["thin", "Hairline"], ["thick", "Bold"]] },
-    // glass: the bar, dock and panels turn translucent and the compositor
-    // blurs what is behind them. ewe-conf writes the blur into Hyprland's
-    // generated config; the shell falls back to solid where blur is off by
-    // policy (VMs, NVIDIA), so picking it never leaves a see-through panel.
-    { key: "surface", title: "Surface", dflt: "solid",
-      opts: [["solid", "Solid"], ["glass", "Glass"]] }
+      opts: [["thin", "Hairline"], ["thick", "Bold"]] }
   ];
+  // Bar & dock transparency: 0 = solid, 100 = see-through. Stored as
+  // desktop.theme.bar_opacity (the inverse) through ewe-conf like the shape
+  // knobs; between 1 and 90 the compositor blurs behind the bar and dock
+  // (not on VMs / NVIDIA, where blur is off by policy). Every other panel
+  // stays opaque. Debounced: a slider fires dozens of times per drag and
+  // each write rebuilds the tokens and reloads Hyprland.
+  let barTransparency = 0;
+  let barTimer;
+  function slideBar(v) {
+    barTransparency = Math.round(v);
+    clearTimeout(barTimer);
+    barTimer = setTimeout(() => setShape("bar_opacity", 100 - barTransparency), 250);
+  }
   // The live values come from the token file, which is what ewe-theme was
   // last built from — never a second copy in this app that could disagree.
   let shape = {};
@@ -37,6 +45,7 @@
     try {
       const t = await api.themeTokens("ewe");
       shape = (t && t.input) || {};
+      barTransparency = 100 - Math.max(0, Math.min(100, Number(shape.bar_opacity ?? 100)));
     } catch { shape = {}; }
   }
   onMount(loadShape);
@@ -81,8 +90,11 @@
           </div>
         </div>
       {/each}
+      <div class="-mx-4 border-t border-hairline">
+        <SliderRow label="Bar & dock transparency" value={barTransparency} from={0} to={100} unit=" %" dim={busy} moved={slideBar} />
+      </div>
       <p class="text-xs text-dim dark:text-dim">
-        Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, the weight of every rule, and whether the bar, dock and panels are solid or glass (translucent, with what is behind them blurred — solid again on machines where blur is off: VMs and NVIDIA). They live in ewe.conf, so they follow you to your other machines.
+        Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, the weight of every rule, and how see-through the top bar and dock are (what is behind them is blurred, except on VMs and NVIDIA where blur is off; the control centre and other panels stay solid). They live in ewe.conf, so they follow you to your other machines.
       </p>
     </div>
   </section>

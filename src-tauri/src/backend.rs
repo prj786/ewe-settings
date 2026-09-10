@@ -2251,7 +2251,7 @@ fn valid_bt_addr(a: &str) -> bool {
 
 async fn ewe_bt(args: &[&str]) -> Result<Value, String> {
     let Some(bin) = ewe_tool("ewe-bt") else {
-        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.5 or newer".into());
+        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.6 or newer".into());
     };
     let out = Command::new("python3")
         .arg(bin)
@@ -2299,7 +2299,7 @@ pub async fn bt_discoverable(on: bool) -> Result<(), String> {
 #[tauri::command]
 pub async fn bt_scan(seconds: u32) -> Result<(), String> {
     let Some(bin) = ewe_tool("ewe-bt") else {
-        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.5 or newer".into());
+        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.6 or newer".into());
     };
     let secs = seconds.clamp(5, 120).to_string();
     Command::new("python3")

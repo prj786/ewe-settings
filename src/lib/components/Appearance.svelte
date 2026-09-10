@@ -22,7 +22,13 @@
     { key: "density", title: "Density", dflt: "comfortable",
       opts: [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]] },
     { key: "stroke", title: "Rules", dflt: "thin",
-      opts: [["thin", "Hairline"], ["thick", "Bold"]] }
+      opts: [["thin", "Hairline"], ["thick", "Bold"]] },
+    // glass: the bar, dock and panels turn translucent and the compositor
+    // blurs what is behind them. ewe-conf writes the blur into Hyprland's
+    // generated config; the shell falls back to solid where blur is off by
+    // policy (VMs, NVIDIA), so picking it never leaves a see-through panel.
+    { key: "surface", title: "Surface", dflt: "solid",
+      opts: [["solid", "Solid"], ["glass", "Glass"]] }
   ];
   // The live values come from the token file, which is what ewe-theme was
   // last built from — never a second copy in this app that could disagree.
@@ -76,7 +82,7 @@
         </div>
       {/each}
       <p class="text-xs text-dim dark:text-dim">
-        Every colour in ewe is derived from your accent — there is no palette to pick. These three set the shape of it: corner radius, spacing and control heights, and the weight of every rule. They live in ewe.conf, so they follow you to your other machines.
+        Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, the weight of every rule, and whether the bar, dock and panels are solid or glass (translucent, with what is behind them blurred — solid again on machines where blur is off: VMs and NVIDIA). They live in ewe.conf, so they follow you to your other machines.
       </p>
     </div>
   </section>

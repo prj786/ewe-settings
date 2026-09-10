@@ -24,6 +24,26 @@
     ["normal", "Normal"],
     ["large", "Large"]
   ];
+
+  // Top bar — what the status row shows. Absent = shown, so a fresh install
+  // and an old user-theme.json both mean "everything"; the shell reads the
+  // same object (Globals.barShow). Identity (workspace, window title) and
+  // Komble's update state are not optional.
+  const barItems = [
+    ["sound", "Sound", "Volume waves, or the headset / headphones when that is where sound goes."],
+    ["mic", "Microphone in use", "An accent mic while an app has the microphone open."],
+    ["wifi", "Network", "Wi-Fi (or the wired link) while connected."],
+    ["bluetooth", "Bluetooth", "While the adapter is on; filled when a device is connected."],
+    ["battery", "Battery", "Icon and percentage, on laptops."],
+    ["power", "Power profile", "Leaf, balance or speedometer."],
+    ["keyboard", "Keyboard layout", "US / GE — click cycles."],
+    ["tray", "System tray", "Icons from apps that ask for one."],
+    ["screenshot", "Screenshot", "The camera button."],
+    ["clipboard", "Clipboard & emoji", "The scissors button."],
+    ["tiling", "Tiling ⇄ floating", "The layout switch."]
+  ];
+  const barShows = (key) => !($prefs.barShow && $prefs.barShow[key] === false);
+  const setBarShow = (key, on) => setPrefs({ barShow: { ...($prefs.barShow || {}), [key]: on } });
 </script>
 
 <div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
@@ -80,6 +100,49 @@
       <SliderRow label="Border width" value={$layout.borderSize} from={0} to={8} unit=" px" moved={(v) => setLayout({ borderSize: Math.round(v) })} />
       <SliderRow label="Corner radius" value={$layout.rounding} from={0} to={24} unit=" px" moved={(v) => setLayout({ rounding: Math.round(v) })} />
     </Card>
+  </section>
+
+  <section>
+    <div class="section-title">Top bar</div>
+    <Card>
+      <ToggleRow
+        title="Show the top bar"
+        sub="Workspace, window title, status and clock. Super+Shift+B toggles it for the session."
+        on={$prefs.barEnabled !== false}
+        toggled={() => setPrefs({ barEnabled: !($prefs.barEnabled !== false) })}
+      />
+      <div
+        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3
+          {$prefs.barEnabled === false ? 'pointer-events-none opacity-40' : ''}"
+      >
+        <div>
+          <div class="text-sm font-medium">Icon size</div>
+          <div class="text-xs text-dim dark:text-dim">The status glyphs, relative to the theme's icon size.</div>
+        </div>
+        <div class="flex gap-1.5">
+          {#each iconSizes as [id, label] (id)}
+            <button
+              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+                {($prefs.barIconSize || 'normal') === id
+                ? 'text-[var(--fg-on-brand)]'
+                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
+              style={($prefs.barIconSize || "normal") === id ? "background: var(--brand-bg)" : ""}
+              on:click={() => setPrefs({ barIconSize: id })}
+            >
+              {label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    </Card>
+    <div class="mt-3 {$prefs.barEnabled === false ? 'pointer-events-none opacity-40' : ''}">
+      <div class="px-1 pb-2 text-xs text-dim">What the status row shows</div>
+      <Card>
+        {#each barItems as [key, title, sub] (key)}
+          <ToggleRow {title} {sub} on={barShows(key)} toggled={() => setBarShow(key, !barShows(key))} />
+        {/each}
+      </Card>
+    </div>
   </section>
 
   <section>

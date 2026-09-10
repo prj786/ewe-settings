@@ -74,6 +74,19 @@ export const vpnAddL2tp = (name, gateway, user, password, psk) => invoke("vpn_ad
 export const vpnImport = (kind, path) => invoke("vpn_import", { kind, path });
 export const connectionSet = (name, up) => invoke("connection_set", { name, up });
 
+// bluetooth (ewe-bt — bluez over D-Bus). The pairing dialog is the SHELL's
+// (BtAgent); a pair started here lands there. `btScan` returns at once and
+// discovery runs for `seconds` — poll btStatus meanwhile.
+export const btStatus = () => invoke("bt_status");
+export const btPower = (on) => invoke("bt_power", { on });
+export const btDiscoverable = (on) => invoke("bt_discoverable", { on });
+export const btScan = (seconds = 30) => invoke("bt_scan", { seconds });
+export const btPair = (address) => invoke("bt_pair", { address });
+export const btConnect = (address) => invoke("bt_connect", { address });
+export const btDisconnect = (address) => invoke("bt_disconnect", { address });
+export const btTrust = (address, on) => invoke("bt_trust", { address, on });
+export const btForget = (address) => invoke("bt_forget", { address });
+
 // user account
 export const saveAvatar = (pngBase64) => invoke("save_avatar", { pngBase64 });
 export const avatarFromUrl = (url) => invoke("avatar_from_url", { url });

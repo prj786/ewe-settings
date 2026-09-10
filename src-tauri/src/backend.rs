@@ -1806,7 +1806,17 @@ pub async fn connection_set(name: String, up: bool) -> Result<String, String> {
 async fn nm_vpn_failure_reason(name: &str) -> Option<String> {
     let out = run_out(
         "journalctl",
-        &["-u", "NetworkManager", "-n", "150", "-o", "cat", "--since", "-3min", "--no-pager"],
+        &[
+            "-u",
+            "NetworkManager",
+            "-n",
+            "150",
+            "-o",
+            "cat",
+            "--since",
+            "-3min",
+            "--no-pager",
+        ],
     )
     .await
     .ok()?;
@@ -2226,4 +2236,136 @@ fn b64_decode(s: &str) -> Option<Vec<u8>> {
         }
     }
     Some(out)
+}
+
+// ── Bluetooth (ewe-bt — bluez over D-Bus; argv only) ────────────────────────
+// The pairing DIALOG belongs to the shell (BtAgent, bluez's default agent).
+// ewe-bt registers no agent of its own, so a Pair() it starts lands in that
+// dialog — the one place "confirm 123456?" is answered. bluetoothctl would
+// bring its own agent and the question would go to a process with no
+// terminal; that was "works in the terminal, not in the GUI". When the shell
+// is not running the app passes --auto: a Just-Works-only agent, so
+// headphones still pair and anything that shows a code says why it cannot.
+
+fn valid_bt_addr(a: &str) -> bool {
+    let b = a.as_bytes();
+    b.len() == 17
+        && b.iter().enumerate().all(|(i, c)| {
+            if i % 3 == 2 {
+                *c == b':'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        })
+}
+
+async fn ewe_bt(args: &[&str]) -> Result<Value, String> {
+    let Some(bin) = ewe_tool("ewe-bt") else {
+        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.6 or newer".into());
+    };
+    let out = Command::new("python3")
+        .arg(bin)
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let v: Value = serde_json::from_str(text.trim())
+        .map_err(|_| format!("ewe-bt: unreadable reply: {}", text.trim()))?;
+    if v.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(v)
+    } else {
+        Err(v
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("Bluetooth error")
+            .to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn bt_status() -> Result<Value, String> {
+    ewe_bt(&["status"]).await
+}
+
+#[tauri::command]
+pub async fn bt_power(on: bool) -> Result<(), String> {
+    ewe_bt(&["power", if on { "on" } else { "off" }])
+        .await
+        .map(|_| ())
+}
+
+#[tauri::command]
+pub async fn bt_discoverable(on: bool) -> Result<(), String> {
+    ewe_bt(&["discoverable", if on { "on" } else { "off" }])
+        .await
+        .map(|_| ())
+}
+
+/// Discovery runs for `seconds` in a DETACHED ewe-bt: bluez stops scanning
+/// the moment the client that started it leaves the bus, so the call has to
+/// stay alive — the pane polls `bt_status` meanwhile.
+#[tauri::command]
+pub async fn bt_scan(seconds: u32) -> Result<(), String> {
+    let Some(bin) = ewe_tool("ewe-bt") else {
+        return Err("ewe-bt not installed — Bluetooth settings need ewe 0.12.6 or newer".into());
+    };
+    let secs = seconds.clamp(5, 120).to_string();
+    Command::new("python3")
+        .arg(bin)
+        .args(["scan", secs.as_str()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(estr)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn bt_pair(address: String) -> Result<Value, String> {
+    if !valid_bt_addr(&address) {
+        return Err("bad device address".into());
+    }
+    let shell_up = crate::shell::shell_running().await.unwrap_or(false);
+    let mut args = vec!["pair", address.as_str()];
+    if !shell_up {
+        args.push("--auto");
+    }
+    ewe_bt(&args).await
+}
+
+#[tauri::command]
+pub async fn bt_connect(address: String) -> Result<(), String> {
+    if !valid_bt_addr(&address) {
+        return Err("bad device address".into());
+    }
+    ewe_bt(&["connect", address.as_str()]).await.map(|_| ())
+}
+
+#[tauri::command]
+pub async fn bt_disconnect(address: String) -> Result<(), String> {
+    if !valid_bt_addr(&address) {
+        return Err("bad device address".into());
+    }
+    ewe_bt(&["disconnect", address.as_str()]).await.map(|_| ())
+}
+
+#[tauri::command]
+pub async fn bt_trust(address: String, on: bool) -> Result<(), String> {
+    if !valid_bt_addr(&address) {
+        return Err("bad device address".into());
+    }
+    ewe_bt(&["trust", address.as_str(), if on { "on" } else { "off" }])
+        .await
+        .map(|_| ())
+}
+
+#[tauri::command]
+pub async fn bt_forget(address: String) -> Result<(), String> {
+    if !valid_bt_addr(&address) {
+        return Err("bad device address".into());
+    }
+    ewe_bt(&["forget", address.as_str()]).await.map(|_| ())
 }

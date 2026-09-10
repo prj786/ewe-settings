@@ -1785,9 +1785,49 @@ pub async fn connection_set(name: String, up: bool) -> Result<String, String> {
     )
     .await?;
     if out.contains("Error") {
-        return Err(out.lines().next().unwrap_or("failed").to_string());
+        let first = out.lines().next().unwrap_or("failed").to_string();
+        // "The VPN service failed to start" hides the reason; it is one
+        // journal line back — say it (2026-09-10: "Could not establish IPsec
+        // connection", the strongSwan-6.1-has-no-IKEv1 case)
+        if up {
+            if let Some(why) = nm_vpn_failure_reason(&name).await {
+                return Err(format!("{first} — {why}"));
+            }
+        }
+        return Err(first);
     }
     Ok(out)
+}
+
+/// NetworkManager's journal line for a VPN profile that failed to come up:
+///   vpn[…,"<name>"]: failed to connect: '<reason>'
+/// The last one within the past few minutes, or None (no such line, or the
+/// journal isn't readable for this user).
+async fn nm_vpn_failure_reason(name: &str) -> Option<String> {
+    let out = run_out(
+        "journalctl",
+        &["-u", "NetworkManager", "-n", "150", "-o", "cat", "--since", "-3min", "--no-pager"],
+    )
+    .await
+    .ok()?;
+    let quoted = format!("\"{name}\"");
+    const MARK: &str = "failed to connect: '";
+    let line = out
+        .lines()
+        .rev()
+        .find(|l| l.contains(&quoted) && l.contains(MARK))?;
+    let rest = &line[line.find(MARK)? + MARK.len()..];
+    let why = rest[..rest.find('\'')?].trim().to_string();
+    if why.is_empty() {
+        return None;
+    }
+    if why.to_ascii_lowercase().contains("ipsec") {
+        Some(format!(
+            "{why} — L2TP/IPsec needs IKEv1: libreswan with ikev1-policy=accept (install.sh sets it up; see the manual's VPN section)"
+        ))
+    } else {
+        Some(why)
+    }
 }
 
 // ── VPN profiles (nmcli, argv-only) ─────────────────────────────────────────

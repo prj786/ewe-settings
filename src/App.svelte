@@ -48,6 +48,7 @@
   import Shortcuts from "./lib/components/Shortcuts.svelte";
   import SystemInfo from "./lib/components/SystemInfo.svelte";
   import Network from "./lib/components/Network.svelte";
+  import Bluetooth from "./lib/components/Bluetooth.svelte";
   import UserPane from "./lib/components/UserPane.svelte";
   import TimePlace from "./lib/components/TimePlace.svelte";
 
@@ -65,6 +66,7 @@
     ["windowrules", "Window Rules", 0xE0FF],
     ["displays", "Displays", 0xE11D],
     ["network", "Networking", 0xE1AE],
+    ["bluetooth", "Bluetooth", 0xE05C],
     ["wallpaper", "Wallpaper", 0xE0F6],
     ["input", "Keyboard & Mouse", 0xE284],
     ["saver", "Screensaver", 0xE410],
@@ -145,6 +147,8 @@
       <Displays />
     {:else if $pane === "network"}
       <Network />
+    {:else if $pane === "bluetooth"}
+      <Bluetooth />
     {:else if $pane === "wallpaper"}
       <WallpaperPane />
     {:else if $pane === "input"}

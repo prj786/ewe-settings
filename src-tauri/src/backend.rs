@@ -1806,7 +1806,17 @@ pub async fn connection_set(name: String, up: bool) -> Result<String, String> {
 async fn nm_vpn_failure_reason(name: &str) -> Option<String> {
     let out = run_out(
         "journalctl",
-        &["-u", "NetworkManager", "-n", "150", "-o", "cat", "--since", "-3min", "--no-pager"],
+        &[
+            "-u",
+            "NetworkManager",
+            "-n",
+            "150",
+            "-o",
+            "cat",
+            "--since",
+            "-3min",
+            "--no-pager",
+        ],
     )
     .await
     .ok()?;

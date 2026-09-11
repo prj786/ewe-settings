@@ -39,6 +39,7 @@ export const listWallpapers = (dir) => invoke("list_wallpapers", { dir });
 
 // screensaver / input daemons
 export const restartHypridle = () => invoke("restart_hypridle");
+export const restartShell = () => invoke("restart_shell");
 export const perWindowKb = (action) => invoke("per_window_kb", { action });
 
 // theming

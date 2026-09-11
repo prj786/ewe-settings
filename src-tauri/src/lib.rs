@@ -44,6 +44,7 @@ pub fn run() {
             backend::wallpaper_backend,
             backend::wallpaper_reapply,
             backend::restart_hypridle,
+            backend::restart_shell,
             backend::per_window_kb,
             backend::apply_colorscheme,
             backend::default_wallpaper_dir,

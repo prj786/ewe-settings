@@ -88,6 +88,16 @@
   // watches: pick a new one and every grey, stroke and brand step follows.
   $: applyThemeTokens($themeKey);
 
+  let restarting = false;
+  async function restartShell() {
+    restarting = true;
+    try { await api.restartShell(); } catch (e) { errorMsg.set(String(e)); }
+    setTimeout(async () => {
+      try { shellUp.set(await api.shellRunning()); } catch { shellUp.set(false); }
+      restarting = false;
+    }, 2500);
+  }
+
   onMount(async () => {
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
     try { version.set(await api.shellVersion()); } catch { version.set("unknown"); }
@@ -124,6 +134,18 @@
     <div class="rail-foot">
       ewe {$version}
       {#if !$shellUp}<div class="mt-1 text-warning">shell not running — changes apply at next start</div>{/if}
+      <!-- Every change applies live through `settings reload`; this is the
+           honest fallback for the rare one that does not, and after an
+           update that replaced the shell's files under a running qs. -->
+      <button
+        class="rail-item mt-1 !py-1 text-xs"
+        title="Restart the shell (bar, dock, panels) — windows stay open"
+        disabled={restarting}
+        on:click={restartShell}
+      >
+        <span class="icon">{String.fromCodePoint(0xE145)}</span>
+        <span class="rail-label">{restarting ? "Restarting…" : "Restart shell"}</span>
+      </button>
     </div>
   </aside>
 

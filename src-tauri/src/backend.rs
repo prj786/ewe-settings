@@ -945,6 +945,23 @@ pub async fn restart_hypridle() -> Result<(), String> {
     Ok(())
 }
 
+/// The shell as a whole (ewe.service: bar, dock, panels). Windows stay open —
+/// only Quickshell restarts. The fallback for a change that did not apply
+/// live, and for an update that replaced the shell's files under a running qs.
+#[tauri::command]
+pub async fn restart_shell() -> Result<(), String> {
+    let out = Command::new("systemctl")
+        .args(["--user", "restart", "ewe.service"])
+        .output()
+        .await
+        .map_err(estr)?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
 /// Per-window keyboard-layout daemon control. The [k] pattern trick keeps
 /// pgrep/pkill from matching the wrapping `sh -c` itself.
 #[tauri::command]

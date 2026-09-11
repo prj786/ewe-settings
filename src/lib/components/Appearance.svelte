@@ -5,6 +5,7 @@
   import { ACCENTS } from "../hypr.js";
   import { Checkbox } from "./ui/checkbox/index.js";
   import SliderRow from "./ui/SliderRow.svelte";
+  import ToggleRow from "./ui/ToggleRow.svelte";
   import {
     setAccent,
     setTransparency,
@@ -92,6 +93,13 @@
       {/each}
       <div class="-mx-4 border-t border-hairline">
         <SliderRow label="Bar & dock transparency" value={barTransparency} from={0} to={100} unit=" %" dim={busy} moved={slideBar} />
+        <ToggleRow
+          title="Blur apps"
+          sub="Every window at 85 % with what is behind it blurred — terminal, browser, files and the ewe apps alike. Fullscreen stays solid. A fixed level on purpose."
+          dim={busy}
+          on={String(shape.app_blur ?? false) === "true"}
+          toggled={() => setShape("app_blur", !(String(shape.app_blur ?? false) === "true"))}
+        />
       </div>
       <p class="text-xs text-dim dark:text-dim">
         Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, the weight of every rule, and how see-through the top bar and dock are (what is behind them is blurred, except on VMs and NVIDIA where blur is off; the control centre and other panels stay solid). They live in ewe.conf, so they follow you to your other machines.

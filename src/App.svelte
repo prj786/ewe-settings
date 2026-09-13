@@ -110,9 +110,9 @@
   <!-- .rail / .rail-* — the chrome shared with Komble and ewe-sync (app.css) -->
   <aside class="rail">
     <div class="rail-brand">
-      <!-- the gear mark, in the same 32 px tile the other apps use -->
-      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--fg-on-brand)]" style="background: linear-gradient(135deg, var(--brand-bg), color-mix(in srgb, var(--brand-bg) 55%, var(--bg-4)))">
-        <span class="icon text-[18px]">{String.fromCodePoint(0xE29A)}</span>
+      <!-- the sliders mark: a flat brand square, the same tile the other apps use -->
+      <div class="brand-mark">
+        <span class="icon text-[20px]">{String.fromCodePoint(0xE29A)}</span>
       </div>
       <div class="rail-brand-name">Settings</div>
     </div>
@@ -149,9 +149,10 @@
     </div>
   </aside>
 
-  <main class="relative min-w-0 flex-1 overflow-y-auto">
+  <!-- .pane: the content well recessed into the frame, rounded where it meets the rail -->
+  <main class="pane relative">
     {#if $errorMsg}
-      <div class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_20%,transparent)] px-4 py-2 text-sm text-danger backdrop-blur">
+      <div class="sticky top-0 z-30 flex items-center justify-between gap-3 bg-[var(--danger-bg)] px-4 py-2 text-sm text-danger">
         <span class="min-w-0 truncate" title={$errorMsg}>{$errorMsg}</span>
         <button class="shrink-0 text-xs underline" on:click={() => errorMsg.set("")}>Dismiss</button>
       </div>
@@ -194,7 +195,7 @@
     {/if}
 
     {#if $appliedMsg}
-      <div class="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--fg-on-brand)] shadow-lg" style="background: var(--brand-bg)">
+      <div class="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-1.5 text-xs font-medium text-[var(--fg-on-brand)]" style="background: var(--brand-bg); box-shadow: var(--elevation)">
         {$appliedMsg}
       </div>
     {/if}

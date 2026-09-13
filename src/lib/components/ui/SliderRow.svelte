@@ -21,10 +21,11 @@
   $: shown = Number(Number(live ?? value).toFixed(decimals(step)));
 </script>
 
-<div class="px-4 py-3 {dim ? 'pointer-events-none opacity-50' : ''}">
+<div class="px-6 py-2 {dim ? 'pointer-events-none opacity-50' : ''}">
   <div class="mb-2 flex items-center justify-between">
-    <span class="text-sm font-medium">{label}</span>
-    <span class="text-xs tabular-nums text-dim">{shown}{unit}</span>
+    <span class="row-title">{label}</span>
+    <!-- the readout is a MARK, so it wears the raw accent -->
+    <span class="text-sm font-bold tabular-nums text-[var(--accent)]">{shown}{unit}</span>
   </div>
   <Slider
     type="single"

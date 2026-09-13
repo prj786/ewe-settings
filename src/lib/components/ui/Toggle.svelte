@@ -6,13 +6,11 @@
 </script>
 
 <!-- Controlled: `on` stays the single source of truth, so the switch is told
-     its state and only ever reports intent back through toggled(). The
-     off-track override drops shadcn's dark 80% tint back to a flat zinc-600,
-     the colour this toggle has always used. -->
+     its state and only ever reports intent back through toggled(). Colours
+     come from the switch itself (brand-bg on, --bg-2 off) — no override. -->
 <Switch
   checked={on}
   {disabled}
   aria-label="Toggle"
-  class="dark:data-unchecked:bg-input"
   onCheckedChange={() => toggled()}
 />

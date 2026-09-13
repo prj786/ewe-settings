@@ -29,14 +29,14 @@
 /* Tailwind 4 keeps theme tokens in CSS rather than tailwind.config.js. */
 @theme {
   --color-accent: var(--accent);
-  --font-sans: Ubuntu, "Noto Sans Georgian", Cantarell, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: Inter, "Noto Sans Georgian", Cantarell, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* v4 opts into class-based dark mode explicitly. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 /* --accent is NOT set here: tokens.css chains it to the theme's
    --accent-default, and the user's own pick is injected inline at
@@ -110,9 +110,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: var(--radius-pill);
-  --radius-md: var(--radius-card);
-  --radius-lg: var(--radius-panel);
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
   --radius-xl: var(--radius-panel);
 }
 /* ── end shadcn-svelte theme bridge ────────────────────────────────────────*/
@@ -136,6 +136,101 @@ textarea {
   user-select: text;
 }
 
-/* The surface, rail and control classes live in design/components.css, and
-   Black Sheep no longer needs a zinc remap — .dark.blacksheep in tokens.css
-   carries the whole Alexandria palette. */
+/* The surface, rail and control classes live in design/components.css (copied
+   verbatim as components.css). What follows is Settings-only: the brand mark
+   in the rail head, the pane heading, and the row/swatch shapes the panes
+   share. Roles only — no literal colours, no outlines, colour-only motion. */
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  background: var(--brand-bg);
+  color: var(--fg-on-brand);
+}
+.rail-brand-name {
+  font-size: var(--fs-500);
+  font-weight: 600;
+}
+/* pane body: centred column, one title size everywhere */
+.pane-body {
+  margin-inline: auto;
+  max-width: 48rem;
+  padding: var(--space-xxxl) var(--space-xxxl) var(--space-xxxl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl);
+}
+.pane-title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-600);
+  font-weight: 600;
+  color: var(--fg-1);
+}
+/* a settings row: title / sub on the left, the control on the right.
+   Rows are separated by spacing alone — never a hairline. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-m);
+  padding: var(--space-s) var(--space-xxl);
+}
+.row-title {
+  font-size: var(--fs-400);
+  line-height: var(--lh-400);
+  color: var(--fg-1);
+}
+.row-sub {
+  font-size: var(--fs-300);
+  line-height: var(--lh-300);
+  color: var(--fg-3);
+}
+/* an inline text action ("Open Animations"): text, no button chrome */
+.link-action {
+  flex-shrink: 0;
+  font-size: var(--fs-300);
+  color: var(--fg-2);
+  transition: color 120ms ease;
+}
+.link-action:hover {
+  color: var(--fg-1);
+}
+/* accent swatch: a 48 px disc; only the chosen one carries a ring */
+.swatch {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+.swatch.is-active {
+  outline: 2px solid var(--fg-1);
+  outline-offset: 2px;
+}
+/* a shallow well holding a scrollable pick list */
+.well {
+  background: var(--bg-2);
+  border-radius: var(--radius-card);
+  overflow-y: auto;
+}
+.well-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-s);
+  padding: 6px var(--space-m);
+  text-align: left;
+  font-size: var(--fs-body);
+  transition: background-color 120ms ease;
+}
+.well-row:hover {
+  background: var(--bg-2-hover);
+}
+/* keyboard focus is the one edge that is always drawn */
+:where(button, [role="button"], input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--stroke-focus-2);
+  outline-offset: 2px;
+}

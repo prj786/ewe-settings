@@ -18,13 +18,15 @@
   // how tightly it packs, and those are keys in ewe.conf [desktop.theme], so
   // they sync with the rest of the machine instead of living in a second file
   // that `ewe-conf pull` would quietly overwrite.
+  // Defaults mirror the engine's (2026-09 revamp): `round` corners and no
+  // outline on controls — separation is the background step, not an edge.
   const shapeGroups = [
-    { key: "corner", title: "Corners", dflt: "medium",
-      opts: [["none", "Square"], ["small", "Slight"], ["medium", "Rounded"], ["large", "Soft"]] },
+    { key: "corner", title: "Corners", dflt: "round",
+      opts: [["none", "Square"], ["small", "Slight"], ["medium", "Rounded"], ["large", "Soft"], ["round", "Round"]] },
     { key: "density", title: "Density", dflt: "comfortable",
       opts: [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]] },
-    { key: "stroke", title: "Rules", dflt: "thin",
-      opts: [["thin", "Hairline"], ["thick", "Bold"]] }
+    { key: "stroke", title: "Outlines", dflt: "none",
+      opts: [["none", "None"], ["thin", "Hairline"], ["thick", "Bold"]] }
   ];
   // Bar & dock transparency: 0 = solid, 100 = see-through. Stored as
   // desktop.theme.bar_opacity (the inverse) through ewe-conf like the shape
@@ -67,31 +69,27 @@
   }
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Appearance</h1>
+<div class="pane-body">
+  <h1 class="pane-title">Appearance</h1>
 
   <section>
     <div class="section-title">Shape &amp; density</div>
-    <div class="card p-4 space-y-3">
-      {#each shapeGroups as g (g.key)}
-        <div>
-          <div class="mb-1.5 text-xs font-semibold text-secondary">{g.title}</div>
-          <div class="flex gap-2">
+    <div class="card p-6">
+      <div class="space-y-3">
+        {#each shapeGroups as g (g.key)}
+          <div class="flex gap-2" role="group" aria-label={g.title}>
             {#each g.opts as [val, label] (val)}
               <button
-                class="flex-1 border px-3 py-2 text-sm font-medium transition-colors
-                  {(shape[g.key] || g.dflt) === val
-                  ? 'border-[var(--brand-bg)] bg-[var(--brand-bg)] text-[var(--fg-on-brand)]'
-                  : 'border-hairline hover:bg-hover'}"
-                style="border-radius: var(--radius-card)"
+                class="seg {(shape[g.key] || g.dflt) === val ? 'is-active' : ''}"
+                aria-pressed={(shape[g.key] || g.dflt) === val}
                 disabled={busy}
                 on:click={() => setShape(g.key, val)}
               >{label}</button>
             {/each}
           </div>
-        </div>
-      {/each}
-      <div class="-mx-4 border-t border-hairline">
+        {/each}
+      </div>
+      <div class="-mx-6 mt-3">
         <SliderRow label="Bar & dock transparency" value={barTransparency} from={0} to={100} unit=" %" dim={busy} moved={slideBar} />
         <ToggleRow
           title="Blur apps"
@@ -101,42 +99,42 @@
           toggled={() => setShape("app_blur", !(String(shape.app_blur ?? false) === "true"))}
         />
       </div>
-      <p class="text-xs text-dim dark:text-dim">
-        Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, the weight of every rule, and how see-through the top bar and dock are (what is behind them is blurred, except on VMs and NVIDIA where blur is off; the control centre and other panels stay solid). They live in ewe.conf, so they follow you to your other machines.
+      <p class="mt-3 text-sm text-dim">
+        Every colour in ewe is derived from your accent — there is no palette to pick. These set the shape of it: corner radius, spacing and control heights, and whether controls draw their own outline; then how see-through the top bar and dock are (what is behind them is blurred, except on VMs and NVIDIA where blur is off; the control centre and other panels stay solid). They live in ewe.conf, so they follow you to your other machines.
       </p>
     </div>
   </section>
 
   <section>
     <div class="section-title">Accent colour</div>
-    <div class="card p-4">
-        <div class="mb-3 flex flex-wrap gap-2.5">
-          {#each ACCENTS as a (a.hex)}
-            <button
-              title={a.name}
-              class="h-8 w-8 rounded-full transition-transform hover:scale-110
-                {($prefs.accent || '#0a84ff').toLowerCase() === a.hex ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900' : ''}"
-              style="background: {a.hex}; --tw-ring-color: {a.hex}"
-              disabled={busy}
-              on:click={() => run(() => setAccent(a.hex))}
-            ></button>
-          {/each}
-        </div>
-        <p class="text-xs text-dim dark:text-dim">
-          Applies to the shell, window borders and GTK/Qt apps.
-        </p>
+    <div class="card p-6">
+      <div class="mb-4 flex flex-wrap gap-3">
+        {#each ACCENTS as a (a.hex)}
+          <button
+            title={a.name}
+            aria-label={a.name}
+            class="swatch {($prefs.accent || '#0a84ff').toLowerCase() === a.hex ? 'is-active' : ''}"
+            style="background: {a.hex}"
+            disabled={busy}
+            on:click={() => run(() => setAccent(a.hex))}
+          ></button>
+        {/each}
+      </div>
+      <p class="text-sm text-dim">
+        Applies to the shell, window borders and GTK/Qt apps.
+      </p>
     </div>
   </section>
 
   <section>
     <div class="section-title">Windows & animations</div>
-    <div class="card divide-y divide-hairline">
+    <div class="card py-4">
       <!-- Light mode is parked until it is actually fully light — the DE is
            dark-only for now, so no colour-scheme toggle here. -->
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <div class="row">
         <div>
-          <div class="text-sm font-medium">Tint window borders</div>
-          <div class="text-xs text-dim dark:text-dim">Active window border follows the accent.</div>
+          <div class="row-title">Tint window borders</div>
+          <div class="row-sub">Active window border follows the accent.</div>
         </div>
         <Checkbox
           checked={!!$prefs.tintBorders}
@@ -149,10 +147,10 @@
             })}
         />
       </div>
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <div class="row">
         <div>
-          <div class="text-sm font-medium">Window transparency</div>
-          <div class="text-xs text-dim dark:text-dim">Unfocused windows slightly translucent.</div>
+          <div class="row-title">Window transparency</div>
+          <div class="row-sub">Unfocused windows slightly translucent.</div>
         </div>
         <Checkbox
           checked={$prefs.windowTransparency !== false}
@@ -161,10 +159,10 @@
           onCheckedChange={(v) => run(() => setTransparency(v))}
         />
       </div>
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <div class="row">
         <div>
-          <div class="text-sm font-medium">Event sounds</div>
-          <div class="text-xs text-dim dark:text-dim">Chimes for notifications, volume, screenshots and power events.</div>
+          <div class="row-title">Event sounds</div>
+          <div class="row-sub">Chimes for notifications, volume, screenshots and power events.</div>
         </div>
         <Checkbox
           checked={$prefs.eventSounds !== false}
@@ -173,15 +171,12 @@
           onCheckedChange={(v) => run(() => setPrefs({ eventSounds: v }))}
         />
       </div>
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
+      <div class="row">
         <div>
-          <div class="text-sm font-medium">Animations</div>
-          <div class="text-xs text-dim dark:text-dim">Speed, presets, curves and styles moved to their own page.</div>
+          <div class="row-title">Animations</div>
+          <div class="row-sub">Speed, presets, curves and styles moved to their own page.</div>
         </div>
-        <button
-          class="shrink-0 rounded-full bg-elevated/70 px-3 py-1 text-xs font-medium text-dim transition-colors hover:bg-hover /60  dark:hover:bg-hover"
-          on:click={() => pane.set("animations")}
-        >
+        <button class="link-action" on:click={() => pane.set("animations")}>
           Open Animations
         </button>
       </div>

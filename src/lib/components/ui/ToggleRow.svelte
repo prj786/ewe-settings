@@ -7,10 +7,10 @@
   export let toggled = () => {};
 </script>
 
-<div class="flex items-center justify-between gap-3 px-4 py-3 {dim ? 'opacity-50' : ''}">
+<div class="row {dim ? 'opacity-50' : ''}">
   <div class="min-w-0">
-    <div class="text-sm font-medium">{title}</div>
-    {#if sub}<div class="text-xs text-dim dark:text-dim">{sub}</div>{/if}
+    <div class="row-title">{title}</div>
+    {#if sub}<div class="row-sub">{sub}</div>{/if}
   </div>
   <Toggle {on} disabled={dim} {toggled} />
 </div>

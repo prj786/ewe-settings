@@ -62,6 +62,7 @@ pub fn run() {
             backend::mail_login,
             backend::mail_status,
             backend::theme_tokens,
+            backend::theme_scheme,
             backend::mail_logout,
             backend::google_client_info,
             backend::net_status,

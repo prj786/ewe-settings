@@ -182,8 +182,10 @@
     <div class="card p-6">
       <div class="flex gap-2" role="group" aria-label="Where the colours come from">
         <button class="seg {colourMode === 'accent' ? 'is-active' : ''}" disabled={busy} on:click={() => scheme("apply", "accent")}>Accent</button>
-        <button class="seg {colourMode === 'scheme' ? 'is-active' : ''}" disabled={busy || !schemes.some((s) => s.slug !== 'wallpaper')}
-          on:click={() => { const s = schemes.find((x) => x.slug !== 'wallpaper'); if (s) scheme('apply', s.slug); }}>Scheme</button>
+        <!-- always clickable: with nothing imported yet it opens the file dialog, which is the
+             only way a scheme ever arrives; with schemes it switches to the first one -->
+        <button class="seg {colourMode === 'scheme' ? 'is-active' : ''}" disabled={busy}
+          on:click={() => { const s = schemes.find((x) => x.slug !== 'wallpaper'); if (s) scheme('apply', s.slug); else importScheme(); }}>Scheme</button>
         <button class="seg {colourMode === 'wallpaper' ? 'is-active' : ''}" disabled={busy} on:click={() => scheme("from-wallpaper", "--apply")}>Wallpaper</button>
       </div>
 
@@ -193,6 +195,9 @@
         <p class="mt-3 text-sm text-dim">The palette is pulled out of the wallpaper and follows it when it changes. The accent below is the picture's strongest colour; pick another to override it.</p>
       {:else}
         <p class="mt-3 text-sm text-dim">A whole palette. Import Base16/Base24 YAML, an Omarchy <code>colors.toml</code>, Catppuccin's <code>palette.json</code> or a Gogh theme; a light scheme is honoured end to end.</p>
+      {/if}
+      {#if colourMode === "accent" && !schemes.some((s) => s.slug !== "wallpaper")}
+        <p class="mt-1 text-xs text-dim">No schemes yet — Scheme (or Import…) opens a file dialog; nothing is bundled.</p>
       {/if}
 
       <!-- the accent swatches work in every mode: on a scheme they override its accent -->

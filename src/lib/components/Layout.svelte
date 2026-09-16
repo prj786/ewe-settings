@@ -38,10 +38,10 @@
     ["power", "Power profile", "Leaf, balance or speedometer."],
     ["keyboard", "Keyboard layout", "US / GE — click cycles."],
     ["tray", "System tray", "Icons from apps that ask for one."],
-    ["screenshot", "Screenshot", "The camera button."],
-    ["clipboard", "Clipboard & emoji", "The scissors button."],
     ["tiling", "Tiling ⇄ floating", "The layout switch."]
   ];
+  // The camera and the scissors are plugins since ewe 0.21 (ewe.screenshot,
+  // ewe.clipboard) — Komble → Plugins turns them off, not this list.
   const barShows = (key) => !($prefs.barShow && $prefs.barShow[key] === false);
   const setBarShow = (key, on) => setPrefs({ barShow: { ...($prefs.barShow || {}), [key]: on } });
 </script>

@@ -1007,6 +1007,65 @@ pub async fn apply_colorscheme(scheme: String, accent: String) -> Result<(), Str
     Ok(())
 }
 
+/// `ewe-theme scheme <verb> …` — the palette side of Appearance. Verbs and
+/// arguments are checked here (argv, never a shell); ewe-theme writes
+/// ewe.conf through ewe-conf, whose hooks repaint the shell and the
+/// toolkits, so nothing else in this app has to run for a scheme change.
+#[tauri::command]
+pub async fn theme_scheme(args: Vec<String>) -> Result<Value, String> {
+    const VERBS: &[&str] = &[
+        "list",
+        "show",
+        "apply",
+        "import",
+        "remove",
+        "export",
+        "set",
+        "from-wallpaper",
+    ];
+    let Some(verb) = args.first() else {
+        return Err("no verb".into());
+    };
+    if !VERBS.contains(&verb.as_str()) {
+        return Err(format!("unknown scheme verb {verb:?}"));
+    }
+    for a in &args[1..] {
+        if a.len() > 512 || a.contains('\0') {
+            return Err("bad argument".into());
+        }
+    }
+    let Some(bin) = ewe_tool("ewe-theme") else {
+        return Err("ewe-theme not installed".into());
+    };
+    let out = Command::new("python3")
+        .arg(bin)
+        .arg("scheme")
+        .args(&args)
+        .output()
+        .await
+        .map_err(estr)?;
+    crate::shell::poke_sync();
+    if verb == "export" {
+        return Ok(
+            json!({ "ok": out.status.success(), "yaml": String::from_utf8_lossy(&out.stdout) }),
+        );
+    }
+    let v: Value = serde_json::from_slice(&out.stdout).map_err(|_| {
+        format!(
+            "ewe-theme: unreadable reply: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+    })?;
+    if v.get("ok") == Some(&Value::Bool(false)) {
+        return Err(v
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("scheme command failed")
+            .to_string());
+    }
+    Ok(v)
+}
+
 // ── wallpapers ──────────────────────────────────────────────────────────────
 
 const WP_EXTS: &[&str] = &[

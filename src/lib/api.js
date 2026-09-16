@@ -104,3 +104,5 @@ export const setKbdBacklight = (value) => invoke("set_kbd_backlight", { value })
 
 /** the generated look, from ewe-theme.conf — injected at runtime by App.svelte */
 export const themeTokens = (theme) => invoke("theme_tokens", { theme });
+/** ewe-theme scheme <verb> … — palettes: list / apply / import / remove / set / from-wallpaper / export */
+export const themeScheme = (...args) => invoke("theme_scheme", { args });

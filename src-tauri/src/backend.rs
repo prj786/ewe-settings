@@ -1795,22 +1795,37 @@ async fn wifi_saved() -> Value {
             continue;
         };
         let name = name.replace("\\:", ":");
-        let ssid = run_out("nmcli", &["-g", "802-11-wireless.ssid", "connection", "show", &name])
-            .await
-            .unwrap_or_default();
+        let ssid = run_out(
+            "nmcli",
+            &["-g", "802-11-wireless.ssid", "connection", "show", &name],
+        )
+        .await
+        .unwrap_or_default();
         let ssid = ssid.trim_end_matches('\n');
         if ssid.is_empty() || ssid.starts_with("Error") {
             continue;
         }
         let kmgmt = run_out(
             "nmcli",
-            &["-g", "802-11-wireless-security.key-mgmt", "connection", "show", &name],
+            &[
+                "-g",
+                "802-11-wireless-security.key-mgmt",
+                "connection",
+                "show",
+                &name,
+            ],
         )
         .await
         .unwrap_or_default();
         let flags = run_out(
             "nmcli",
-            &["-g", "802-11-wireless-security.psk-flags", "connection", "show", &name],
+            &[
+                "-g",
+                "802-11-wireless-security.psk-flags",
+                "connection",
+                "show",
+                &name,
+            ],
         )
         .await
         .unwrap_or_default();
@@ -1831,10 +1846,23 @@ async fn wifi_saved() -> Value {
 /// Wi-Fi with the cable still in.
 #[tauri::command]
 pub async fn wired_set(dev: String, on: bool) -> Result<String, String> {
-    if dev.is_empty() || dev.len() > 32 || !dev.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+    if dev.is_empty()
+        || dev.len() > 32
+        || !dev
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
         return Err("invalid device".into());
     }
-    let out = run_out("nmcli", &["device", if on { "connect" } else { "disconnect" }, dev.as_str()]).await?;
+    let out = run_out(
+        "nmcli",
+        &[
+            "device",
+            if on { "connect" } else { "disconnect" },
+            dev.as_str(),
+        ],
+    )
+    .await?;
     if out.contains("Error") {
         return Err(out.lines().next().unwrap_or("failed").to_string());
     }
@@ -1877,7 +1905,11 @@ pub async fn wifi_connect(
             )
             .await?;
             if m.contains("Error") {
-                return Err(m.lines().next().unwrap_or("could not store the password").to_string());
+                return Err(m
+                    .lines()
+                    .next()
+                    .unwrap_or("could not store the password")
+                    .to_string());
             }
         }
         run_out("nmcli", &["connection", "up", "id", prof.as_str()]).await?

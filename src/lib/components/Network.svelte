@@ -37,16 +37,19 @@
 
   async function connect(w) {
     if (w.active) return;
-    if (w.sec && w.sec !== "" && pwText === "" && pwTarget !== w.ssid) {
-      // secured network: open the password row (a saved profile connects
-      // without one — submitting empty tries that first)
-      pwTarget = pwTarget === w.ssid ? "" : w.ssid;
+    // a saved profile joins without a prompt — NetworkManager has the key.
+    // Only a network with no profile, or one whose key sits in a secret agent
+    // ewe does not have, opens the password row.
+    const saved = (st.saved && st.saved[w.ssid]) || null;
+    const needsKey = w.sec && w.sec !== "" && (!saved || saved.psk === "agent");
+    if (needsKey && pwText === "" && pwTarget !== w.ssid) {
+      pwTarget = w.ssid;
       pwText = "";
       return;
     }
     busy = w.ssid;
     try {
-      await api.wifiConnect(w.ssid, pwText || null);
+      await api.wifiConnect(w.ssid, pwText || null, saved ? saved.name : null);
       flashApplied(`Connected to ${w.ssid}`);
       pwTarget = "";
       pwText = "";
@@ -108,6 +111,26 @@
     busy = "";
     setTimeout(refresh, 1200);
   }
+
+  async function toggleWired() {
+    if (!st.wired || st.wired.state === "unavailable") return;
+    const on = !(st.wired.state === "connected" || st.wired.state === "connecting");
+    busy = "wired";
+    try {
+      await api.wiredSet(st.wired.dev, on);
+      flashApplied(on ? "Wired connected" : "Wired off");
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+    busy = "";
+    setTimeout(refresh, 1200);
+  }
+
+  // what NetworkManager says, in words a person uses
+  const stateWord = (s) =>
+    s === "activated" ? "connected" : s === "activating" ? "connecting…" : s === "deactivating" ? "disconnecting…" : s;
+  const typeWord = (t) =>
+    t === "802-11-wireless" ? "Wi-Fi" : t === "802-3-ethernet" ? "Wired" : t === "wireguard" ? "WireGuard" : t === "vpn" ? "VPN" : t;
 
   async function vpnToggle(v) {
     busy = v.name;
@@ -185,6 +208,27 @@
   {#if !st}
     <p class="text-sm text-dim">Checking network state…</p>
   {:else}
+    {#if st.wired}
+      <section>
+        <div class="section-title">Wired</div>
+        <Card>
+          <div class="flex items-center justify-between px-4 py-3">
+            <span class="text-sm font-medium">
+              {st.wired.state === "unavailable" ? "No cable"
+               : st.wired.state === "connected" ? "Connected"
+               : st.wired.state === "connecting" || busy === "wired" ? "Connecting…"
+               : "Off"}
+            </span>
+            <Toggle
+              on={st.wired.state === "connected" || st.wired.state === "connecting"}
+              disabled={st.wired.state === "unavailable"}
+              toggled={toggleWired}
+            />
+          </div>
+        </Card>
+      </section>
+    {/if}
+
     {#if st.hasWifi}
       <section>
         <div class="section-title">Wi-Fi</div>
@@ -218,7 +262,7 @@
                     <input
                       class="input flex-1"
                       type="password"
-                      placeholder="Password (empty = use saved profile)"
+                      placeholder="Password"
                       autofocus
                       bind:value={pwText}
                     />
@@ -237,8 +281,8 @@
     <section>
       <div class="section-title">Active connections</div>
       <Card>
-        {#each st.active as c (c.name + c.dev)}
-          <KV k={c.name} v={`${c.type} · ${c.dev} · ${c.state}`} />
+        {#each st.active.filter((c) => c.type !== "loopback") as c (c.name + c.dev)}
+          <KV k={c.name} v={`${typeWord(c.type)} · ${c.dev} · ${stateWord(c.state)}`} />
         {:else}
           <div class="px-4 py-3 text-sm text-dim">Nothing connected.</div>
         {/each}

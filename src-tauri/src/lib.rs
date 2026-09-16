@@ -70,6 +70,7 @@ pub fn run() {
             backend::open_sync_app,
             backend::wifi_set,
             backend::wifi_connect,
+            backend::wired_set,
             backend::connection_set,
             backend::bt_status,
             backend::bt_power,

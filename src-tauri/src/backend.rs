@@ -1694,6 +1694,22 @@ pub async fn net_status() -> Result<Value, String> {
         });
     }
 
+    // the (first) ethernet port: device + NetworkManager state — connected /
+    // connecting / disconnected (cable in, link switched off) / unavailable
+    // (no cable). The pane's Wired switch drives `wired_set` on it.
+    let mut wired = Value::Null;
+    for l in run_out("nmcli", &["-t", "-f", "DEVICE,TYPE,STATE", "device"])
+        .await
+        .unwrap_or_default()
+        .lines()
+    {
+        let p: Vec<&str> = l.splitn(3, ':').collect();
+        if p.len() == 3 && p[1] == "ethernet" {
+            wired = json!({ "dev": p[0], "state": p[2] });
+            break;
+        }
+    }
+
     let mut active: Vec<Value> = Vec::new();
     for l in run_out(
         "nmcli",
@@ -1756,9 +1772,73 @@ pub async fn net_status() -> Result<Value, String> {
         .collect();
 
     Ok(json!({
-        "hasWifi": has_wifi, "wifiOn": wifi_on, "wifi": wifi,
-        "active": active, "vpn": vpn, "ips": ips, "sshHosts": ssh,
+        "hasWifi": has_wifi, "wifiOn": wifi_on, "wifi": wifi, "saved": wifi_saved().await,
+        "wired": wired, "active": active, "vpn": vpn, "ips": ips, "sshHosts": ssh,
     }))
+}
+
+/// Saved Wi-Fi profiles keyed by SSID — `{ssid: {name, psk}}`, psk being
+/// "stored" (the key is in the profile), "agent" (NetworkManager would ask a
+/// secret agent, and nothing in ewe is one — so the pane asks the user once
+/// and stores it) or "none" (open network). Keyed by SSID, not profile
+/// name: a profile need not be named after its network, and the old
+/// name-based check made the pane ask for a password it already had.
+/// `nmcli` cannot list 802-11-wireless.ssid across profiles in one call, so
+/// this asks per profile. The shell's scripts/wifi-profiles.sh is the same.
+async fn wifi_saved() -> Value {
+    let mut m = serde_json::Map::new();
+    let list = run_out("nmcli", &["-t", "-f", "NAME,TYPE", "connection", "show"])
+        .await
+        .unwrap_or_default();
+    for l in list.lines() {
+        let Some(name) = l.strip_suffix(":802-11-wireless") else {
+            continue;
+        };
+        let name = name.replace("\\:", ":");
+        let ssid = run_out("nmcli", &["-g", "802-11-wireless.ssid", "connection", "show", &name])
+            .await
+            .unwrap_or_default();
+        let ssid = ssid.trim_end_matches('\n');
+        if ssid.is_empty() || ssid.starts_with("Error") {
+            continue;
+        }
+        let kmgmt = run_out(
+            "nmcli",
+            &["-g", "802-11-wireless-security.key-mgmt", "connection", "show", &name],
+        )
+        .await
+        .unwrap_or_default();
+        let flags = run_out(
+            "nmcli",
+            &["-g", "802-11-wireless-security.psk-flags", "connection", "show", &name],
+        )
+        .await
+        .unwrap_or_default();
+        let psk = if kmgmt.trim().is_empty() {
+            "none"
+        } else if flags.trim().is_empty() || flags.trim().starts_with('0') {
+            "stored"
+        } else {
+            "agent"
+        };
+        m.insert(ssid.to_string(), json!({ "name": name, "psk": psk }));
+    }
+    Value::Object(m)
+}
+
+/// The wired port on or off: `device disconnect` drops the link and stops
+/// autoconnect until `device connect` (or a re-plug) — the way to stay on
+/// Wi-Fi with the cable still in.
+#[tauri::command]
+pub async fn wired_set(dev: String, on: bool) -> Result<String, String> {
+    if dev.is_empty() || dev.len() > 32 || !dev.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err("invalid device".into());
+    }
+    let out = run_out("nmcli", &["device", if on { "connect" } else { "disconnect" }, dev.as_str()]).await?;
+    if out.contains("Error") {
+        return Err(out.lines().next().unwrap_or("failed").to_string());
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -1768,17 +1848,47 @@ pub async fn wifi_set(on: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn wifi_connect(ssid: String, password: Option<String>) -> Result<String, String> {
+pub async fn wifi_connect(
+    ssid: String,
+    password: Option<String>,
+    profile: Option<String>,
+) -> Result<String, String> {
     if ssid.is_empty() || ssid.len() > 64 {
         return Err("invalid SSID".into());
     }
-    let mut args = vec!["device", "wifi", "connect", ssid.as_str()];
     let pw = password.unwrap_or_default();
-    if !pw.is_empty() {
-        args.push("password");
-        args.push(pw.as_str());
-    }
-    let out = run_out("nmcli", &args).await?;
+    let profile = profile.filter(|p| !p.is_empty() && p.len() <= 128);
+    let out = if let Some(prof) = profile {
+        // a saved profile: join it as is, or put the fresh key INTO it — the
+        // old `device wifi connect` path minted a duplicate "SSID 1" profile
+        // every time a password was typed for a network NM already knew
+        if !pw.is_empty() {
+            let m = run_out(
+                "nmcli",
+                &[
+                    "connection",
+                    "modify",
+                    prof.as_str(),
+                    "802-11-wireless-security.psk",
+                    pw.as_str(),
+                    "802-11-wireless-security.psk-flags",
+                    "0",
+                ],
+            )
+            .await?;
+            if m.contains("Error") {
+                return Err(m.lines().next().unwrap_or("could not store the password").to_string());
+            }
+        }
+        run_out("nmcli", &["connection", "up", "id", prof.as_str()]).await?
+    } else {
+        let mut args = vec!["device", "wifi", "connect", ssid.as_str()];
+        if !pw.is_empty() {
+            args.push("password");
+            args.push(pw.as_str());
+        }
+        run_out("nmcli", &args).await?
+    };
     if out.contains("Error") {
         return Err(out
             .lines()

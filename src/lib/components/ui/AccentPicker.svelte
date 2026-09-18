@@ -6,7 +6,7 @@
    * that opens the system color chooser. Arrow keys move between swatches.
    */
   import Icon from "./Icon.svelte";
-  export let presets = []; // [{ name, hex }]
+  export let presets = []; // [{ name, hex, ink }] from ewe-theme show
   export let value = "";
   export let disabled = false;
   export let onChange = () => {};
@@ -48,7 +48,7 @@
       aria-label={p.name}
       title={p.name}
       tabindex={cur === p.hex || (!isPreset && i === 0) ? 0 : -1}
-      style="--swatch: {p.hex}; --swatch-ink: {ink(p.hex)}"
+      style="--swatch: {p.hex}; --swatch-ink: {p.ink || ink(p.hex)}"
       {disabled}
       on:click={() => cur !== p.hex && onChange(p.hex)}
       on:keydown={(e) => key(e, i)}

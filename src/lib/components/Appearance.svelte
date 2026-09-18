@@ -4,7 +4,6 @@
   import * as api from "../api.js";
   import { prefs, pane, errorMsg, flashApplied, toast } from "../stores.js";
   import { theme, refreshTheme } from "../theme.js";
-  import { ACCENTS } from "../hypr.js";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
@@ -161,6 +160,11 @@
   }
 
   // ── accent ─────────────────────────────────────────────────────────────
+  // The presets are the generator's (ewe-theme show → accent_presets), so
+  // this app carries no color of its own. Without ewe-theme (an older ewe,
+  // or a browser) the picker offers only the custom swatch, which still
+  // shows and changes the current accent.
+  $: accentPresets = Array.isArray($theme && $theme.accent_presets) ? $theme.accent_presets : [];
   $: currentScheme = schemes.find((s) => s.current) || null;
   $: accent = String(input.accent || (currentScheme && currentScheme.accent) || "#eeb407").toLowerCase();
   // the generator's moves on the accent roles, said in words (Accent picker)
@@ -244,7 +248,7 @@
         : "Buttons, switches, the focus ring and window borders follow it."}
       block
     >
-      <AccentPicker presets={($theme && $theme.accent_presets) || ACCENTS} value={accent} disabled={busy} onChange={pickAccent} />
+      <AccentPicker presets={accentPresets} value={accent} disabled={busy} onChange={pickAccent} />
     </Row>
     {#if accentMoves.length}
       <div class="p-1">

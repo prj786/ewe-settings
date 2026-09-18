@@ -25,16 +25,13 @@
     ["normal", "Normal"],
     ["large", "Large"]
   ];
-  // v3: the bar is normal (48px) or large (64px), [desktop.bar] size in
-  // ewe.conf — it replaces the old status-glyph icon size. The live value is
-  // what ewe-theme last built from.
-  const barSizes = [
-    ["normal", "Normal"],
-    ["large", "Large"]
-  ];
-  async function setBarSize(v) {
+  // [desktop.bar] icon_size in ewe.conf: the bar has no height of its own,
+  // it is its icons plus padding (44 / 48 / 56). The live value is what
+  // ewe-theme last built from; text size 130% moves the icons a size up.
+  $: textScale = Number(($theme && $theme.input && $theme.input.text_scale) ?? 100);
+  async function setBarIcons(v) {
     try {
-      await api.setConf("desktop.bar.size", v);
+      await api.setConf("desktop.bar.icon_size", v);
       await refreshTheme();
     } catch (e) {
       errorMsg.set(String(e));
@@ -107,13 +104,19 @@
       on={$prefs.barEnabled !== false}
       toggled={() => setPrefs({ barEnabled: !($prefs.barEnabled !== false) })}
     />
-    <Row title="Bar size" sub="Normal is 48px tall; large is 64px, with bigger modules and icons." dim={$prefs.barEnabled === false}>
+    <Row
+      title="Bar icons"
+      sub={textScale >= 130
+        ? "The bar grows with its icons. At text size 130%, they’re one size larger."
+        : "The bar grows with its icons: 44, 48 or 56\u00a0px tall."}
+      dim={$prefs.barEnabled === false}
+    >
       <Seg
-        label="Bar size"
-        options={barSizes}
-        value={($theme && $theme.input && $theme.input.bar_size) || "normal"}
+        label="Bar icons"
+        options={iconSizes}
+        value={($theme && $theme.input && $theme.input.bar_icon_size) || "normal"}
         disabled={$prefs.barEnabled === false}
-        picked={setBarSize}
+        picked={setBarIcons}
       />
     </Row>
   </Group>

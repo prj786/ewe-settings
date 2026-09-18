@@ -180,6 +180,12 @@
   const corners = [["none", "Square"], ["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   const densities = [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]];
   const strokes = [["none", "None"], ["thin", "Thin"], ["thick", "Thick"]];
+  // [desktop.bar] icon_size: the bar has no height of its own, it is its
+  // icons plus padding (44 / 48 / 56). Text size 130% moves them a size up.
+  const barIconSizes = [["small", "Small"], ["normal", "Normal"], ["large", "Large"]];
+  $: barIconsSub = Number(input.text_scale ?? 100) >= 130
+    ? "The bar grows with its icons. At text size 130%, they’re one size larger."
+    : "The bar grows with its icons: 44, 48 or 56\u00a0px tall.";
   async function setConf(key, value) {
     await run(async () => {
       await api.setConf(key, value);
@@ -265,8 +271,8 @@
 
   <!-- ── Bar and dock (Glass) ───────────────────────────────────────── -->
   <Group title="Bar and dock">
-    <Row title="Bar size" sub="Normal is 48px tall; large is 64px, with bigger modules and icons.">
-      <Seg label="Bar size" options={[["normal", "Normal"], ["large", "Large"]]} value={input.bar_size || "normal"} disabled={busy} picked={(v) => setConf("desktop.bar.size", v)} />
+    <Row title="Bar icons" sub={barIconsSub}>
+      <Seg label="Bar icons" options={barIconSizes} value={input.bar_icon_size || "normal"} disabled={busy} picked={(v) => setConf("desktop.bar.icon_size", v)} />
     </Row>
     <SliderRow
       label="Bar opacity"

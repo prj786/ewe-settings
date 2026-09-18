@@ -50,7 +50,7 @@
       dim={busy}
       toggled={() => set("reduce_transparency", !truthy(a.reduce_transparency))}
     />
-    <Row icon="textSize" title="Text size" sub="Text and the controls around it grow to fit. At 130% the bar uses its large size." dim={busy}>
+    <Row icon="textSize" title="Text size" sub="Text and the controls around it grow to fit. At 130% the bar’s icons are one size larger." dim={busy}>
       <Seg
         label="Text size"
         options={[[100, "100%"], [115, "115%"], [130, "130%"]]}

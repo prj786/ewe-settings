@@ -252,7 +252,7 @@
         : "Buttons, switches, the focus ring and window borders follow it."}
       block
     >
-      <AccentPicker presets={ACCENTS} value={accent} disabled={busy} onChange={pickAccent} />
+      <AccentPicker presets={($theme && $theme.accent_presets) || ACCENTS} value={accent} disabled={busy} onChange={pickAccent} />
     </Row>
     {#if accentMoves.length}
       <div class="p-1">

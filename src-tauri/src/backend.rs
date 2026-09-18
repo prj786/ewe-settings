@@ -1609,7 +1609,9 @@ pub async fn mail_login(
 /// to suggest 90% or more when Glass can't blur (Glass card).
 #[tauri::command]
 pub fn blur_available() -> bool {
-    std::env::var("EWE_NO_BLUR").map(|v| v.trim() != "1").unwrap_or(true)
+    std::env::var("EWE_NO_BLUR")
+        .map(|v| v.trim() != "1")
+        .unwrap_or(true)
 }
 
 /// The generated theme tokens for one look, from `ewe-theme show` — which

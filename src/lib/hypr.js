@@ -418,15 +418,22 @@ export function animLuaLines(m) {
 // prefs.animationSpeed still divides every duration (and drives the QML
 // shell's own animations) — it is baked in at write time.
 
+// The design system has no overshoot (Motion: no OutBack anywhere). The
+// `overshoot` curve and the Bouncy preset built on it are gone, and the
+// spring is critically damped: dampening = 2·√(mass·stiffness), so it
+// settles without passing its target. Kept in lockstep with ewe-conf's
+// ANIM_CURVES and hyprland.lua's "easy" curve.
 export const ANIM_CURVES = [
   { id: "snap", label: "Snap", pts: [[0.16, 1], [0.3, 1]] },
   { id: "easeOutQuint", label: "Ease out", pts: [[0.23, 1], [0.32, 1]] },
   { id: "quick", label: "Quick", pts: [[0.15, 0], [0.1, 1]] },
   { id: "easeInOutCubic", label: "Smooth", pts: [[0.65, 0.05], [0.36, 1]] },
-  { id: "overshoot", label: "Overshoot", pts: [[0.34, 1.56], [0.64, 1]] },
   { id: "linear", label: "Linear", pts: [[0, 0], [1, 1]] },
-  { id: "spring", label: "Spring", spring: { mass: 1, stiffness: 71.2633, dampening: 15.8273644 } }
+  { id: "spring", label: "Spring", spring: { mass: 1, stiffness: 71.2633, dampening: 16.8835186 } }
 ];
+// Curves a saved state may still name but that no longer exist (ewe-conf
+// RETIRED_CURVES): such a state reads as the default preset.
+const RETIRED_CURVES = ["overshoot"];
 const isSpringCurve = (id) => !!(ANIM_CURVES.find((c) => c.id === id) || {}).spring;
 
 export const ANIM_STYLE_LABELS = {
@@ -458,7 +465,7 @@ export const ANIM_PRESETS = [
     }
   },
   {
-    id: "smooth", name: "Smooth", sub: "The pre-0.8 feel — springy and relaxed.",
+    id: "smooth", name: "Smooth", sub: "Slower and softer. Windows settle without bouncing.",
     global: { ms: 900, curve: "easeOutQuint" },
     anims: {
       windows: { on: true, ms: 500, curve: "spring", style: "popin", pct: 88 },
@@ -467,18 +474,6 @@ export const ANIM_PRESETS = [
       workspaces: { on: true, ms: 500, curve: "easeOutQuint", style: "slide" },
       layers: { on: true, ms: 400, curve: "easeOutQuint", style: "fade" },
       border: { on: true, ms: 540, curve: "easeOutQuint" }
-    }
-  },
-  {
-    id: "bouncy", name: "Bouncy", sub: "Springs and overshoot, a little playful.",
-    global: { ms: 400, curve: "overshoot" },
-    anims: {
-      windows: { on: true, ms: 450, curve: "spring", style: "popin", pct: 85 },
-      windowsOut: { on: true, ms: 220, curve: "quick", style: "popin", pct: 90 },
-      fade: { on: true, ms: 220, curve: "quick" },
-      workspaces: { on: true, ms: 380, curve: "overshoot", style: "slide" },
-      layers: { on: true, ms: 300, curve: "overshoot", style: "popin" },
-      border: { on: true, ms: 400, curve: "easeOutQuint" }
     }
   },
   {
@@ -505,10 +500,16 @@ export const animStateFromPreset = (p) => ({
 /** Fresh state = the shipped Snappy preset, enabled. */
 export const defaultAnimState = () => animStateFromPreset(ANIM_PRESETS[0]);
 
-/** Merge a stored state over defaults so new leaves/keys pick up sane values. */
+/** Merge a stored state over defaults so new leaves/keys pick up sane values.
+ *  A state that names a retired curve (a saved Bouncy, or a custom mix with
+ *  `overshoot`) becomes the default preset, keeping whether animations are
+ *  on — the same rule as ewe-conf's no_overshoot(), for an animations.json
+ *  written before it. */
 export function mergeAnimState(st) {
   const d = defaultAnimState();
   if (!st || typeof st !== "object") return d;
+  const curves = [(st.global || {}).curve, ...Object.values(st.anims || {}).map((a) => (a || {}).curve)];
+  if (curves.some((c) => RETIRED_CURVES.includes(c))) return { ...d, enabled: st.enabled !== false };
   const out = {
     enabled: st.enabled !== false,
     global: { ...d.global, ...(st.global || {}) },

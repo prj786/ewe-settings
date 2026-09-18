@@ -6,6 +6,7 @@
    * that opens the system color chooser. Arrow keys move between swatches.
    */
   import Icon from "./Icon.svelte";
+  import { accentDefault } from "../../stores.js";
   export let presets = []; // [{ name, hex, ink }] from ewe-theme show
   export let value = "";
   export let disabled = false;
@@ -67,7 +68,7 @@
     <input
       type="color"
       class="sr-only"
-      value={cur || "#eeb407"}
+      value={cur || accentDefault()}
       {disabled}
       aria-label={!isPreset && cur ? `Custom color ${cur}` : "Pick any color"}
       on:change={(e) => onChange(e.currentTarget.value)}

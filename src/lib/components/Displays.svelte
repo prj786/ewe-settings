@@ -181,31 +181,33 @@
   }
 
   // ── arrangement canvas (drag a display to choose its side) ────────────────
-  const CH = 200, PAD = 14;
-  let cw = 620;              // canvas width, tracks the card
+  // the canvas's size and inset are CSS (app.css .arrange__canvas, on the
+  // tokens); these track the measured box
+  let cw = 596;              // canvas width, tracks the card
+  let ch = 176;              // canvas height
   let dragging = null;       // { name, frame, px0, py0, x0, y0, w, h, moved }
   let dragXY = null;         // live logical position of the dragged output
 
-  $: arr = arrLayout(activeSpecs, dragging, dragXY, cw);
+  $: arr = arrLayout(activeSpecs, dragging, dragXY, cw, ch);
 
-  function frameFor(rects, width) {
+  function frameFor(rects, width, height) {
     const minX = Math.min(...rects.map((r) => r.x));
     const minY = Math.min(...rects.map((r) => r.y));
     const maxX = Math.max(...rects.map((r) => r.x + r.w));
     const maxY = Math.max(...rects.map((r) => r.y + r.h));
     const k = Math.min(
-      (width - 2 * PAD) / Math.max(1, maxX - minX),
-      (CH - 2 * PAD) / Math.max(1, maxY - minY),
+      width / Math.max(1, maxX - minX),
+      height / Math.max(1, maxY - minY),
       0.12
     );
     return {
       k, minX, minY, maxX, maxY,
-      ox: PAD + ((width - 2 * PAD) - (maxX - minX) * k) / 2 - minX * k,
-      oy: PAD + ((CH - 2 * PAD) - (maxY - minY) * k) / 2 - minY * k
+      ox: (width - (maxX - minX) * k) / 2 - minX * k,
+      oy: (height - (maxY - minY) * k) / 2 - minY * k
     };
   }
 
-  function arrLayout(active, drag, dxy, width) {
+  function arrLayout(active, drag, dxy, width, height) {
     if (active.length < 2) return { frame: null, rects: [] };
     const rects = active.map((s) => {
       const live = drag && drag.name === s.name && dxy;
@@ -213,7 +215,7 @@
     });
     // the frame is frozen for the duration of a drag so the canvas never
     // rescales under the pointer
-    const frame = drag ? drag.frame : frameFor(rects, width);
+    const frame = drag ? drag.frame : frameFor(rects, width, height);
     for (const r of rects) {
       r.px = frame.ox + r.x * frame.k;
       r.py = frame.oy + r.y * frame.k;
@@ -347,8 +349,8 @@
   {#if loaded && activeSpecs.length > 1}
     <Group title="Arrangement">
       <Row sub="Drag a display to the side it sits on. Displays snap edge to edge." />
-      <div class="arrange" bind:clientWidth={cw}>
-        <div class="relative touch-none select-none" style={`height:${CH}px`}>
+      <div class="arrange">
+        <div class="arrange__canvas touch-none select-none" bind:clientWidth={cw} bind:clientHeight={ch}>
           {#each arr.rects as r (r.s.name)}
             <div
               role="button"

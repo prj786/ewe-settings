@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { Dialog } from "bits-ui";
   import * as api from "../api.js";
-  import { prefs, pane, errorMsg, flashApplied, toast } from "../stores.js";
+  import { prefs, pane, errorMsg, flashApplied, toast, accentDefault } from "../stores.js";
   import { theme, refreshTheme } from "../theme.js";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import Page from "./ui/Page.svelte";
@@ -166,7 +166,7 @@
   // shows and changes the current accent.
   $: accentPresets = Array.isArray($theme && $theme.accent_presets) ? $theme.accent_presets : [];
   $: currentScheme = schemes.find((s) => s.current) || null;
-  $: accent = String(input.accent || (currentScheme && currentScheme.accent) || "#eeb407").toLowerCase();
+  $: accent = String(input.accent || (currentScheme && currentScheme.accent) || accentDefault()).toLowerCase();
   // the generator's moves on the accent roles, said in words (Accent picker)
   $: accentMoves = ((currentScheme && detail[currentScheme.slug]?.adjusted) || []).filter((a) =>
     ["accent-text", "focus-ring", "on-accent", "accent-hover", "accent-pressed", "glass-accent"].includes(a.role)

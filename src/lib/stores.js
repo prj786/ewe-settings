@@ -6,10 +6,18 @@ export const version = writable("");
 export const shellUp = writable(true);
 
 // The accent the user picked is always the effective one. "" means they never
-// picked: the theme's own default (--accent-default, from ewe-theme.conf) then
-// stands, so flock opens yellow and blacksheep blue instead of an invented
-// colour overriding both.
+// picked: the default accent (--accent-default, from the token file or
+// ewe-theme show) then stands instead of an invented colour.
 export const effectiveAccent = derived(prefs, (p) => p.accent || "");
+
+// The default accent as a hex, read from the tokens rather than repeated here.
+export function accentDefault() {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue("--accent-default").trim().toLowerCase();
+  } catch {
+    return "";
+  }
+}
 
 // Everything `ewe-theme` derives its token set FROM, as one string.
 //

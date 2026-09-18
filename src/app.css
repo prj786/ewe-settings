@@ -704,6 +704,12 @@ code {
   .arrange {
     padding: 0 var(--space-s) var(--space-s);
   }
+  /* 200px tall with a 12px inset all round; the screens are laid out inside */
+  .arrange__canvas {
+    position: relative;
+    height: calc(5 * var(--control-xl) - 2 * (var(--space-s) + var(--space-xs)));
+    margin: calc(var(--space-s) + var(--space-xs));
+  }
   .arrange__screen {
     position: absolute;
     display: flex;

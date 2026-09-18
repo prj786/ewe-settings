@@ -1,6 +1,8 @@
 <script>
   import { Slider } from "./slider/index.js";
+  import Row from "./Row.svelte";
   export let label = "";
+  export let sub = "";
   export let value = 0;
   export let from = 0;
   export let to = 100;
@@ -21,23 +23,23 @@
   $: shown = Number(Number(live ?? value).toFixed(decimals(step)));
 </script>
 
-<div class="px-6 py-2 {dim ? 'pointer-events-none opacity-50' : ''}">
-  <div class="mb-2 flex items-center justify-between">
-    <span class="row-title">{label}</span>
-    <!-- the readout is a MARK, so it wears the raw accent -->
-    <span class="text-sm font-bold tabular-nums text-[var(--accent)]">{shown}{unit}</span>
+<Row title={label} {sub} {dim}>
+  <div class="ewe-slider slider-trail">
+    <Slider
+      type="single"
+      value={shown}
+      min={from}
+      max={to}
+      {step}
+      disabled={dim}
+      aria-label={label}
+      onValueChange={(v) => (live = v)}
+      onValueCommit={(v) => {
+        live = null;
+        moved(v);
+      }}
+    />
+    <!-- Geist Mono, right-aligned in its own column so it never shifts -->
+    <span class="ewe-slider__value slider-value">{shown}{unit}</span>
   </div>
-  <Slider
-    type="single"
-    value={shown}
-    min={from}
-    max={to}
-    {step}
-    aria-label={label}
-    onValueChange={(v) => (live = v)}
-    onValueCommit={(v) => {
-      live = null;
-      moved(v);
-    }}
-  />
-</div>
+</Row>

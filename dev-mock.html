@@ -1,13 +1,26 @@
 <!doctype html>
-<!-- Browser-only harness: fakes the Tauri bridge with a two-monitor setup so
-     panes can be eyeballed without a compositor. Never shipped (dev server
-     only); delete freely. Open http://localhost:5174/dev-mock.html -->
+<!-- Browser-only harness: fakes the Tauri bridge so panes can be eyeballed
+     without a compositor. Never shipped (dev server only); delete freely.
+     Open http://localhost:5174/dev-mock.html
+
+     Query parameters (all optional):
+       scheme=ewe-dark|ewe-light|kanagawa|a11y   which theme_tokens reply to serve
+       pane=<nav label>                          open that section ("Networking")
+       click=<css selector>                      click that element (open a sheet)
+       focus=<css selector>                      keyboard-focus that element
+     The theme replies are real `ewe-theme show` / `scheme list|show` output,
+     generated into .dev-mock/ (git-ignored) from an isolated XDG_CONFIG_HOME;
+     without them the compiled tokens.css (Ewe Dark) stands. -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Settings (mock)</title>
     <script>
+      const q = new URLSearchParams(location.search);
+      const scheme = q.get("scheme") || "ewe-dark";
+      const listSlug = scheme === "a11y" ? "ewe-dark" : scheme;
+      const json = (p) => fetch(p).then((r) => (r.ok ? r.json() : Promise.reject(p)));
       const mon = (name, w, h, x, y, scale, desc) => ({
         name, description: desc, width: w, height: h, refreshRate: 120,
         x, y, scale, transform: 0, vrr: false, currentFormat: "XRGB8888",
@@ -17,23 +30,72 @@
       window.__TAURI_INTERNALS__ = {
         transformCallback: (cb) => cb,
         metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
-        invoke: (cmd) => {
+        invoke: (cmd, args) => {
           switch (cmd) {
             case "hyprctl_query":
+              if (args && args.args && args.args[0] === "devices") return Promise.resolve(JSON.stringify({ mice: [{ name: "logitech-mx-master-3" }, { name: "elan-touchpad" }] }));
+              if (args && args.args && args.args[0] === "--batch") return Promise.resolve("");
               return Promise.resolve(JSON.stringify([
                 mon("eDP-1", 2880, 1800, 0, 0, 2, "BOE NE160QDM"),
                 mon("DP-1", 2560, 1440, 1440, 0, 1, "Dell U2724D")
               ]));
             case "read_config": return Promise.resolve("");
-            case "read_prefs": return Promise.resolve({ accent: "#0a84ff", colorScheme: "dark" });
+            case "read_prefs": return Promise.resolve({ accent: "#eeb407", tintBorders: true, eventSounds: true });
+            case "write_prefs": return Promise.resolve({ accent: "#eeb407" });
             case "vrr_caps": return Promise.resolve({ "eDP-1": false, "DP-1": true });
-            case "shell_version": return Promise.resolve("0.3.0-mock");
+            case "shell_version": return Promise.resolve("0.21.2-beta");
             case "shell_running": return Promise.resolve(true);
-            case "user_info": return Promise.resolve({ user: "mock", host: "mock" });
+            case "user_info": return Promise.resolve({ user: "mock", host: "ewe", realName: "Nino Beridze", uptime: "3 h 12 min" });
+            case "theme_tokens": return json(`/.dev-mock/theme-${scheme}.json`);
+            case "theme_scheme": {
+              const verb = args.args[0];
+              if (verb === "list") return json(`/.dev-mock/list-${listSlug}.json`);
+              if (verb === "show") return json(`/.dev-mock/show-${args.args[1]}.json`);
+              return Promise.resolve({ ok: true });
+            }
+            case "blur_available": return Promise.resolve(q.get("blur") !== "0");
+            case "set_conf": return Promise.resolve(null);
+            case "net_status": return Promise.resolve({
+              hasWifi: true, wifiOn: true,
+              wired: { dev: "enp3s0", state: "unavailable" },
+              wifi: [
+                { ssid: "office", signal: 82, sec: "WPA2", active: true },
+                { ssid: "Cafe Guest", signal: 55, sec: "", active: false },
+                { ssid: "ნინოს ქსელი", signal: 30, sec: "WPA3", active: false }
+              ],
+              saved: { office: { name: "office", psk: "stored" } },
+              active: [{ name: "office", type: "802-11-wireless", dev: "wlan0", state: "activated" }],
+              ips: ["192.168.1.24/24"],
+              vpn: [{ name: "Work", active: false }],
+              sshHosts: ["build-box"]
+            });
+            case "bt_status": return Promise.resolve({
+              adapter: { powered: true, discoverable: false, discovering: false, alias: "ewe" },
+              devices: [
+                { address: "AA:BB", name: "WH-1000XM5", icon: "audio-headset", paired: true, connected: true, trusted: true, battery: 80 },
+                { address: "CC:DD", name: "MX Keys", icon: "input-keyboard", paired: true, connected: false, trusted: true },
+                { address: "EE:FF", name: "Pixel 9", icon: "phone", paired: false, connected: false, rssi: -61 }
+              ]
+            });
+            case "diagnostics": return Promise.resolve({ hypr: "0.55.1", kernel: "7.2.6-arch2-1", gpu: "amdgpu", mem: "12.1 GB of 32 GB", disk: "212 GB free", gsession: "active", portal: "active", portal_hypr: "active", portal_gtk: "inactive", browser: "helium.desktop" });
             default: return Promise.resolve("");
           }
         }
       };
+      // headless screenshots freeze CSS transitions mid-way; ?still turns them off
+      if (q.has("still")) document.write("<style>*,*::before,*::after{transition:none!important;animation:none!important}</style>");
+      // open a section and focus an element once the app is up
+      addEventListener("load", () => {
+        const pane = q.get("pane");
+        const focus = q.get("focus");
+        setTimeout(() => {
+          if (pane) document.querySelector(`.ewe-navitem[title="${pane}"]`)?.click();
+          setTimeout(() => {
+            if (q.get("click")) document.querySelector(q.get("click"))?.click();
+            if (focus) document.querySelector(focus)?.focus();
+          }, 400);
+        }, 300);
+      });
     </script>
   </head>
   <body>

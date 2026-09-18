@@ -1,23 +1,49 @@
 <script>
-  /** Small round icon button — chevrons, close, etc. `icon` is inner SVG. */
+  /**
+   * Icon button (design/system/components/IconButton), ghost by default, with
+   * the required Tooltip naming the action. `name` is a glyph from icons.js;
+   * `icon` (inner SVG markup) is still accepted from older call sites.
+   * `danger` tints the hover like a danger menu row, for Remove / Forget.
+   */
+  import { Tooltip } from "bits-ui";
+  import Icon from "./Icon.svelte";
+  export let name = "";
   export let icon = "";
   export let title = "";
   export let disabled = false;
   export let danger = false;
+  export let selected = false;
+  export let variant = "ghost"; // ghost | secondary | primary
+  export let size = "sm"; // sm | md | lg
   export let go = () => {};
 </script>
 
-<button
-  {title}
-  aria-label={title}
-  {disabled}
-  class="flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:opacity-30
-    {danger
-    ? 'text-dim hover:bg-[var(--danger-bg)] hover:text-danger'
-    : 'text-dim hover:bg-hover hover:text-fg'}"
-  on:click={() => go()}
->
-  <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    {@html icon}
-  </svg>
-</button>
+<Tooltip.Root delayDuration={400}>
+  <Tooltip.Trigger {disabled}>
+    {#snippet child({ props })}
+      <button
+        {...props}
+        type="button"
+        aria-label={title}
+        {disabled}
+        class="ewe-iconbtn ewe-iconbtn--{variant} {size !== 'md' ? `ewe-iconbtn--${size}` : ''} {danger ? 'is-danger' : ''}"
+        class:is-selected={selected}
+        aria-pressed={selected || undefined}
+        on:click={() => go()}
+      >
+        {#if name}
+          <Icon {name} />
+        {:else}
+          <svg viewBox="0 0 24 24" class="ewe-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            {@html icon}
+          </svg>
+        {/if}
+      </button>
+    {/snippet}
+  </Tooltip.Trigger>
+  {#if title}
+    <Tooltip.Portal>
+      <Tooltip.Content sideOffset={4} class="ewe-tooltip">{title}</Tooltip.Content>
+    </Tooltip.Portal>
+  {/if}
+</Tooltip.Root>

@@ -7,7 +7,6 @@
   import { onMount, onDestroy } from "svelte";
   import * as api from "../api.js";
   import { errorMsg, flashApplied, shellUp } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import IconBtn from "./ui/IconBtn.svelte";
   import Icon from "./ui/Icon.svelte";
@@ -145,107 +144,103 @@
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => (scanning = false), 4000);
   }
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Alert from "./ui/Alert.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Bluetooth</h1>
-
+<Page title="Bluetooth" desc="Pair headphones, keyboards and phones, and connect the ones you've paired.">
   {#if !st}
-    <p class="text-sm text-dim">Checking Bluetooth…</p>
+    <p class="note">Checking Bluetooth…</p>
   {:else if !st.adapter}
-    <Card>
-      <div class="px-4 py-3 text-sm text-dim">
-        {st.error || "No Bluetooth adapter found."}
-        {#if !st.error}
-          If this machine has one, it may be blocked: <code>rfkill unblock bluetooth</code>, or check
-          <code>systemctl status bluetooth</code>.
-        {/if}
-      </div>
-    </Card>
+    <Alert tone="" title={st.error || "No Bluetooth adapter found"}>
+      {#if !st.error}
+        If this computer has one, it may be blocked. Try <code>rfkill unblock bluetooth</code>, or check
+        <code>systemctl status bluetooth</code>.
+      {/if}
+    </Alert>
   {:else}
-    <section>
-      <Card>
+    <Group>
+      <ToggleRow
+        title="Bluetooth"
+        sub={powered ? `On. This computer shows up as “${st.adapter.alias}”.` : "Off"}
+        on={powered}
+        toggled={togglePower}
+      />
+      {#if powered}
         <ToggleRow
-          title="Bluetooth"
-          sub={powered ? `On · this computer is “${st.adapter.alias}”` : "Off"}
-          on={powered}
-          toggled={togglePower}
+          title="Visible to other devices"
+          sub="Lets a phone or another computer find this one and start pairing from its side. Turns off by itself after 3 minutes."
+          on={st.adapter.discoverable}
+          toggled={toggleDiscoverable}
         />
-        {#if powered}
-          <ToggleRow
-            title="Visible to other devices"
-            sub="Lets a phone or another computer find this one and start the pairing from its side. Turns itself off after 3 minutes."
-            on={st.adapter.discoverable}
-            toggled={toggleDiscoverable}
-          />
-        {/if}
-      </Card>
-    </section>
+      {/if}
+    </Group>
 
     {#if powered}
-      <section>
-        <div class="section-title">My devices</div>
-        <Card>
-          {#each paired as d (d.address)}
-            <div class="flex items-center gap-3 px-4 py-2.5">
-              <Icon code={glyph(d)} size={16} class={d.connected ? "text-[var(--brand-fg-1)]" : "text-dim"} />
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm {d.connected ? 'font-semibold' : ''}">{d.name}</div>
-                <div class="text-xs text-dim">{status(d)}{d.trusted ? "" : " · not trusted"}</div>
-              </div>
+      <Group title="My devices">
+        {#each paired as d (d.address)}
+          <div class="ewe-row" class:is-selected={d.connected}>
+            <span class="ewe-row__lead"><Icon code={glyph(d)} /></span>
+            <div class="ewe-row__text">
+              <div class="ewe-row__title" class:font-medium={d.connected}>{d.name}</div>
+              <div class="ewe-row__desc">{status(d)}{d.trusted ? "" : " · Not trusted"}</div>
+            </div>
+            <div class="ewe-row__trail">
               <button
-                class="btn-ghost !py-1 text-xs"
+                class="ewe-btn ewe-btn--secondary ewe-btn--sm"
                 disabled={busy === d.address}
                 on:click={() => toggleConnect(d)}
               >
                 {d.connected ? "Disconnect" : "Connect"}
               </button>
-              <IconBtn icon={TRASH} title="Forget this device" danger disabled={busy === d.address} go={() => forget(d)} />
+              <IconBtn name="trash" title="Forget {d.name}" danger disabled={busy === d.address} go={() => forget(d)} />
             </div>
-          {:else}
-            <div class="px-4 py-3 text-sm text-dim">No paired devices yet — search below.</div>
-          {/each}
-        </Card>
-      </section>
+          </div>
+        {:else}
+          <Row sub="No paired devices yet. Search for one below." />
+        {/each}
+      </Group>
 
-      <section>
-        <div class="section-title flex items-center justify-between">
-          <span>Nearby devices</span>
-          <button class="btn-ghost !py-0.5 text-xs" disabled={scanning} on:click={scan}>
+      <Group title="Nearby devices">
+        <svelte:fragment slot="action">
+          <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={scanning} on:click={scan}>
+            {#if scanning}<span class="ewe-spinner ewe-spinner--sm" aria-hidden="true"></span>{/if}
             {scanning ? "Searching…" : "Search"}
           </button>
-        </div>
-        <Card>
-          {#each nearby as d (d.address)}
-            <div class="flex items-center gap-3 px-4 py-2.5">
-              <Icon code={glyph(d)} size={16} class="text-dim" />
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm">{d.name}</div>
-                <div class="text-xs text-dim">
-                  {busy === d.address ? "Pairing… answer the prompt on the desktop if one appears" : d.rssi != null ? `Signal ${d.rssi} dBm` : ""}
-                </div>
+        </svelte:fragment>
+        {#each nearby as d (d.address)}
+          <div class="ewe-row">
+            <span class="ewe-row__lead"><Icon code={glyph(d)} /></span>
+            <div class="ewe-row__text">
+              <div class="ewe-row__title">{d.name}</div>
+              <div class="ewe-row__desc">
+                {busy === d.address ? "Pairing… Answer the prompt on the desktop if one appears." : d.rssi != null ? `Signal ${d.rssi} dBm` : ""}
               </div>
-              <button class="btn-primary !py-1 text-xs" disabled={busy !== ""} on:click={() => pair(d)}>
+            </div>
+            <div class="ewe-row__trail">
+              <button class="ewe-btn ewe-btn--primary ewe-btn--sm" disabled={busy !== ""} on:click={() => pair(d)}>
                 {busy === d.address ? "Pairing…" : "Pair"}
               </button>
             </div>
-          {:else}
-            <div class="px-4 py-3 text-sm text-dim">
-              {scanning
-                ? "Searching… put the device in pairing mode (hold its button until it blinks)."
-                : "Nothing found yet. Put the device in pairing mode, then Search."}
-            </div>
-          {/each}
-        </Card>
-      </section>
+          </div>
+        {:else}
+          <Row
+            sub={scanning
+              ? "Searching… Put the device in pairing mode (hold its button until it blinks)."
+              : "Nothing found yet. Put the device in pairing mode, then search."}
+          />
+        {/each}
+      </Group>
 
-      <p class="text-xs text-dim">
-        When a device shows a code, the desktop asks you to confirm it. Paired devices are trusted, so they
-        reconnect on their own.
-        {#if !$shellUp}
-          <span class="text-warning">The ewe shell is not running — only devices without a code (most headphones) can pair right now.</span>
-        {/if}
+      <p class="note">
+        When a device shows a code, the desktop asks you to confirm it. Paired devices are trusted, so
+        they reconnect by themselves.
       </p>
+      {#if !$shellUp}
+        <Alert tone="warning">The ewe shell isn't running, so only devices without a code (most headphones) can pair right now.</Alert>
+      {/if}
     {/if}
   {/if}
-</div>
+</Page>

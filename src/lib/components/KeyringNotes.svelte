@@ -13,42 +13,28 @@
   export let disabled = false;
   export let onReset = () => {};
   export let onLogOut = () => {};
+  import Row from "./ui/Row.svelte";
 </script>
 
 {#if online && state === "locked" && !resetDone}
-  <div class="px-4 py-2.5 text-xs text-dim">
-    Your keyring is locked: a small “Unlock keyring” prompt will appear during sign-in — answer it
-    with your login password.
-  </div>
+  <Row sub="Your keyring is locked. A small “Unlock keyring” prompt appears when you sign in; answer it with your sign-in password." />
 {:else if online && state === "missing" && !resetDone}
-  <div class="px-4 py-2.5 text-xs text-dim">
-    A small “Choose password for new keyring” prompt will appear during sign-in — use your login
-    password so it unlocks by itself at every login.
-  </div>
+  <Row sub="A small “Choose password for new keyring” prompt appears when you sign in. Use your sign-in password, so it unlocks by itself every time." />
 {:else if state === "unavailable"}
-  <div class="px-4 py-2.5 text-xs text-warning">
-    No Secret Service keyring is running — gnome-keyring must be installed and started for this
-    session before sign-in can store its token.
-  </div>
+  <Row><span class="text-warning">No Secret Service keyring is running. Install and start gnome-keyring for this session before signing in, so it can keep the token.</span></Row>
 {/if}
 
 {#if resetDone}
-  <div class="flex items-center justify-between gap-3 px-4 py-3">
-    <div class="text-xs text-dim">
-      Keyring reset — log out and back in (it is recreated with your login password), then sign in
-      again.
-    </div>
-    <button class="btn-ghost !py-1 text-xs" {disabled} on:click={onLogOut}>Log out now</button>
-  </div>
+  <Row sub="Keyring reset. Sign out and back in (it's made again with your sign-in password), then sign in to the account again.">
+    <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" {disabled} on:click={onLogOut}>Sign out now</button>
+  </Row>
 {:else if trouble && !busy}
-  <div class="flex items-center justify-between gap-3 px-4 py-3">
-    <div class="text-xs text-dim">
-      {state === "locked"
-        ? "The keyring is locked and PAM could not unlock it with your login password."
-        : "The keyring refused to store the token."}
-      Replacing it makes a fresh keyring at the next login; the old files are kept in
-      ~/.local/share/keyrings.bak.
-    </div>
-    <button class="btn-ghost !py-1 text-xs" {disabled} on:click={onReset}>Reset the keyring</button>
-  </div>
+  <Row
+    sub={(state === "locked"
+      ? "The keyring is locked and your sign-in password couldn't unlock it."
+      : "The keyring refused to keep the token.") +
+      " Replacing it makes a fresh keyring the next time you sign in; the old files stay in ~/.local/share/keyrings.bak."}
+  >
+    <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" {disabled} on:click={onReset}>Reset keyring</button>
+  </Row>
 {/if}

@@ -4,7 +4,6 @@
   import { hypridleConfText, idlePolicyText } from "../hypr.js";
   import { prefs, errorMsg, flashApplied } from "../stores.js";
   import { setPrefs } from "../overrides.js";
-  import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
@@ -39,27 +38,39 @@
       errorMsg.set(String(e));
     }
   }
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Alert from "./ui/Alert.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Screensaver</h1>
+<Page title="Screensaver" desc="What the screens show when you step away, and when the session locks.">
+  <svelte:fragment slot="actions">
+    <button
+      class="ewe-btn ewe-btn--secondary"
+      disabled={!saver.enabled}
+      title="Shows the screensaver now. Any key dismisses it."
+      on:click={() => api.qsIpc("saver", "show").catch((e) => errorMsg.set(String(e)))}
+    >
+      Preview
+    </button>
+  </svelte:fragment>
 
   {#if !hypridleOk}
-    <div class="card border-[var(--warning)] p-4 text-xs text-warning dark:text-warning">
-      hypridle is not installed — the screensaver (and idle auto-lock) needs it:
-      <code class="rounded bg-elevated px-1 ">sudo pacman -S hypridle</code>
-    </div>
+    <Alert tone="warning" title="hypridle isn't installed">
+      The screensaver and automatic locking need it. Install it with <code>sudo pacman -S hypridle</code>.
+    </Alert>
   {/if}
 
-  <Card>
+  <Group>
     <ToggleRow
-      title="Enable screensaver"
-      sub="Covers every display after the idle timeout; any key, click or mouse move dismisses it."
+      title="Screensaver"
+      sub="Covers every display after the idle time. Any key, click or mouse move dismisses it."
       on={saver.enabled}
       toggled={() => change({ enabled: !saver.enabled })}
     />
     <SliderRow
-      label="Idle timeout"
+      label="Start after"
       value={saver.min}
       from={1}
       to={60}
@@ -71,57 +82,42 @@
       label="Style"
       options={[
         { label: "Clock", value: "clock" },
-        { label: "Blank (black)", value: "blank" }
+        { label: "Blank", value: "blank" }
       ]}
       value={saver.style}
       dim={!saver.enabled || saver.lock}
       picked={(v) => change({ style: v })}
     />
-  </Card>
+  </Group>
 
-  <section>
-    <div class="section-title">Locking</div>
-    <Card>
-      <ToggleRow
-        title="Require password"
-        sub="Idle goes straight to the session lock screen instead of the dismissable saver."
-        dim={!saver.enabled}
-        on={saver.lock}
-        toggled={() => change({ lock: !saver.lock })}
-      />
-      <SelectRow
-        label="Lock after the saver starts"
-        options={[
-          { label: "Never", value: 0 },
-          { label: "1 min", value: 1 },
-          { label: "5 min", value: 5 },
-          { label: "10 min", value: 10 },
-          { label: "15 min", value: 15 },
-          { label: "30 min", value: 30 }
-        ]}
-        value={saver.lockAfterMin}
-        dim={!saver.enabled || saver.lock}
-        picked={(v) => change({ lockAfterMin: Number(v) })}
-      />
-    </Card>
-  </section>
+  <Group title="Locking">
+    <ToggleRow
+      title="Require password"
+      sub="When you're idle, go straight to the lock screen instead of the screensaver."
+      dim={!saver.enabled}
+      on={saver.lock}
+      toggled={() => change({ lock: !saver.lock })}
+    />
+    <SelectRow
+      label="Lock after the screensaver starts"
+      options={[
+        { label: "Never", value: 0 },
+        { label: "1 min", value: 1 },
+        { label: "5 min", value: 5 },
+        { label: "10 min", value: 10 },
+        { label: "15 min", value: 15 },
+        { label: "30 min", value: 30 }
+      ]}
+      value={saver.lockAfterMin}
+      dim={!saver.enabled || saver.lock}
+      picked={(v) => change({ lockAfterMin: Number(v) })}
+    />
+  </Group>
 
-  <div class="flex items-center gap-3">
-    <button
-      class="btn-primary !py-1.5 text-xs"
-      disabled={!saver.enabled}
-      on:click={() => api.qsIpc("saver", "show").catch((e) => errorMsg.set(String(e)))}
-    >
-      Preview
-    </button>
-    <span class="text-xs text-dim">Shows the saver now — any key dismisses it.</span>
-  </div>
-
-  <p class="text-xs text-dim dark:text-dim">Current timeline: {policy}</p>
-  <p class="text-xs text-dim dark:text-dim">
-    With the saver disabled the stock behaviour stays: auto-lock after 5 minutes idle.
-    Idle-suspend on battery (15 min) is always kept, and every stage lands sooner on battery.
-    Playing media, a fullscreen window, or the bar's Insomnia toggle keep all of this away.
-    Timing is enforced by hypridle — settings apply immediately, no restart needed.
+  <p class="note">Current timeline: {policy}</p>
+  <p class="note">
+    With the screensaver off, the desktop still locks after 5 minutes idle. On battery it suspends
+    after 15 minutes, and every stage comes sooner. Playing media, a fullscreen window or keep awake
+    in the bar hold all of this off. hypridle applies changes at once; no restart needed.
   </p>
-</div>
+</Page>

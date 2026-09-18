@@ -2,7 +2,6 @@
   import { onMount, onDestroy } from "svelte";
   import * as api from "../api.js";
   import { errorMsg, flashApplied } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
 
@@ -112,124 +111,104 @@
     d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const dateText = (d) =>
     d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import PickList from "./ui/PickList.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Time &amp; Place</h1>
-
-  <section>
-    <Card>
-      <div class="px-4 py-5 text-center">
-        <div class="font-mono text-4xl font-semibold tabular-nums">{timeText(now)}</div>
-        <div class="mt-1 text-sm text-dim dark:text-dim">{dateText(now)}</div>
-        {#if info}
-          <div class="mt-2 text-xs text-dim dark:text-dim">
-            {info.timezone}
-            {#if info.ntp}&nbsp;·&nbsp;{info.ntpSynced ? "clock synced" : "syncing…"}{/if}
-          </div>
-        {/if}
-      </div>
-    </Card>
-  </section>
-
-  <section>
-    <div class="section-title">Timezone</div>
-    <Card>
-      <ToggleRow
-        title="Set timezone automatically"
-        sub="From network location, on every new connection. Two independent providers must agree before the zone moves; VPNs pause detection."
-        on={info?.auto ?? true}
-        toggled={toggleAuto}
-      />
-      <SelectRow
-        label="Region"
-        options={regions.map((r) => ({ label: r, value: r }))}
-        value={curRegion}
-        dim={info?.auto ?? true}
-        picked={(r) => (pickedRegion = r)}
-      />
-      <SelectRow
-        label="Zone"
-        options={regionZones.map((z) => ({ label: cityName(z), value: z }))}
-        value={info?.timezone || ""}
-        dim={info?.auto ?? true}
-        width="w-64"
-        picked={setZone}
-      />
-    </Card>
-    <p class="mt-2 text-xs text-dim dark:text-dim">
-      Picking a zone by hand pins it: automatic detection stays out of the way until you turn it
-      back on. The clock itself is always network-synced (below) — the zone is the only thing that
-      goes stale when you travel.
-    </p>
-  </section>
-
-  <section>
-    <div class="section-title">Clock</div>
-    <Card>
-      <ToggleRow
-        title="Network time (NTP)"
-        sub="Keep the clock synced via systemd-timesyncd."
-        on={info?.ntp ?? true}
-        toggled={toggleNtp}
-      />
-    </Card>
-  </section>
-
-  <section>
-    <div class="section-title">Language</div>
-    <Card>
-      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
-        <div class="min-w-0">
-          <div class="text-sm font-medium">Display language</div>
-          <div class="text-xs text-dim dark:text-dim">
-            {#if loc}
-              <span class="font-mono">{loc.current || "unset"}</span>
-              {#if loc.current && !loc.generated}&nbsp;·&nbsp;not generated{/if}
-            {:else}
-              …
-            {/if}
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="truncate text-sm">{loc?.currentLabel || "—"}</span>
-          {#if !showLang}
-            <button class="btn-ghost !py-1 text-xs" on:click={() => (showLang = true)}>Change</button>
-          {/if}
-        </div>
-      </div>
-      {#if showLang}
-        <div class="px-4 py-3 {langBusy ? 'pointer-events-none opacity-50' : ''}">
-          <!-- svelte-ignore a11y_autofocus -->
-          <input class="input mb-2" placeholder="Search languages…" bind:value={langQuery} autofocus />
-          <div class="max-h-64 overflow-y-auto rounded-lg border border-hairline">
-            {#each langCandidates.slice(0, 40) as c (c.code)}
-              <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5 {c.code === loc?.current ? 'font-medium' : ''}"
-                on:click={() => setLocale(c)}
-              >
-                <span class="min-w-0 flex-1 truncate">{c.label}</span>
-                <span class="shrink-0 font-mono text-[11px] text-dim dark:text-dim">{c.code}</span>
-                {#if c.generated}
-                  <span class="w-16 shrink-0 rounded bg-elevated/70 px-1.5 py-0.5 text-center text-[10px] uppercase /60">ready</span>
-                {:else}
-                  <span class="w-16 shrink-0 text-center text-[10px] uppercase text-dim dark:text-dim">generate</span>
-                {/if}
-              </button>
-            {:else}
-              <div class="px-3 py-2 text-xs text-dim dark:text-dim">No match.</div>
-            {/each}
-          </div>
-          <button class="btn-ghost mt-2 !py-1 text-xs" on:click={() => ((showLang = false), (langQuery = ""))}>
-            Cancel
-          </button>
+<Page title="Time and place" desc="The time zone, the clock and the language apps use.">
+  <div class="ewe-list">
+    <div class="clock-hero">
+      <div class="clock-hero__time">{timeText(now)}</div>
+      <div class="clock-hero__date">{dateText(now)}</div>
+      {#if info}
+        <div class="clock-hero__meta">
+          {info.timezone}{#if info.ntp} · {info.ntpSynced ? "Clock synced" : "Syncing…"}{/if}
         </div>
       {/if}
-    </Card>
-    <p class="mt-2 text-xs text-dim dark:text-dim">
-      Sets the system language (LANG) for every app. Locales marked "generate" are built first,
-      which takes a moment and asks for your password. Running apps keep their current language —
-      sign out and back in to see the change everywhere.
-    </p>
-  </section>
-</div>
+    </div>
+  </div>
+
+  <Group title="Time zone">
+    <ToggleRow
+      title="Set the time zone automatically"
+      sub="From your network location, on every new connection. Two providers must agree before it changes; a VPN pauses it."
+      on={info?.auto ?? true}
+      toggled={toggleAuto}
+    />
+    <SelectRow
+      label="Region"
+      options={regions.map((r) => ({ label: r, value: r }))}
+      value={curRegion}
+      dim={info?.auto ?? true}
+      picked={(r) => (pickedRegion = r)}
+    />
+    <SelectRow
+      label="Zone"
+      options={regionZones.map((z) => ({ label: cityName(z), value: z }))}
+      value={info?.timezone || ""}
+      dim={info?.auto ?? true}
+      picked={setZone}
+    />
+    <svelte:fragment slot="after">
+      <p class="note">
+        Picking a zone yourself keeps it until you turn automatic back on. The clock itself always
+        syncs over the network; only the zone goes stale when you travel.
+      </p>
+    </svelte:fragment>
+  </Group>
+
+  <Group title="Clock">
+    <ToggleRow
+      title="Network time"
+      sub="Keep the clock synced with systemd-timesyncd (NTP)."
+      on={info?.ntp ?? true}
+      toggled={toggleNtp}
+    />
+  </Group>
+
+  <Group title="Language">
+    <Row title="Display language">
+      <svelte:fragment slot="text">
+        <div class="ewe-row__desc">
+          {#if loc}
+            <span class="font-mono">{loc.current || "Not set"}</span>{#if loc.current && !loc.generated} · not generated yet{/if}
+          {:else}
+            …
+          {/if}
+        </div>
+      </svelte:fragment>
+      <span>{loc?.currentLabel || "—"}</span>
+      {#if !showLang}
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => (showLang = true)}>Change…</button>
+      {/if}
+    </Row>
+    {#if showLang}
+      <div class={langBusy ? "pointer-events-none" : ""} aria-busy={langBusy}>
+        <PickList
+          bind:query={langQuery}
+          placeholder="Search languages"
+          items={langCandidates.slice(0, 40).map((c) => ({
+            id: c.code,
+            title: c.label,
+            trail: `${c.code} · ${c.generated ? "ready" : "generate"}`,
+            selected: c.code === loc?.current,
+            c
+          }))}
+          pick={(it) => setLocale(it.c)}
+        />
+        <div class="flex justify-end p-1">
+          <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => ((showLang = false), (langQuery = ""))}>Cancel</button>
+        </div>
+      </div>
+    {/if}
+    <svelte:fragment slot="after">
+      <p class="note">
+        Sets the system language (LANG) for every app. A language marked “generate” is built first,
+        which takes a moment and asks for your password. Open apps keep their language until you sign
+        out and back in.
+      </p>
+    </svelte:fragment>
+  </Group>
+</Page>

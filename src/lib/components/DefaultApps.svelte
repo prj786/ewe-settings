@@ -3,7 +3,6 @@
   import * as api from "../api.js";
   import { APP_CATS } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
 
   let defaults = {}; // category key → desktop id
@@ -30,28 +29,26 @@
       errorMsg.set(String(e));
     }
   }
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  const sentence = (s) => s.charAt(0) + s.slice(1).toLowerCase();
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Default applications</h1>
-
-  <Card>
+<Page title="Default apps" desc="Which app opens links, mail, text, pictures, videos and folders.">
+  <Group>
     {#each APP_CATS as c (c.key)}
       {@const opts = [
         ...new Set([...(choices[c.key] || []), ...(defaults[c.key] ? [defaults[c.key]] : [])])
       ].map((id) => ({ label: pretty(id), value: id }))}
       {#if opts.length}
-        <SelectRow label={c.key} options={opts} value={defaults[c.key] || ""} picked={(v) => set(c.key, v)} />
+        <SelectRow label={sentence(c.key)} options={opts} value={defaults[c.key] || ""} picked={(v) => set(c.key, v)} />
       {:else}
-        <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm font-medium">{c.key}</span>
-          <span class="text-xs text-dim">no handlers installed</span>
-        </div>
+        <Row title={sentence(c.key)}>No apps installed for this</Row>
       {/if}
     {/each}
-  </Card>
-
-  <p class="text-xs text-dim dark:text-dim">
-    Stored in ~/.config/mimeapps.list — read natively by every GTK app and by xdg-open.
+  </Group>
+  <p class="note">
+    Stored in ~/.config/mimeapps.list, which every GTK app and xdg-open read.
   </p>
-</div>
+</Page>

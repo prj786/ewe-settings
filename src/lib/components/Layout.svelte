@@ -1,8 +1,9 @@
 <script>
   import { onMount } from "svelte";
-  import { prefs } from "../stores.js";
+  import * as api from "../api.js";
+  import { prefs, errorMsg } from "../stores.js";
+  import { theme, refreshTheme } from "../theme.js";
   import { layout, loadLayout, applyGaps, setTiling, setPrefs, setLayoutMode, setColumnWidth } from "../overrides.js";
-  import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
 
@@ -14,9 +15,9 @@
   }
 
   const layoutModes = [
-    ["dwindle", "Dwindle", "Binary splits — each new window halves the focused one. The classic tiling feel."],
-    ["master", "Master", "One big window on the left, a stack on the right."],
-    ["scrolling", "Scrolling", "Windows sit on an endless horizontal tape, PaperWM-style; scroll with Super + Alt + [ / ]."]
+    ["dwindle", "Dwindle", "Each new window splits the focused one in half. The classic tiling feel."],
+    ["master", "Master", "One large window on the left, a stack on the right."],
+    ["scrolling", "Scrolling", "Windows sit on an endless horizontal strip, like PaperWM. Scroll with Super+Alt+[ and ]."]
   ];
 
   const iconSizes = [
@@ -24,166 +25,127 @@
     ["normal", "Normal"],
     ["large", "Large"]
   ];
+  // v3: the bar is normal (48px) or large (64px), [desktop.bar] size in
+  // ewe.conf — it replaces the old status-glyph icon size. The live value is
+  // what ewe-theme last built from.
+  const barSizes = [
+    ["normal", "Normal"],
+    ["large", "Large"]
+  ];
+  async function setBarSize(v) {
+    try {
+      await api.setConf("desktop.bar.size", v);
+      await refreshTheme();
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+  }
 
   // Top bar — what the status row shows. Absent = shown, so a fresh install
   // and an old user-theme.json both mean "everything"; the shell reads the
   // same object (Globals.barShow). Identity (workspace, window title) and
   // Komble's update state are not optional.
   const barItems = [
-    ["sound", "Sound", "Volume waves, or the headset / headphones when that is where sound goes."],
-    ["mic", "Microphone in use", "An accent mic while an app has the microphone open."],
-    ["wifi", "Network", "Wi-Fi (or the wired link) while connected."],
-    ["bluetooth", "Bluetooth", "While the adapter is on; filled when a device is connected."],
+    ["sound", "Sound", "The volume, or the headset or headphones when sound goes there."],
+    ["mic", "Microphone in use", "An accent microphone while an app has the microphone open."],
+    ["wifi", "Network", "Wi-Fi, or the wired connection, while connected."],
+    ["bluetooth", "Bluetooth", "While Bluetooth is on; filled when a device is connected."],
     ["battery", "Battery", "Icon and percentage, on laptops."],
-    ["power", "Power profile", "Leaf, balance or speedometer."],
-    ["keyboard", "Keyboard layout", "US / GE — click cycles."],
+    ["power", "Power profile", "A leaf, a balance or a speedometer."],
+    ["keyboard", "Keyboard layout", "US or GE. Click to switch."],
     ["tray", "System tray", "Icons from apps that ask for one."],
-    ["tiling", "Tiling ⇄ floating", "The layout switch."]
+    ["tiling", "Tiling or floating", "The layout switch."]
   ];
   // The camera and the scissors are plugins since ewe 0.21 (ewe.screenshot,
   // ewe.clipboard) — Komble → Plugins turns them off, not this list.
   const barShows = (key) => !($prefs.barShow && $prefs.barShow[key] === false);
   const setBarShow = (key, on) => setPrefs({ barShow: { ...($prefs.barShow || {}), [key]: on } });
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Seg from "./ui/Seg.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Layout & Dock</h1>
+<Page title="Layout and dock" desc="How windows tile, the space around them, the top bar and the dock.">
+  <Group title="Window behavior">
+    <ToggleRow
+      title="Tiling"
+      sub="Off: every new window opens floating, like a stacking desktop. Applies after a config reload."
+      on={$prefs.tilingEnabled !== false}
+      toggled={() => setTiling(!($prefs.tilingEnabled !== false))}
+    />
+  </Group>
 
-  <section>
-    <div class="section-title">Window behaviour</div>
-    <Card>
-      <ToggleRow
-        title="Tiling"
-        sub="Off: every new window opens floating, like a stacking desktop. Applies via a config reload."
-        on={$prefs.tilingEnabled !== false}
-        toggled={() => setTiling(!($prefs.tilingEnabled !== false))}
+  <Group title="Window layout">
+    <Row
+      title="Tiling style"
+      sub={(layoutModes.find(([id]) => id === ($layout.mode || "dwindle")) || layoutModes[0])[2]}
+    >
+      <Seg
+        label="Tiling style"
+        options={layoutModes.map(([id, label]) => [id, label])}
+        value={$layout.mode || "dwindle"}
+        picked={setLayoutMode}
       />
-    </Card>
-  </section>
+    </Row>
+    {#if $layout.mode === "scrolling"}
+      <SliderRow label="Column width" value={Math.round(($layout.columnWidth ?? 0.5) * 100)} from={20} to={100} unit="%" moved={(v) => setColumnWidth(Math.round(v) / 100)} />
+    {/if}
+  </Group>
 
-  <section>
-    <div class="section-title">Window layout</div>
-    <Card>
-      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3">
-        <div>
-          <div class="text-sm font-medium">Tiling style</div>
-          <div class="text-xs text-dim dark:text-dim">
-            {(layoutModes.find(([id]) => id === ($layout.mode || "dwindle")) || layoutModes[0])[2]}
-          </div>
-        </div>
-        <div class="flex gap-1.5">
-          {#each layoutModes as [id, label] (id)}
-            <button
-              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-                {($layout.mode || 'dwindle') === id
-                ? 'text-[var(--fg-on-brand)]'
-                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-              style={($layout.mode || "dwindle") === id ? "background: var(--brand-bg)" : ""}
-              on:click={() => setLayoutMode(id)}
-            >
-              {label}
-            </button>
-          {/each}
-        </div>
-      </div>
-      {#if $layout.mode === "scrolling"}
-        <SliderRow label="Column width" value={Math.round(($layout.columnWidth ?? 0.5) * 100)} from={20} to={100} unit=" %" moved={(v) => setColumnWidth(Math.round(v) / 100)} />
-      {/if}
-    </Card>
-  </section>
+  <Group title="Gaps and borders">
+    <SliderRow label="Inner gaps" value={$layout.gapsIn} from={0} to={40} unit=" px" moved={(v) => setLayout({ gapsIn: Math.round(v) })} />
+    <SliderRow label="Outer gaps" value={$layout.gapsOut} from={0} to={60} unit=" px" moved={(v) => setLayout({ gapsOut: Math.round(v) })} />
+    <SliderRow label="Border width" value={$layout.borderSize} from={0} to={8} unit=" px" moved={(v) => setLayout({ borderSize: Math.round(v) })} />
+    <SliderRow label="Corner radius" value={$layout.rounding} from={0} to={24} unit=" px" moved={(v) => setLayout({ rounding: Math.round(v) })} />
+  </Group>
 
-  <section>
-    <div class="section-title">Gaps & borders</div>
-    <Card>
-      <SliderRow label="Inner gaps" value={$layout.gapsIn} from={0} to={40} unit=" px" moved={(v) => setLayout({ gapsIn: Math.round(v) })} />
-      <SliderRow label="Outer gaps" value={$layout.gapsOut} from={0} to={60} unit=" px" moved={(v) => setLayout({ gapsOut: Math.round(v) })} />
-      <SliderRow label="Border width" value={$layout.borderSize} from={0} to={8} unit=" px" moved={(v) => setLayout({ borderSize: Math.round(v) })} />
-      <SliderRow label="Corner radius" value={$layout.rounding} from={0} to={24} unit=" px" moved={(v) => setLayout({ rounding: Math.round(v) })} />
-    </Card>
-  </section>
-
-  <section>
-    <div class="section-title">Top bar</div>
-    <Card>
-      <ToggleRow
-        title="Show the top bar"
-        sub="Workspace, window title, status and clock. Super+Shift+B toggles it for the session."
-        on={$prefs.barEnabled !== false}
-        toggled={() => setPrefs({ barEnabled: !($prefs.barEnabled !== false) })}
+  <Group title="Top bar">
+    <ToggleRow
+      title="Top bar"
+      sub="Workspace, window title, status and clock. Super+Shift+B hides it until you sign out."
+      on={$prefs.barEnabled !== false}
+      toggled={() => setPrefs({ barEnabled: !($prefs.barEnabled !== false) })}
+    />
+    <Row title="Bar size" sub="Normal is 48px tall; large is 64px, with bigger modules and icons." dim={$prefs.barEnabled === false}>
+      <Seg
+        label="Bar size"
+        options={barSizes}
+        value={($theme && $theme.input && $theme.input.bar_size) || "normal"}
+        disabled={$prefs.barEnabled === false}
+        picked={setBarSize}
       />
-      <div
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3
-          {$prefs.barEnabled === false ? 'pointer-events-none opacity-40' : ''}"
-      >
-        <div>
-          <div class="text-sm font-medium">Icon size</div>
-          <div class="text-xs text-dim dark:text-dim">The status glyphs, relative to the theme's icon size.</div>
-        </div>
-        <div class="flex gap-1.5">
-          {#each iconSizes as [id, label] (id)}
-            <button
-              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-                {($prefs.barIconSize || 'normal') === id
-                ? 'text-[var(--fg-on-brand)]'
-                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-              style={($prefs.barIconSize || "normal") === id ? "background: var(--brand-bg)" : ""}
-              on:click={() => setPrefs({ barIconSize: id })}
-            >
-              {label}
-            </button>
-          {/each}
-        </div>
-      </div>
-    </Card>
-    <div class="mt-3 {$prefs.barEnabled === false ? 'pointer-events-none opacity-40' : ''}">
-      <div class="px-1 pb-2 text-xs text-dim">What the status row shows</div>
-      <Card>
-        {#each barItems as [key, title, sub] (key)}
-          <ToggleRow {title} {sub} on={barShows(key)} toggled={() => setBarShow(key, !barShows(key))} />
-        {/each}
-      </Card>
-    </div>
-  </section>
+    </Row>
+  </Group>
 
-  <section>
-    <div class="section-title">Dock</div>
-    <Card>
-      <ToggleRow
-        title="Show the dock"
-        sub="The bottom dock with pinned apps, launcher and places."
-        on={$prefs.dockEnabled !== false}
-        toggled={() => setPrefs({ dockEnabled: !($prefs.dockEnabled !== false) })}
+  <Group title="What the status row shows" class={$prefs.barEnabled === false ? "pointer-events-none" : ""}>
+    {#each barItems as [key, title, sub] (key)}
+      <ToggleRow {title} {sub} dim={$prefs.barEnabled === false} on={barShows(key)} toggled={() => setBarShow(key, !barShows(key))} />
+    {/each}
+  </Group>
+
+  <Group title="Dock">
+    <ToggleRow
+      title="Dock"
+      sub="The dock at the bottom, with pinned apps, the launcher and Places."
+      on={$prefs.dockEnabled !== false}
+      toggled={() => setPrefs({ dockEnabled: !($prefs.dockEnabled !== false) })}
+    />
+    <ToggleRow
+      title="Intelligent auto-hide"
+      sub="Slides away when a window needs the space; comes back when you point at the bottom edge."
+      dim={$prefs.dockEnabled === false}
+      on={!!$prefs.dockAutohide}
+      toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
+    />
+    <Row title="Icon size" sub="How big the dock buttons and workspace groups are." dim={$prefs.dockEnabled === false}>
+      <Seg
+        label="Dock icon size"
+        options={iconSizes}
+        value={$prefs.dockIconSize || "normal"}
+        disabled={$prefs.dockEnabled === false}
+        picked={(id) => setPrefs({ dockIconSize: id })}
       />
-      <ToggleRow
-        title="Intelligent autohide"
-        sub="Slide away when a window needs the space; reveal on bottom-edge hover."
-        dim={$prefs.dockEnabled === false}
-        on={!!$prefs.dockAutohide}
-        toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
-      />
-      <div
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-3
-          {$prefs.dockEnabled === false ? 'pointer-events-none opacity-40' : ''}"
-      >
-        <div>
-          <div class="text-sm font-medium">Icon size</div>
-          <div class="text-xs text-dim dark:text-dim">How big the dock buttons and workspace boxes are.</div>
-        </div>
-        <div class="flex gap-1.5">
-          {#each iconSizes as [id, label] (id)}
-            <button
-              class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-                {($prefs.dockIconSize || 'normal') === id
-                ? 'text-[var(--fg-on-brand)]'
-                : 'bg-elevated/70 text-dim hover:bg-hover /60 '}"
-              style={($prefs.dockIconSize || "normal") === id ? "background: var(--brand-bg)" : ""}
-              on:click={() => setPrefs({ dockIconSize: id })}
-            >
-              {label}
-            </button>
-          {/each}
-        </div>
-      </div>
-    </Card>
-  </section>
-</div>
+    </Row>
+  </Group>
+</Page>

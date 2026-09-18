@@ -17,7 +17,6 @@
   import * as api from "../api.js";
   import { prefs, errorMsg, flashApplied } from "../stores.js";
   import { setPrefs } from "../overrides.js";
-  import Card from "./ui/Card.svelte";
   import KV from "./ui/KV.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
@@ -195,230 +194,186 @@
   // ── derived ────────────────────────────────────────────────────────────────
   $: quotaPct = cloud?.quota?.total > 0 ? Math.min(100, Math.round((cloud.quota.used / cloud.quota.total) * 100)) : null;
   $: mailSource = mail?.source || (mail?.imapConfigured ? "imap" : google?.signedIn ? "gmail" : "");
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  $: avatarShape = $prefs.avatarShape || "circle";
+  $: avatarClass = avatarShape === "square" ? "ewe-avatar--square rounded-none" : avatarShape === "rounded" ? "ewe-avatar--square" : "";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">User</h1>
-
-  <Card>
-    <div class="flex items-center gap-4 px-4 py-4">
+<Page title="User" desc="Who you are on this computer, and the accounts it's signed in to.">
+  <Group>
+    <div class="ewe-row user-head">
       {#if faceUrl}
-        <img
-          src={faceUrl}
-          alt="Avatar"
-          class="h-16 w-16 object-cover
-            {($prefs.avatarShape || 'circle') === 'circle' ? 'rounded-full' : ($prefs.avatarShape || 'circle') === 'rounded' ? 'rounded-xl' : 'rounded-none'}"
-        />
+        <span class="ewe-avatar ewe-avatar--xl {avatarClass}" style="background-image: url('{faceUrl}')" role="img" aria-label="Your picture"></span>
       {:else}
-        <div class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">
+        <span class="ewe-avatar ewe-avatar--xl {avatarClass}" aria-hidden="true">
           {(info?.realName || info?.user || "?").slice(0, 1).toUpperCase()}
-        </div>
+        </span>
       {/if}
-      <div class="min-w-0 flex-1">
+      <div class="ewe-row__text">
         {#if editingName}
-          <form on:submit|preventDefault={saveName} class="flex gap-2">
+          <form on:submit|preventDefault={saveName}>
             <!-- svelte-ignore a11y_autofocus -->
-            <input class="input flex-1" bind:value={nameEdit} autofocus on:blur={saveName} />
+            <input class="ewe-input w-full" aria-label="Your name" bind:value={nameEdit} autofocus on:blur={saveName} />
           </form>
         {:else}
-          <button class="text-left text-base font-semibold hover:underline" title="Edit name"
+          <button class="user-name" title="Edit your name"
             on:click={() => { nameEdit = info?.realName || ""; editingName = true; }}>
             {info?.realName || info?.user || "…"}
           </button>
         {/if}
-        <div class="truncate text-xs text-dim">{info ? `${info.user}@${info.host}` : ""}</div>
+        <div class="ewe-row__desc">{info ? `${info.user}@${info.host}` : ""}</div>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <button class="btn-ghost !py-1 text-xs" on:click={pickAvatar}>Change avatar…</button>
+      <div class="ewe-row__trail flex-col items-end">
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={pickAvatar}>Change picture…</button>
         {#if cloud?.signedIn && cloud?.avatarPath}
-          <button class="btn-ghost !py-1 text-xs" disabled={busy} on:click={useCloudPhoto}>Use account photo</button>
+          <button class="ewe-btn ewe-btn--ghost ewe-btn--sm" disabled={busy} on:click={useCloudPhoto}>Use account picture</button>
         {/if}
       </div>
     </div>
     <SelectRow
-      label="Avatar shape"
-      sub="Used by the lock screen and the shell."
+      label="Picture shape"
+      sub="On the lock screen and in the shell."
       options={shapes}
-      value={$prefs.avatarShape || "circle"}
+      value={avatarShape}
       picked={(v) => setPrefs({ avatarShape: v })}
     />
     {#if info?.uptime}<KV k="Session" v={info.uptime} />{/if}
-  </Card>
+  </Group>
 
-  <!-- ── Your account · Nextcloud ─────────────────────────────────────────── -->
   <!-- Read-only by design (RFC-006). ewe-sync owns the account; this shows it. -->
-  <section>
-    <div class="section-title">Your account · Nextcloud</div>
-    <Card>
-      {#if cloud === null}
-        <div class="px-4 py-3 text-sm text-dim">
-          The shell is not running — your account is managed through it.
-        </div>
-      {:else if !cloud.signedIn}
-        <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div class="min-w-0">
-            <div class="text-sm font-medium">Not signed in</div>
-            <div class="text-xs text-dim">
-              Settings sync, your files as a folder, your calendar. Signing in happens in ewe-sync.
-            </div>
-          </div>
-          {#if syncApp}
-            <button class="btn-primary !py-1.5 shrink-0 text-xs" on:click={openSync}>Open ewe-sync</button>
-          {/if}
-        </div>
-      {:else}
-        <div class="flex items-center gap-3 px-4 py-3">
-          {#if cloudAvatar}
-            <img src={cloudAvatar} alt="" class="h-10 w-10 rounded-full object-cover" />
-          {:else}
-            <div class="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">
-              {(cloud.displayName || cloud.user || "?").slice(0, 1).toUpperCase()}
-            </div>
-          {/if}
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-sm font-medium">{cloud.displayName || cloud.user}</div>
-            <div class="truncate text-xs text-dim">
-              {cloud.email ? `${cloud.email} · ` : ""}{cloud.serverHost || cloud.server}
-              {#if cloud.offline}<span class="text-warning"> · offline</span>{/if}
-            </div>
-          </div>
-        </div>
-        {#if cloud.quota && cloud.quota.total > 0}
-          <div class="px-4 py-2.5">
-            <div class="flex items-baseline justify-between text-xs">
-              <span class="text-dim">Storage</span>
-              <span>{fmtBytes(cloud.quota.used)} of {fmtBytes(cloud.quota.total)}</span>
-            </div>
-            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-elevated">
-              <div class="h-full rounded-full" style="width: {quotaPct}%; background: var(--accent)"></div>
-            </div>
-          </div>
-        {:else if cloud.quota}
-          <KV k="Storage" v={`${fmtBytes(cloud.quota.used)} used`} />
-        {/if}
-        <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"} (mounted)` : cloud.filesPath ? `${cloud.filesPath} (not mounted)` : "—"} />
-        <KV k="Calendar" v={cloud.calState === "ok" ? `${cloud.eventCount} upcoming event${cloud.eventCount === 1 ? "" : "s"}` : cloud.calState || "—"} />
-        {#if cloud.error}
-          <div class="px-4 py-2.5 text-xs text-warning">{cloud.error}</div>
-        {/if}
-      {/if}
-    </Card>
-  </section>
-
-  <!-- ── Settings sync ────────────────────────────────────────────────────── -->
-  <!-- Status only. Back up, sync, push and restore are ewe-sync's verbs. -->
-  <section>
-    <div class="section-title">Settings sync</div>
-    <Card>
-      {#if !cloud?.signedIn}
-        <div class="px-4 py-3 text-sm text-dim">
-          Sign in from ewe-sync to keep this machine's settings, app list and looks in your account —
-          and to bring them back on the next one.
-        </div>
-      {:else}
-        <div class="px-4 py-3">
-          <div class="text-sm font-medium">The one file</div>
-          <div class="text-xs text-dim">
-            {cloud.syncState === "syncing"
-              ? "Syncing…"
-              : cloud.syncConflict
-                ? `Another machine${cloud.remoteMachine ? ` (“${cloud.remoteMachine}”)` : ""} saved newer settings — resolve it in ewe-sync.`
-                : cloud.syncError
-                  ? cloud.syncError
-                  : !cloud.lastSync
-                    ? "Nothing is uploaded until this machine is backed up in ewe-sync."
-                    : cloud.inSync
-                      ? "Up to date."
-                      : "Changes since the last sync."}
-          </div>
-        </div>
-        <KV k="Backup in your account"
-          v={cloud.remoteMachine || cloud.remoteModified ? `saved by “${cloud.remoteMachine || "another machine"}” · ${fmtSync(cloud.remoteModified)}` : "none yet"} />
-        <KV k="This machine last synced"
-          v={cloud.localSyncedAt ? fmtSync(cloud.localSyncedAt) + (cloud.inSync ? " · up to date" : "") : "never"} />
-        <KV k="Auto-sync" v={cloud.autoSync ? "on" : "off"} />
+  <Group title="Your account · Nextcloud">
+    {#if cloud === null}
+      <Row sub="The shell isn't running, and your account is managed through it." />
+    {:else if !cloud.signedIn}
+      <Row title="Not signed in" sub="Settings sync, your files as a folder, your calendar. You sign in from ewe-sync.">
         {#if syncApp}
-          <div class="flex items-center justify-between gap-3 px-4 py-3">
-            <div class="text-xs text-dim">
-              Backing up, restoring, your machines and folder sync all live in the account app.
-            </div>
-            <button class="btn-primary !py-1 shrink-0 text-xs" on:click={openSync}>Manage in ewe-sync</button>
-          </div>
+          <button class="ewe-btn ewe-btn--primary" on:click={openSync}>Open ewe-sync</button>
         {/if}
-      {/if}
-    </Card>
-  </section>
-
-  <!-- ── Mail ─────────────────────────────────────────────────────────────── -->
-  <!-- What is connected, and the one preference that is this machine's. -->
-  <section>
-    <div class="section-title">Mail</div>
-    <Card>
-      <div class="px-4 py-3">
-        <div class="text-sm font-medium">
-          {mailSource === "imap"
-            ? mail?.imapUser || "IMAP account"
-            : mailSource === "gmail"
-              ? "Gmail"
-              : "No mail account"}
-        </div>
-        <div class="truncate text-xs text-dim">
-          {mailSource === "imap"
-            ? `${mail?.imapHost || ""}${mail?.state === "auth" ? " · the server rejected the password" : mail?.state === "offline" ? " · offline" : mail?.unread ? ` · ${mail.unread} unread` : ""}`
-            : mailSource === "gmail"
-              ? "Through your Google client · unread badge in the Control Center"
-              : "The inbox your provider gives you with the Nextcloud account, or any IMAP server. Added in ewe-sync."}
+      </Row>
+    {:else}
+      <div class="ewe-row">
+        {#if cloudAvatar}
+          <span class="ewe-avatar" style="background-image: url('{cloudAvatar}')" role="img" aria-label="Account picture"></span>
+        {:else}
+          <span class="ewe-avatar" aria-hidden="true">{(cloud.displayName || cloud.user || "?").slice(0, 1).toUpperCase()}</span>
+        {/if}
+        <div class="ewe-row__text">
+          <div class="ewe-row__title font-medium">{cloud.displayName || cloud.user}</div>
+          <div class="ewe-row__desc">
+            {cloud.email ? `${cloud.email} · ` : ""}{cloud.serverHost || cloud.server}{#if cloud.offline}<span class="text-warning"> · Offline</span>{/if}
+          </div>
         </div>
       </div>
-      {#if mail?.error && mailSource === "imap"}
-        <div class="px-4 py-2 text-xs text-warning">{mail.error}</div>
+      {#if cloud.quota && cloud.quota.total > 0}
+        <div class="ewe-row ewe-row--block">
+          <div class="ewe-meter" class:ewe-meter--warning={quotaPct >= 90}>
+            <div class="ewe-meter__head">
+              <span>Storage</span>
+              <span class="ewe-meter__value">{fmtBytes(cloud.quota.used)} of {fmtBytes(cloud.quota.total)}</span>
+            </div>
+            <div class="ewe-meter__track" role="meter" aria-label="Storage used" aria-valuenow={quotaPct} aria-valuemin="0" aria-valuemax="100">
+              <div class="ewe-meter__fill" style="--value: {quotaPct}%"></div>
+            </div>
+          </div>
+        </div>
+      {:else if cloud.quota}
+        <KV k="Storage" v={`${fmtBytes(cloud.quota.used)} used`} />
       {/if}
-      {#if mail && mailSource}
-        <ToggleRow
-          title="Notifications"
-          sub="A notification for new mail while the desktop is up."
-          on={!!mail.notify}
-          toggled={() => call("mail", "setNotify", mail.notify ? "false" : "true")}
-        />
+      <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"} (mounted)` : cloud.filesPath ? `${cloud.filesPath} (not mounted)` : "—"} />
+      <KV k="Calendar" v={cloud.calState === "ok" ? `${cloud.eventCount} upcoming event${cloud.eventCount === 1 ? "" : "s"}` : cloud.calState || "—"} />
+      {#if cloud.error}
+        <Row><span class="text-warning">{cloud.error}</span></Row>
       {/if}
-    </Card>
-  </section>
+    {/if}
+  </Group>
 
-  <!-- ── Google · optional ────────────────────────────────────────────────── -->
+  <!-- Status only. Back up, sync, push and restore are ewe-sync's verbs. -->
+  <Group title="Settings sync">
+    {#if !cloud?.signedIn}
+      <Row sub="Sign in from ewe-sync to keep this computer's settings, apps and look in your account, and bring them back on the next one." />
+    {:else}
+      <Row
+        title="The one file"
+        sub={cloud.syncState === "syncing"
+          ? "Syncing…"
+          : cloud.syncConflict
+            ? `Another computer${cloud.remoteMachine ? ` (“${cloud.remoteMachine}”)` : ""} saved newer settings. Resolve it in ewe-sync.`
+            : cloud.syncError
+              ? cloud.syncError
+              : !cloud.lastSync
+                ? "Nothing is uploaded until you back up this computer in ewe-sync."
+                : cloud.inSync
+                  ? "Up to date."
+                  : "Changed since the last sync."}
+      />
+      <KV k="Backup in your account"
+        v={cloud.remoteMachine || cloud.remoteModified ? `Saved by “${cloud.remoteMachine || "another computer"}” · ${fmtSync(cloud.remoteModified)}` : "None yet"} />
+      <KV k="This computer last synced"
+        v={cloud.localSyncedAt ? fmtSync(cloud.localSyncedAt) + (cloud.inSync ? " · up to date" : "") : "Never"} />
+      <KV k="Auto-sync" v={cloud.autoSync ? "On" : "Off"} />
+      {#if syncApp}
+        <Row sub="Backups, restoring, your computers and folder sync are all in the account app.">
+          <button class="ewe-btn ewe-btn--secondary" on:click={openSync}>Open ewe-sync</button>
+        </Row>
+      {/if}
+    {/if}
+  </Group>
+
+  <!-- What is connected, and the one preference that is this machine's. -->
+  <Group title="Mail">
+    <Row
+      title={mailSource === "imap"
+        ? mail?.imapUser || "IMAP account"
+        : mailSource === "gmail"
+          ? "Gmail"
+          : "No mail account"}
+      sub={mailSource === "imap"
+        ? `${mail?.imapHost || ""}${mail?.state === "auth" ? " · The server rejected the password" : mail?.state === "offline" ? " · Offline" : mail?.unread ? ` · ${mail.unread} unread` : ""}`
+        : mailSource === "gmail"
+          ? "Through your Google client. Unread mail shows as a badge in Quick settings."
+          : "The inbox that comes with your Nextcloud account, or any IMAP server. You add it in ewe-sync."}
+    />
+    {#if mail?.error && mailSource === "imap"}
+      <Row><span class="text-warning">{mail.error}</span></Row>
+    {/if}
+    {#if mail && mailSource}
+      <ToggleRow
+        title="Notifications"
+        sub="A notification for new mail while you're signed in."
+        on={!!mail.notify}
+        toggled={() => call("mail", "setNotify", mail.notify ? "false" : "true")}
+      />
+    {/if}
+  </Group>
+
   <!-- Read-only, like the account above: connecting, disconnecting and the
        client-file guidance all live in ewe-sync → Google. -->
-  <section>
-    <div class="section-title">Google · optional</div>
-    <Card>
-      <div class="px-4 py-3 text-xs text-dim">
-        For Gmail notifications and a Drive folder — never settings sync. ewe ships no Google client
-        of its own; you bring your own OAuth client. ewe-sync → Google explains where it goes and
-        connects the account.
+  <Group title="Google (optional)">
+    <Row sub="For Gmail notifications and a Drive folder, never settings sync. ewe ships no Google client of its own: you bring your own OAuth client, and ewe-sync → Google explains where it goes and connects the account." />
+    <KV k="Client file" v={gclient ? (gclient.valid ? "Found" : gclient.exists ? "Found, but not a desktop app client JSON" : "Missing") : google?.configured ? "Found" : "Missing"} />
+    {#if google === null}
+      <Row sub="The shell isn't running, and Google is managed through it." />
+    {:else if !google.signedIn}
+      <Row sub="Not connected." />
+    {:else}
+      <div class="ewe-row">
+        {#if google.profile?.picture}
+          <span class="ewe-avatar" style="background-image: url('{google.profile.picture}')" role="img" aria-label="Google account picture"></span>
+        {/if}
+        <div class="ewe-row__text">
+          <div class="ewe-row__title font-medium">{google.profile?.name || "Google"}</div>
+          <div class="ewe-row__desc">{google.profile?.email || ""}</div>
+        </div>
       </div>
-      <KV k="Client file" v={gclient ? (gclient.valid ? "found" : gclient.exists ? "found, but not a Desktop-app client JSON" : "missing") : google?.configured ? "found" : "missing"} />
-      {#if google === null}
-        <div class="px-4 py-3 text-sm text-dim">The shell is not running — Google is managed through it.</div>
-      {:else if !google.signedIn}
-        <div class="px-4 py-2.5 text-xs text-dim">Not connected.</div>
-      {:else}
-        <div class="flex items-center gap-3 px-4 py-3">
-          {#if google.profile?.picture}
-            <img src={google.profile.picture} alt="" class="h-9 w-9 rounded-full" />
-          {/if}
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-sm font-medium">{google.profile?.name || "Google"}</div>
-            <div class="truncate text-xs text-dim">{google.profile?.email || ""}</div>
-          </div>
-        </div>
-        <KV k="Gmail" v={google.mailState === "scope" ? "no mail permission — reconnect in ewe-sync" : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
-        <KV k="Drive folder" v="~/Google Drive (mounted at sign-in)" />
-      {/if}
-      {#if syncApp}
-        <div class="flex items-center justify-between gap-3 px-4 py-3">
-          <div class="text-xs text-dim">Connecting and disconnecting happen in the account app.</div>
-          <button class="btn-primary !py-1 shrink-0 text-xs" on:click={openSync}>Manage in ewe-sync</button>
-        </div>
-      {/if}
-    </Card>
-  </section>
-</div>
+      <KV k="Gmail" v={google.mailState === "scope" ? "No mail permission. Reconnect in ewe-sync." : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
+      <KV k="Drive folder" v="~/Google Drive (mounted when you sign in)" />
+    {/if}
+    {#if syncApp}
+      <Row sub="You connect and disconnect Google in the account app.">
+        <button class="ewe-btn ewe-btn--secondary" on:click={openSync}>Open ewe-sync</button>
+      </Row>
+    {/if}
+  </Group>
+</Page>

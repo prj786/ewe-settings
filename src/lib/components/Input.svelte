@@ -6,7 +6,6 @@
     kbActiveList, isTouchpadName, KB_PRESETS, KB_VARIANTS, GRP_OPTIONS
   } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
@@ -171,148 +170,141 @@
     if (devTarget === "") applyInput(patch);
     else applyDevice(devTarget, patch);
   }
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import PickList from "./ui/PickList.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <h1 class="text-lg font-semibold">Keyboard & Mouse</h1>
-
+<Page title="Keyboard and mouse" desc="Keyboard layouts and typing, the mouse and the touchpad.">
   {#if !loaded}
-    <p class="text-sm text-dim">Reading input configuration…</p>
+    <p class="note">Reading the input settings…</p>
   {:else}
-    <section>
-      <div class="section-title">Keyboard layouts</div>
-      <Card>
-        {#each kbActive as l, i (l.code + i)}
-          <div class="flex flex-wrap items-center gap-2 px-4 py-2.5">
-            <span class="w-10 shrink-0 rounded bg-elevated/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase /60">{l.code}</span>
-            <span class="min-w-0 flex-1 truncate text-sm">{nameOf(l.code)}</span>
+    <Group title="Keyboard layouts">
+      {#each kbActive as l, i (l.code + i)}
+        <div class="ewe-row">
+          <span class="ewe-badge layout-code"><span class="ewe-badge__label">{l.code.toUpperCase()}</span></span>
+          <div class="ewe-row__text"><div class="ewe-row__title">{nameOf(l.code)}</div></div>
+          <div class="ewe-row__trail">
             <Select.Root
               type="single"
               value={vEnc(l.variant)}
               onValueChange={(raw) => kbSetVariant(i, vDec(raw))}
             >
-              <Select.Trigger size="sm" class="min-w-24 text-xs">
-                <span data-slot="select-value" class="truncate">{l.variant || "Default"}</span>
+              <Select.Trigger size="sm" class="select-trigger" aria-label="Variant of {nameOf(l.code)}">
+                {l.variant || "Default"}
               </Select.Trigger>
-              <Select.Content class="max-h-72 p-1">
+              <Select.Content>
                 {#each variantOpts(l.code) as v (vEnc(v.value))}
                   <Select.Item value={vEnc(v.value)} label={v.label} />
                 {/each}
               </Select.Content>
             </Select.Root>
-            <div class="flex items-center gap-0.5">
-              <IconBtn icon={icUp} title="Move up" disabled={i === 0} go={() => kbMove(i, i - 1)} />
-              <IconBtn icon={icDown} title="Move down" disabled={i === kbActive.length - 1} go={() => kbMove(i, i + 1)} />
-              <IconBtn icon={icX} title="Remove" danger disabled={kbActive.length <= 1} go={() => kbRemove(i)} />
-            </div>
+            <span class="iconbtn-row">
+              <IconBtn name="arrowUp" title="Move {nameOf(l.code)} up" disabled={i === 0} go={() => kbMove(i, i - 1)} />
+              <IconBtn name="arrowDown" title="Move {nameOf(l.code)} down" disabled={i === kbActive.length - 1} go={() => kbMove(i, i + 1)} />
+              <IconBtn name="x" title="Remove {nameOf(l.code)}" danger disabled={kbActive.length <= 1} go={() => kbRemove(i)} />
+            </span>
           </div>
-        {/each}
-        <div class="px-4 py-3">
-          {#if showAdd}
-            <input class="input mb-2" placeholder="Search layouts…" bind:value={addQuery} />
-            <div class="max-h-48 overflow-y-auto rounded-lg border border-hairline">
-              {#each addCandidates.slice(0, 30) as p (p.c)}
-                <button class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5" on:click={() => kbAdd(p.c)}>
-                  <span class="w-10 rounded bg-elevated/70 px-1.5 py-0.5 text-center font-mono text-[11px] uppercase /60">{p.c}</span>
-                  {p.n}
-                </button>
-              {/each}
-            </div>
-            <button class="btn-ghost mt-2 !py-1 text-xs" on:click={() => (showAdd = false)}>Cancel</button>
-          {:else}
-            <button class="btn-ghost !py-1 text-xs" on:click={() => (showAdd = true)}>+ Add layout</button>
-          {/if}
         </div>
-      </Card>
-    </section>
+      {/each}
+      {#if showAdd}
+        <div class="ewe-list__divider"></div>
+        <PickList
+          bind:query={addQuery}
+          placeholder="Search layouts"
+          items={addCandidates.slice(0, 30).map((p) => ({ id: p.c, title: p.n, trail: p.c.toUpperCase(), p }))}
+          pick={(it) => kbAdd(it.p.c)}
+        />
+        <div class="flex justify-end p-1">
+          <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => (showAdd = false)}>Cancel</button>
+        </div>
+      {:else}
+        <div class="p-1">
+          <button class="ewe-btn ewe-btn--ghost ewe-btn--sm" on:click={() => (showAdd = true)}><Icon name="plus" />Add layout</button>
+        </div>
+      {/if}
+    </Group>
 
-    <section>
-      <div class="section-title">Switching & typing</div>
-      <Card>
-        <SelectRow
-          label="Layout switch shortcut"
-          sub="Super+Space always works in addition."
-          options={GRP_OPTIONS}
-          value={kbOptToken("grp:")}
-          picked={(v) => setKbOptPrefix("grp:", v)}
-        />
-        <ToggleRow
-          title="Remember layout per window"
-          sub="Each window keeps its own keyboard layout."
-          on={perWindowKb}
-          toggled={() => setPerWindowKb(!perWindowKb)}
-        />
-        <ToggleRow
-          title="Numlock on by default"
-          on={!!inp.numlock_by_default}
-          toggled={() => applyInput({ numlock_by_default: !inp.numlock_by_default })}
-        />
-        <SliderRow label="Key repeat rate" value={Number(inp.repeat_rate)} from={5} to={80} unit="/s" moved={(v) => applyInput({ repeat_rate: Math.round(v) })} />
-        <SliderRow label="Repeat delay" value={Number(inp.repeat_delay)} from={150} to={1000} step={10} unit=" ms" moved={(v) => applyInput({ repeat_delay: Math.round(v) })} />
-      </Card>
-    </section>
+    <Group title="Switching and typing">
+      <SelectRow
+        label="Switch layouts with"
+        sub="Super+Space always works too."
+        options={GRP_OPTIONS}
+        value={kbOptToken("grp:")}
+        picked={(v) => setKbOptPrefix("grp:", v)}
+      />
+      <ToggleRow
+        title="Remember the layout for each window"
+        sub="Every window keeps its own keyboard layout."
+        on={perWindowKb}
+        toggled={() => setPerWindowKb(!perWindowKb)}
+      />
+      <ToggleRow
+        title="Num Lock on at start"
+        on={!!inp.numlock_by_default}
+        toggled={() => applyInput({ numlock_by_default: !inp.numlock_by_default })}
+      />
+      <SliderRow label="Key repeat rate" value={Number(inp.repeat_rate)} from={5} to={80} unit="/s" moved={(v) => applyInput({ repeat_rate: Math.round(v) })} />
+      <SliderRow label="Repeat delay" value={Number(inp.repeat_delay)} from={150} to={1000} step={10} unit=" ms" moved={(v) => applyInput({ repeat_delay: Math.round(v) })} />
+    </Group>
 
-    <section>
-      <div class="section-title">Mouse</div>
-      <Card>
-        {#if pointerMice.length > 1}
-          <SelectRow
-            label="Configure"
-            sub="Per-device settings override the global ones."
-            options={[{ label: "All pointing devices", value: "" }, ...pointerMice.map((n) => ({ label: n, value: n }))]}
-            value={devTarget}
-            picked={(v) => (devTarget = v)}
-          />
-        {/if}
-        <SliderRow label="Pointer speed" value={effSens} from={-1} to={1} step={0.05} moved={(v) => setMouse({ sensitivity: Math.round(v * 100) / 100 })} />
+    <Group title="Mouse">
+      {#if pointerMice.length > 1}
         <SelectRow
-          label="Acceleration"
-          options={[
-            { label: "Adaptive (default)", value: "" },
-            { label: "Flat (no acceleration)", value: "flat" }
-          ]}
-          value={devTarget === "" ? inp.accel_profile : (devOverrides[devTarget]?.accel_profile ?? "")}
-          picked={(v) => setMouse({ accel_profile: v })}
+          label="Configure"
+          sub="Settings for one device override the ones for all."
+          options={[{ label: "All pointing devices", value: "" }, ...pointerMice.map((n) => ({ label: n, value: n }))]}
+          value={devTarget}
+          picked={(v) => (devTarget = v)}
         />
-        <ToggleRow
-          title="Natural scrolling"
-          on={devTarget === "" ? !!inp.natural_scroll : !!(devOverrides[devTarget]?.natural_scroll ?? inp.natural_scroll)}
-          toggled={() =>
-            setMouse({
-              natural_scroll: devTarget === "" ? !inp.natural_scroll : !(devOverrides[devTarget]?.natural_scroll ?? inp.natural_scroll)
-            })}
-        />
-        <ToggleRow
-          title="Left-handed buttons"
-          on={devTarget === "" ? !!inp.left_handed : !!(devOverrides[devTarget]?.left_handed ?? inp.left_handed)}
-          toggled={() =>
-            setMouse({
-              left_handed: devTarget === "" ? !inp.left_handed : !(devOverrides[devTarget]?.left_handed ?? inp.left_handed)
-            })}
-        />
-        <SliderRow label="Scroll speed" value={Number(inp.scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ scroll_factor: Math.round(v * 10) / 10 })} />
-      </Card>
-    </section>
+      {/if}
+      <SliderRow label="Pointer speed" value={effSens} from={-1} to={1} step={0.05} moved={(v) => setMouse({ sensitivity: Math.round(v * 100) / 100 })} />
+      <SelectRow
+        label="Acceleration"
+        options={[
+          { label: "Adaptive (default)", value: "" },
+          { label: "Flat (no acceleration)", value: "flat" }
+        ]}
+        value={devTarget === "" ? inp.accel_profile : (devOverrides[devTarget]?.accel_profile ?? "")}
+        picked={(v) => setMouse({ accel_profile: v })}
+      />
+      <ToggleRow
+        title="Natural scrolling"
+        on={devTarget === "" ? !!inp.natural_scroll : !!(devOverrides[devTarget]?.natural_scroll ?? inp.natural_scroll)}
+        toggled={() =>
+          setMouse({
+            natural_scroll: devTarget === "" ? !inp.natural_scroll : !(devOverrides[devTarget]?.natural_scroll ?? inp.natural_scroll)
+          })}
+      />
+      <ToggleRow
+        title="Left-handed buttons"
+        on={devTarget === "" ? !!inp.left_handed : !!(devOverrides[devTarget]?.left_handed ?? inp.left_handed)}
+        toggled={() =>
+          setMouse({
+            left_handed: devTarget === "" ? !inp.left_handed : !(devOverrides[devTarget]?.left_handed ?? inp.left_handed)
+          })}
+      />
+      <SliderRow label="Scroll speed" value={Number(inp.scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ scroll_factor: Math.round(v * 10) / 10 })} />
+    </Group>
 
     {#if hasTouchpad}
-      <section>
-        <div class="section-title">Touchpad</div>
-        <Card>
-          <ToggleRow title="Tap to click" on={!!inp.tp_tap} toggled={() => applyInput({ tp_tap: !inp.tp_tap })} />
-          <ToggleRow title="Natural scrolling" on={!!inp.tp_natural_scroll} toggled={() => applyInput({ tp_natural_scroll: !inp.tp_natural_scroll })} />
-          <ToggleRow title="Disable while typing" on={!!inp.tp_dwt} toggled={() => applyInput({ tp_dwt: !inp.tp_dwt })} />
-          <ToggleRow
-            title="Two-finger right-click"
-            sub="Clickfinger: two fingers = right, three = middle (instead of edge zones)."
-            on={!!inp.tp_clickfinger}
-            toggled={() => applyInput({ tp_clickfinger: !inp.tp_clickfinger })}
-          />
-          <ToggleRow title="Middle-button emulation" on={!!inp.tp_mbe} toggled={() => applyInput({ tp_mbe: !inp.tp_mbe })} />
-          <ToggleRow title="Tap and drag" on={!!inp.tp_tap_drag} toggled={() => applyInput({ tp_tap_drag: !inp.tp_tap_drag })} />
-          <ToggleRow title="Drag lock" on={!!inp.tp_drag_lock} toggled={() => applyInput({ tp_drag_lock: !inp.tp_drag_lock })} />
-          <SliderRow label="Scroll speed" value={Number(inp.tp_scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ tp_scroll_factor: Math.round(v * 10) / 10 })} />
-        </Card>
-      </section>
+      <Group title="Touchpad">
+        <ToggleRow title="Tap to click" on={!!inp.tp_tap} toggled={() => applyInput({ tp_tap: !inp.tp_tap })} />
+        <ToggleRow title="Natural scrolling" on={!!inp.tp_natural_scroll} toggled={() => applyInput({ tp_natural_scroll: !inp.tp_natural_scroll })} />
+        <ToggleRow title="Turn off while typing" on={!!inp.tp_dwt} toggled={() => applyInput({ tp_dwt: !inp.tp_dwt })} />
+        <ToggleRow
+          title="Two-finger right-click"
+          sub="Two fingers click right, three click middle, instead of corner zones."
+          on={!!inp.tp_clickfinger}
+          toggled={() => applyInput({ tp_clickfinger: !inp.tp_clickfinger })}
+        />
+        <ToggleRow title="Middle-button emulation" on={!!inp.tp_mbe} toggled={() => applyInput({ tp_mbe: !inp.tp_mbe })} />
+        <ToggleRow title="Tap and drag" on={!!inp.tp_tap_drag} toggled={() => applyInput({ tp_tap_drag: !inp.tp_tap_drag })} />
+        <ToggleRow title="Drag lock" on={!!inp.tp_drag_lock} toggled={() => applyInput({ tp_drag_lock: !inp.tp_drag_lock })} />
+        <SliderRow label="Scroll speed" value={Number(inp.tp_scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ tp_scroll_factor: Math.round(v * 10) / 10 })} />
+      </Group>
     {/if}
   {/if}
-</div>
+</Page>

@@ -3,7 +3,6 @@
   import * as api from "../api.js";
   import { errorMsg, flashApplied } from "../stores.js";
   import { windowRulesLuaText } from "../hypr.js";
-  import Card from "./ui/Card.svelte";
   import IconBtn from "./ui/IconBtn.svelte";
   import * as Select from "./ui/select/index.js";
 
@@ -19,7 +18,7 @@
 
   const WS = [
     { label: "Any", value: 0 },
-    ...Array.from({ length: 8 }, (_, i) => ({ label: `Desktop ${i + 1}`, value: i + 1 }))
+    ...Array.from({ length: 8 }, (_, i) => ({ label: `Workspace ${i + 1}`, value: i + 1 }))
   ];
   const MODES = [
     { label: "Default", value: "" },
@@ -47,7 +46,7 @@
       // RFC-001: routes through ewe-conf, which regenerates windowrules.lua
       await api.writeConfig("quickshell/window-rules.json", JSON.stringify({ rules }, null, 2));
       await api.reloadHyprland();
-      flashApplied("Applied — takes effect when the app opens");
+      flashApplied("Saved. Applies when the app next opens.");
     } catch (e) {
       errorMsg.set(String(e));
     }
@@ -81,63 +80,62 @@
       !rules.some((r) => r.class === ((a.wmClass || a.id || "").trim())) &&
       (query.trim() === "" || a.name.toLowerCase().includes(query.trim().toLowerCase()))
   );
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import PickList from "./ui/PickList.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-lg font-semibold">Window rules</h1>
-    <button class="btn-primary !py-1.5 text-xs" on:click={() => (showAdd = !showAdd)}>
-      {showAdd ? "Cancel" : "+ Add rule"}
+<Page title="Window rules" desc="Always open an app on a chosen workspace, or make it float or tile.">
+  <svelte:fragment slot="actions">
+    <button class="ewe-btn {showAdd ? 'ewe-btn--secondary' : 'ewe-btn--primary'}" on:click={() => (showAdd = !showAdd)}>
+      {#if !showAdd}<Icon name="plus" />{/if}
+      {showAdd ? "Cancel" : "Add rule"}
     </button>
-  </div>
+  </svelte:fragment>
 
   {#if showAdd}
-    <Card>
-      <div class="p-3">
-        <input class="input" placeholder="Search applications…" bind:value={query} />
-      </div>
-      <div class="max-h-72 overflow-y-auto">
-        {#each candidates.slice(0, 40) as a (a.id)}
-          <button
-            class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
-            on:click={() => add(a)}
-          >
-            <span class="min-w-0 flex-1 truncate">{a.name}</span>
-            <span class="max-w-48 truncate text-xs text-dim">{a.comment || a.exec}</span>
-          </button>
-        {/each}
-      </div>
-    </Card>
+    <Group title="Add a rule for">
+      <PickList
+        bind:query
+        placeholder="Search apps"
+        items={candidates.slice(0, 40).map((a) => ({ id: a.id, title: a.name, trail: a.comment || a.exec, a }))}
+        pick={(it) => add(it.a)}
+      />
+    </Group>
   {/if}
 
   {#if rules.length === 0}
-    <div class="card p-6 text-center text-sm text-dim">
-      No rules yet. Add one to always open an app on a chosen desktop, or force it to float or tile.
+    <div class="ewe-list">
+      <div class="ewe-empty">
+        <span class="ewe-empty__icon"><Icon name="windowRules" /></span>
+        <div class="ewe-empty__title">No rules yet</div>
+        <div class="ewe-empty__desc">Add one to always open an app on a chosen workspace, or make it float or tile.</div>
+      </div>
     </div>
   {:else}
-    <Card>
+    <Group>
       {#each rules as r, i (r.class)}
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
-          <div class="min-w-0 flex-1 basis-40">
-            <div class="truncate text-sm font-medium">{r.name || r.class}</div>
+        <Row title={r.name || r.class}>
+          <svelte:fragment slot="text">
             <input
-              class="mt-0.5 w-full max-w-48 border-0 bg-transparent p-0 font-mono text-xs text-dim outline-none focus:text-fg dark:text-dim"
-              title="Window class the rule matches (edit if the app's real class differs)"
+              class="rule-class"
+              title="The window class this rule matches. Edit it if the app's real class differs."
+              aria-label="Window class for {r.name || r.class}"
               value={r.class}
               on:change={(e) => patch(i, { class: e.target.value.trim() || r.class })}
             />
-          </div>
+          </svelte:fragment>
           <Select.Root
             type="single"
             value={enc(r.workspace || 0)}
             onValueChange={(raw) => patch(i, { workspace: Number(raw) || 0 })}
           >
-            <Select.Trigger class="!w-auto min-w-28">
-              <span data-slot="select-value" class="truncate">
-                {(WS.find((o) => enc(o.value) === enc(r.workspace || 0)) || WS[0]).label}
-              </span>
+            <Select.Trigger class="select-trigger" aria-label="Workspace">
+              {(WS.find((o) => enc(o.value) === enc(r.workspace || 0)) || WS[0]).label}
             </Select.Trigger>
-            <Select.Content class="max-h-72 p-1">
+            <Select.Content>
               {#each WS as o (o.value)}
                 <Select.Item value={enc(o.value)} label={o.label} />
               {/each}
@@ -148,26 +146,24 @@
             value={enc(r.mode || "")}
             onValueChange={(raw) => patch(i, { mode: raw === EMPTY ? "" : raw })}
           >
-            <Select.Trigger class="!w-auto min-w-28">
-              <span data-slot="select-value" class="truncate">
-                {(MODES.find((o) => enc(o.value) === enc(r.mode || "")) || MODES[0]).label}
-              </span>
+            <Select.Trigger class="select-trigger" aria-label="Floating or tiled">
+              {(MODES.find((o) => enc(o.value) === enc(r.mode || "")) || MODES[0]).label}
             </Select.Trigger>
-            <Select.Content class="max-h-72 p-1">
+            <Select.Content>
               {#each MODES as o (enc(o.value))}
                 <Select.Item value={enc(o.value)} label={o.label} />
               {/each}
             </Select.Content>
           </Select.Root>
-          <IconBtn icon={'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'} title="Remove" danger go={() => remove(i)} />
-        </div>
+          <IconBtn name="x" title="Remove the rule for {r.name || r.class}" danger go={() => remove(i)} />
+        </Row>
       {/each}
-    </Card>
+    </Group>
   {/if}
 
-  <p class="text-xs text-dim dark:text-dim">
-    Rules apply when the app's window opens: "Desktop N" sends it to that workspace, "Floating"/"Tiled"
-    overrides how it joins the layout. Matching is by window class — edit the small value under the app
-    name if a window isn't caught (find the real class with <code>hyprctl activewindow</code>).
+  <p class="note">
+    Rules apply when an app's window opens: “Workspace N” sends it to that workspace, “Floating” and
+    “Tiled” override how it joins the layout. Rules match the window class; if a window isn't caught,
+    edit the small value under the app's name (<code>hyprctl activewindow</code> shows the real class).
   </p>
-</div>
+</Page>

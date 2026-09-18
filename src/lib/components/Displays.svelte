@@ -6,7 +6,6 @@
     modeMapFor, modeRes, specW, specH, verifyAgainst, scaleOptions, nearestValidScale
   } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import KV from "./ui/KV.svelte";
@@ -182,31 +181,33 @@
   }
 
   // ── arrangement canvas (drag a display to choose its side) ────────────────
-  const CH = 200, PAD = 14;
-  let cw = 620;              // canvas width, tracks the card
+  // the canvas's size and inset are CSS (app.css .arrange__canvas, on the
+  // tokens); these track the measured box
+  let cw = 596;              // canvas width, tracks the card
+  let ch = 176;              // canvas height
   let dragging = null;       // { name, frame, px0, py0, x0, y0, w, h, moved }
   let dragXY = null;         // live logical position of the dragged output
 
-  $: arr = arrLayout(activeSpecs, dragging, dragXY, cw);
+  $: arr = arrLayout(activeSpecs, dragging, dragXY, cw, ch);
 
-  function frameFor(rects, width) {
+  function frameFor(rects, width, height) {
     const minX = Math.min(...rects.map((r) => r.x));
     const minY = Math.min(...rects.map((r) => r.y));
     const maxX = Math.max(...rects.map((r) => r.x + r.w));
     const maxY = Math.max(...rects.map((r) => r.y + r.h));
     const k = Math.min(
-      (width - 2 * PAD) / Math.max(1, maxX - minX),
-      (CH - 2 * PAD) / Math.max(1, maxY - minY),
+      width / Math.max(1, maxX - minX),
+      height / Math.max(1, maxY - minY),
       0.12
     );
     return {
       k, minX, minY, maxX, maxY,
-      ox: PAD + ((width - 2 * PAD) - (maxX - minX) * k) / 2 - minX * k,
-      oy: PAD + ((CH - 2 * PAD) - (maxY - minY) * k) / 2 - minY * k
+      ox: (width - (maxX - minX) * k) / 2 - minX * k,
+      oy: (height - (maxY - minY) * k) / 2 - minY * k
     };
   }
 
-  function arrLayout(active, drag, dxy, width) {
+  function arrLayout(active, drag, dxy, width, height) {
     if (active.length < 2) return { frame: null, rects: [] };
     const rects = active.map((s) => {
       const live = drag && drag.name === s.name && dxy;
@@ -214,7 +215,7 @@
     });
     // the frame is frozen for the duration of a drag so the canvas never
     // rescales under the pointer
-    const frame = drag ? drag.frame : frameFor(rects, width);
+    const frame = drag ? drag.frame : frameFor(rects, width, height);
     for (const r of rects) {
       r.px = frame.ox + r.x * frame.k;
       r.py = frame.oy + r.y * frame.k;
@@ -316,54 +317,58 @@
     const [w, h] = res.split("x").map(Number);
     riskyChange(s.name, { mode: hzs[0].mode, scale: nearestValidScale(w, h, s.scale) });
   }
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import { Dialog } from "bits-ui";
 </script>
 
 <svelte:window on:pointermove={moveDrag} on:pointerup={endDrag} on:pointercancel={endDrag} />
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-lg font-semibold">Displays</h1>
-    <div class="flex gap-2">
-      <button class="btn-ghost text-xs" on:click={autoArrange}>Auto-arrange</button>
-      <button class="btn-ghost text-xs" title="Wake sleeping outputs and re-apply the saved profile" on:click={resetDisplays}>
-        Reset displays
-      </button>
-    </div>
-  </div>
+<Page title="Displays" desc="Resolution, refresh rate, scale and where each display sits.">
+  <svelte:fragment slot="actions">
+    <button class="ewe-btn ewe-btn--secondary" on:click={autoArrange}>Arrange side by side</button>
+    <button class="ewe-btn ewe-btn--ghost" title="Wake sleeping displays and apply the saved profile again" on:click={resetDisplays}>
+      Reset displays
+    </button>
+  </svelte:fragment>
 
   {#if !loaded}
-    <p class="text-sm text-dim">Reading monitors…</p>
+    <p class="note">Reading displays…</p>
   {:else if specs.length === 0}
-    <p class="text-sm text-dim">No monitors reported. Is the shell session running?</p>
+    <div class="ewe-list">
+      <div class="ewe-empty">
+        <span class="ewe-empty__icon"><Icon name="monitor" /></span>
+        <div class="ewe-empty__title">No displays reported</div>
+        <div class="ewe-empty__desc">Hyprland didn't list any. Check that the desktop session is running.</div>
+      </div>
+    </div>
   {/if}
 
   {#if loaded && activeSpecs.length > 1}
-    <section>
-      <div class="section-title">Arrangement</div>
-      <Card>
-        <div class="px-4 pt-3 text-xs text-dim dark:text-dim">
-          Drag a display to choose which side it sits on. Displays snap edge to edge.
+    <Group title="Arrangement">
+      <Row sub="Drag a display to the side it sits on. Displays snap edge to edge." />
+      <div class="arrange">
+        <div class="arrange__canvas touch-none select-none" bind:clientWidth={cw} bind:clientHeight={ch}>
+          {#each arr.rects as r (r.s.name)}
+            <div
+              role="button"
+              tabindex="-1"
+              aria-label="{r.s.name}, {modeRes(r.s.mode)}"
+              class="arrange__screen"
+              class:is-primary={r.s.primary}
+              class:is-dragging={dragging && dragging.name === r.s.name}
+              style={`left:${r.px}px;top:${r.py}px;width:${r.pw}px;height:${r.ph}px`}
+              on:pointerdown={(e) => startDrag(e, r)}
+            >
+              <span class="arrange__name">{r.s.name}</span>
+              <span class="arrange__res">{modeRes(r.s.mode)}</span>
+            </div>
+          {/each}
         </div>
-        <div class="px-4 pb-3" bind:clientWidth={cw}>
-          <div class="relative touch-none select-none" style={`height:${CH}px`}>
-            {#each arr.rects as r (r.s.name)}
-              <div
-                role="button"
-                tabindex="-1"
-                class="absolute flex flex-col items-center justify-center overflow-hidden rounded-lg border-2 bg-elevated transition-shadow 
-                       {dragging && dragging.name === r.s.name ? 'z-10 cursor-grabbing shadow-xl' : 'cursor-grab'}
-                       {r.s.primary ? 'border-[var(--accent)]' : 'border-hairline'}"
-                style={`left:${r.px}px;top:${r.py}px;width:${r.pw}px;height:${r.ph}px`}
-                on:pointerdown={(e) => startDrag(e, r)}
-              >
-                <span class="pointer-events-none max-w-full truncate px-1 text-xs font-medium">{r.s.name}</span>
-                <span class="pointer-events-none text-[10px] text-dim dark:text-dim">{modeRes(r.s.mode)}</span>
-              </div>
-            {/each}
-          </div>
-        </div>
-      </Card>
-    </section>
+      </div>
+    </Group>
   {/if}
 
   {#each specs as s (s.name)}
@@ -371,109 +376,106 @@
     {@const mm = modeMapFor(mon, s)}
     {@const curRes = modeRes(s.mode)}
     {@const vrrOk = vrrCaps[s.name] !== false}
-    <section>
-      <div class="section-title">
-        {s.name}
-        {#if s.desc}<span class="ml-2 font-normal normal-case tracking-normal text-dim">{s.desc}</span>{/if}
-      </div>
-      <Card>
-        {#if s.disabled}
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-sm text-dim">Disabled</span>
-            <button class="btn-primary !py-1 text-xs" on:click={() => riskyChange(s.name, { disabled: false })}>
-              Enable
-            </button>
-          </div>
-        {:else}
+    <Group title={s.desc ? `${s.name} · ${s.desc}` : s.name}>
+      {#if s.disabled}
+        <Row title="Turned off">
+          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={() => riskyChange(s.name, { disabled: false })}>
+            Turn on
+          </button>
+        </Row>
+      {:else}
+        <SelectRow
+          label="Resolution"
+          options={mm.resList.map((r) => ({ label: r.replace("x", " × "), value: r }))}
+          value={curRes}
+          picked={(v) => pickResolution(s, v, mm.byRes[v] || [])}
+        />
+        <SelectRow
+          label="Refresh rate"
+          options={(mm.byRes[curRes] || []).map((o) => ({ label: o.label, value: o.mode }))}
+          value={s.mode}
+          picked={(v) => riskyChange(s.name, { mode: v })}
+        />
+        <SelectRow
+          label="Scale"
+          sub="Only the scales this resolution divides by evenly. Hyprland refuses the rest."
+          options={scaleOptions(curRes, s.scale)}
+          value={s.scale}
+          picked={(v) => riskyChange(s.name, { scale: Number(v) })}
+        />
+        <SelectRow
+          label="Rotation"
+          options={rotations}
+          value={s.transform}
+          picked={(v) => riskyChange(s.name, { transform: Number(v) })}
+        />
+        {#if specs.length > 1}
           <SelectRow
-            label="Resolution"
-            options={mm.resList.map((r) => ({ label: r.replace("x", " × "), value: r }))}
-            value={curRes}
-            picked={(v) => pickResolution(s, v, mm.byRes[v] || [])}
+            label="Mirror"
+            sub="Show another display's picture on this one."
+            options={[{ label: "Off", value: "" }, ...specs.filter((o) => o.name !== s.name && !o.disabled).map((o) => ({ label: o.name, value: o.name }))]}
+            value={s.mirror}
+            picked={(v) => riskyChange(s.name, { mirror: v })}
           />
-          <SelectRow
-            label="Refresh rate"
-            options={(mm.byRes[curRes] || []).map((o) => ({ label: o.label, value: o.mode }))}
-            value={s.mode}
-            picked={(v) => riskyChange(s.name, { mode: v })}
-          />
-          <SelectRow
-            label="Scale"
-            sub="Only scales this resolution divides cleanly — Hyprland rejects the rest."
-            options={scaleOptions(curRes, s.scale)}
-            value={s.scale}
-            picked={(v) => riskyChange(s.name, { scale: Number(v) })}
-          />
-          <SelectRow
-            label="Rotation"
-            options={rotations}
-            value={s.transform}
-            picked={(v) => riskyChange(s.name, { transform: Number(v) })}
-          />
-          {#if specs.length > 1}
-            <SelectRow
-              label="Mirror"
-              sub="Show another display's image on this one."
-              options={[{ label: "Off", value: "" }, ...specs.filter((o) => o.name !== s.name && !o.disabled).map((o) => ({ label: o.name, value: o.name }))]}
-              value={s.mirror}
-              picked={(v) => riskyChange(s.name, { mirror: v })}
-            />
-          {/if}
-          <ToggleRow
-            title="Variable refresh rate"
-            sub={vrrOk ? "VRR / Adaptive sync." : "This display's hardware does not support adaptive sync."}
-            dim={!vrrOk}
-            on={s.vrr}
-            toggled={() => vrrOk && directChange(s.name, { vrr: !s.vrr })}
-          />
-          <ToggleRow
-            title="10-bit colour"
-            sub="Higher banding-free gradients; some apps misbehave."
-            on={s.bitdepth === 10}
-            toggled={() => directChange(s.name, { bitdepth: s.bitdepth === 10 ? 8 : 10 })}
-          />
-          <div class="flex items-center justify-between px-4 py-3">
-            <div>
-              <div class="text-sm font-medium">Primary display</div>
-              <div class="text-xs text-dim dark:text-dim">Anchors auto-arrange at 0,0.</div>
-            </div>
-            {#if s.primary}
-              <span class="text-xs font-medium" style="color: var(--accent)">Primary</span>
-            {:else}
-              <button class="btn-ghost !py-1 text-xs" on:click={() => setPrimary(s.name)}>Make primary</button>
-            {/if}
-          </div>
-          <KV k="Position" v={`${s.x}, ${s.y}`} />
-          {#if specs.length > 1}
-            <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-sm text-dim">Turn off this display</span>
-              <button class="btn-ghost !py-1 text-xs" on:click={() => riskyChange(s.name, { disabled: true })}>
-                Disable
-              </button>
-            </div>
-          {/if}
         {/if}
-      </Card>
-    </section>
+        <ToggleRow
+          title="Variable refresh rate"
+          sub={vrrOk ? "Adaptive sync (VRR)." : "This display doesn't support adaptive sync."}
+          dim={!vrrOk}
+          on={s.vrr}
+          toggled={() => vrrOk && directChange(s.name, { vrr: !s.vrr })}
+        />
+        <ToggleRow
+          title="10-bit color"
+          sub="Smoother gradients without banding. Some apps don't handle it well."
+          on={s.bitdepth === 10}
+          toggled={() => directChange(s.name, { bitdepth: s.bitdepth === 10 ? 8 : 10 })}
+        />
+        <Row title="Primary display" sub="Arranging starts from it, at the top left.">
+          {#if s.primary}
+            <span class="ewe-badge ewe-badge--accent"><span class="ewe-badge__label">Primary</span></span>
+          {:else}
+            <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => setPrimary(s.name)}>Make primary</button>
+          {/if}
+        </Row>
+        <KV k="Position" v={`${s.x}, ${s.y}`} mono />
+        {#if specs.length > 1}
+          <Row title="Turn off this display">
+            <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => riskyChange(s.name, { disabled: true })}>
+              Turn off
+            </button>
+          </Row>
+        {/if}
+      {/if}
+    </Group>
   {/each}
 
-  <p class="text-xs text-dim dark:text-dim">
-    One profile is saved per set of connected displays and re-applied automatically at boot,
-    on hotplug and when docking. Risky changes revert by themselves unless you confirm.
+  <p class="note">
+    One profile is saved for each set of connected displays and applied again at start-up, when you
+    plug a display in and when you dock. Risky changes undo themselves unless you keep them.
   </p>
-</div>
+</Page>
 
-{#if revertSpecs}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
-    <div class="card w-full max-w-sm !bg-white p-6 text-center shadow-2xl dark:!bg-[var(--bg-3)]">
-      <h2 class="text-base font-semibold">Keep these display settings?</h2>
-      <p class="mt-1 text-sm text-dim">
-        Reverting to the previous configuration in {revertLeft}&nbsp;s.
-      </p>
-      <div class="mt-5 flex gap-2">
-        <button class="btn-ghost flex-1" on:click={doRevert}>Revert</button>
-        <button class="btn-primary flex-1" on:click={keepChange}>Keep</button>
+<!-- Confirm-or-revert (Dialog card): the question is the decision, the
+     primary action repeats its verb, and doing nothing (Esc, the timer)
+     brings the previous settings back. -->
+<Dialog.Root open={!!revertSpecs} onOpenChange={(v) => !v && revertSpecs && doRevert()}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="scrim" />
+    <Dialog.Content class="ewe-dialog is-floating" interactOutsideBehavior="ignore">
+      <div class="ewe-dialog__head">
+        <span class="ewe-dialog__icon"><Icon name="monitor" /></span>
+        <div class="ewe-dialog__titles">
+          <Dialog.Title class="ewe-dialog__title">Keep these display settings?</Dialog.Title>
+          <Dialog.Description class="ewe-dialog__desc">
+            The previous settings come back in <span class="font-mono tabular-nums">{revertLeft}</span>&nbsp;s.
+          </Dialog.Description>
+        </div>
       </div>
-    </div>
-  </div>
-{/if}
+      <div class="ewe-dialog__foot">
+        <button class="ewe-btn ewe-btn--secondary" on:click={doRevert}>Revert</button>
+        <button class="ewe-btn ewe-btn--primary" on:click={keepChange}>Keep settings</button>
+      </div>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>

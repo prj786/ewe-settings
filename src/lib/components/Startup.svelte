@@ -3,7 +3,6 @@
   import * as api from "../api.js";
   import { errorMsg, flashApplied } from "../stores.js";
   import { cleanExec } from "../hypr.js";
-  import Card from "./ui/Card.svelte";
   import Toggle from "./ui/Toggle.svelte";
   import IconBtn from "./ui/IconBtn.svelte";
 
@@ -27,7 +26,7 @@
   async function save() {
     try {
       await api.writeConfig("quickshell/startup-apps.json", JSON.stringify({ apps }, null, 2));
-      flashApplied("Saved — applies at next login");
+      flashApplied("Saved. Applies the next time you sign in.");
     } catch (e) {
       errorMsg.set(String(e));
     }
@@ -55,55 +54,50 @@
       !apps.some((x) => x.exec === cleanExec(a.exec)) &&
       (query.trim() === "" || a.name.toLowerCase().includes(query.trim().toLowerCase()))
   );
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import PickList from "./ui/PickList.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-lg font-semibold">Startup applications</h1>
-    <button class="btn-primary !py-1.5 text-xs" on:click={() => (showAdd = !showAdd)}>
-      {showAdd ? "Cancel" : "+ Add application"}
+<Page title="Startup apps" desc="Apps that open by themselves every time you sign in.">
+  <svelte:fragment slot="actions">
+    <button class="ewe-btn {showAdd ? 'ewe-btn--secondary' : 'ewe-btn--primary'}" on:click={() => (showAdd = !showAdd)}>
+      {#if !showAdd}<Icon name="plus" />{/if}
+      {showAdd ? "Cancel" : "Add app"}
     </button>
-  </div>
+  </svelte:fragment>
 
   {#if showAdd}
-    <Card>
-      <div class="p-3">
-        <input class="input" placeholder="Search applications…" bind:value={query} />
-      </div>
-      <div class="max-h-72 overflow-y-auto">
-        {#each candidates.slice(0, 40) as a (a.id)}
-          <button
-            class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
-            on:click={() => add(a)}
-          >
-            <span class="min-w-0 flex-1 truncate">{a.name}</span>
-            <span class="max-w-48 truncate text-xs text-dim">{a.comment || a.exec}</span>
-          </button>
-        {/each}
-      </div>
-    </Card>
+    <Group title="Add an app">
+      <PickList
+        bind:query
+        placeholder="Search apps"
+        items={candidates.slice(0, 40).map((a) => ({ id: a.id, title: a.name, trail: a.comment || a.exec, a }))}
+        pick={(it) => add(it.a)}
+      />
+    </Group>
   {/if}
 
   {#if apps.length === 0}
-    <div class="card p-6 text-center text-sm text-dim">
-      Nothing starts automatically. Add an application to launch it at every login.
+    <div class="ewe-list">
+      <div class="ewe-empty">
+        <span class="ewe-empty__icon"><Icon name="rocket" /></span>
+        <div class="ewe-empty__title">Nothing starts by itself</div>
+        <div class="ewe-empty__desc">Add an app to open it every time you sign in.</div>
+      </div>
     </div>
   {:else}
-    <Card>
+    <Group>
       {#each apps as a, i (a.exec)}
-        <div class="flex items-center gap-3 px-4 py-2.5 {a.enabled === false ? 'opacity-50' : ''}">
-          <div class="min-w-0 flex-1">
-            <div class="truncate text-sm font-medium">{a.name}</div>
-            <div class="truncate text-xs text-dim">{a.exec}</div>
-          </div>
-          <Toggle on={a.enabled !== false} toggled={() => toggle(i)} />
-          <IconBtn icon={'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'} title="Remove" danger go={() => remove(i)} />
-        </div>
+        <Row title={a.name} sub={a.exec}>
+          <Toggle on={a.enabled !== false} label={a.name} toggled={() => toggle(i)} />
+          <IconBtn name="x" title="Remove {a.name}" danger go={() => remove(i)} />
+        </Row>
       {/each}
-    </Card>
+    </Group>
   {/if}
 
-  <p class="text-xs text-dim dark:text-dim">
-    Enabled entries are launched by the shell's autostart at login. Changes apply at the next login.
-  </p>
-</div>
+  <p class="note">The shell opens enabled apps when you sign in. Changes apply the next time you sign in.</p>
+</Page>

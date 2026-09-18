@@ -9,23 +9,33 @@
       rows = shortcutsModel(await api.readConfig("hypr/SHORTCUTS.md"));
     } catch {}
   });
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  // SHORTCUTS.md is a flat list of headings and rows; group it for the page.
+  $: groups = rows.reduce((acc, r) => {
+    if (r.h || !acc.length) acc.push({ title: r.h ? r.a : "", rows: [] });
+    if (!r.h) acc[acc.length - 1].rows.push(r);
+    return acc;
+  }, []);
+  // "Super + Shift + W" → keys, each a Kbd
+  const keys = (a) => String(a).split(/\s*\+\s*/).filter(Boolean);
 </script>
 
-<div class="mx-auto max-w-3xl space-y-1 p-5 sm:p-8">
-  <h1 class="mb-4 text-lg font-semibold">Keyboard shortcuts</h1>
-
+<Page title="Keyboard shortcuts" desc="Every shortcut the desktop knows. They're always shown, never required.">
   {#if rows.length === 0}
-    <p class="text-sm text-dim">SHORTCUTS.md not found.</p>
+    <p class="note">SHORTCUTS.md wasn't found.</p>
   {/if}
 
-  {#each rows as r, i (i)}
-    {#if r.h}
-      <div class="section-title !mt-6">{r.a}</div>
-    {:else}
-      <div class="flex items-baseline justify-between gap-4 border-b border-hairline/60 py-1.5 /40">
-        <kbd class="shrink-0 rounded bg-elevated/70 px-2 py-0.5 font-mono text-[11px] /60">{r.a}</kbd>
-        <span class="min-w-0 text-right text-sm text-dim">{r.b}</span>
-      </div>
-    {/if}
+  {#each groups as g, gi (gi)}
+    <Group title={g.title}>
+      {#each g.rows as r, i (i)}
+        <Row title={r.b} dense>
+          <span class="ewe-kbd-combo">
+            {#each keys(r.a) as k, ki (ki)}{#if ki}<span aria-hidden="true">+</span>{/if}<kbd class="ewe-kbd">{k}</kbd>{/each}
+          </span>
+        </Row>
+      {/each}
+    </Group>
   {/each}
-</div>
+</Page>

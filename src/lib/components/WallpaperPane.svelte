@@ -5,7 +5,6 @@
   import * as api from "../api.js";
   import { parseWallpapersConf, wallpapersConfText, isVideo, isGif } from "../hypr.js";
   import { errorMsg, flashApplied } from "../stores.js";
-  import Card from "./ui/Card.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
 
@@ -96,15 +95,18 @@
   }
 
   $: currentFor = (t) => map[t] || map["*"] || "";
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import Alert from "./ui/Alert.svelte";
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 p-5 sm:p-8">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h1 class="text-lg font-semibold">Wallpaper</h1>
-    <button class="btn-primary !py-1.5 text-xs" on:click={browse}>Choose file…</button>
-  </div>
+<Page title="Wallpaper" desc="The picture or video behind your windows, for every display or one at a time.">
+  <svelte:fragment slot="actions">
+    <button class="ewe-btn ewe-btn--primary" on:click={browse}>Choose file…</button>
+  </svelte:fragment>
 
-  <Card>
+  <Group>
     {#if outputs.length > 1}
       <SelectRow
         label="Set for"
@@ -136,64 +138,70 @@
         write();
       }}
     />
-  </Card>
+  </Group>
 
   {#if files.length}
-    <section>
-      <div class="section-title">{dir}</div>
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2.5">
+    <Group title={dir} well={false}>
+      <div class="ewe-walls wall-grid" role="radiogroup" aria-label="Wallpapers in {dir}">
         {#each files as f (f)}
           {@const cur = currentFor(target) === f}
+          {@const fname = f.split("/").pop()}
           <button
-            class="group relative aspect-video overflow-hidden rounded-lg border transition-shadow hover:shadow-md
-              {cur ? 'border-transparent ring-2' : 'border-hairline'}"
-            style={cur ? "--tw-ring-color: var(--accent)" : ""}
+            class="ewe-wallitem"
+            class:is-selected={cur}
+            role="radio"
+            aria-checked={cur}
+            aria-label={fname}
+            title={fname}
             on:click={() => assign(f)}
           >
-            {#if isVideo(f)}
-              <div class="flex h-full w-full items-center justify-center bg-elevated text-2xl ">🎬</div>
-            {:else if broken[f]}
-              <!-- A thumbnail the asset protocol refused. WebKit's own
-                   fallback is a bare "?" glyph, which says nothing and looks
-                   like a corrupt file — name the thing instead, so a scope
-                   miss is legible rather than mysterious. -->
-              <div class="flex h-full w-full flex-col items-center justify-center gap-1 bg-elevated px-2 text-center">
-                <span class="text-xs font-medium">{f.split("/").pop()}</span>
-                <span class="text-[10px] text-dim">preview unavailable</span>
-              </div>
-            {:else}
-              <img
-                src={convertFileSrc(f)}
-                alt=""
-                loading="lazy"
-                class="h-full w-full object-cover"
-                on:error={() => (broken = { ...broken, [f]: true })}
-              />
-            {/if}
-            {#if isVideo(f) || isGif(f)}
-              <span class="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
-                {isVideo(f) ? "▶ video" : "GIF"}
-              </span>
-            {/if}
-            {#if cur}
-              <span class="absolute right-1 top-1 rounded-full px-1.5 text-[11px] font-bold text-[var(--fg-on-brand)]" style="background: var(--brand-bg)">✓</span>
-            {/if}
+            <span class="ewe-wallitem__img">
+              {#if isVideo(f)}
+                <span class="wall-fallback"><Icon name="film" size="xl" /></span>
+              {:else if broken[f]}
+                <!-- A thumbnail the asset protocol refused. WebKit's own
+                     fallback is a bare "?" glyph, which says nothing and looks
+                     like a corrupt file — name the thing instead, so a scope
+                     miss is legible rather than mysterious. -->
+                <span class="wall-fallback">
+                  <span class="text-xs font-medium">{fname}</span>
+                  <span class="text-xs text-dim">No preview</span>
+                </span>
+              {:else}
+                <img
+                  src={convertFileSrc(f)}
+                  alt=""
+                  loading="lazy"
+                  on:error={() => (broken = { ...broken, [f]: true })}
+                />
+              {/if}
+              {#if isVideo(f) || isGif(f)}
+                <span class="ewe-badge ewe-badge--solid ewe-badge--accent wall-kind"><span class="ewe-badge__label">{isVideo(f) ? "Video" : "GIF"}</span></span>
+              {/if}
+              {#if cur}
+                <span class="ewe-wallitem__check"><Icon name="check" /></span>
+              {/if}
+            </span>
           </button>
         {/each}
       </div>
-    </section>
+    </Group>
   {:else if dir}
-    <p class="text-sm text-dim">No images or videos in {dir} — use “Choose file…”.</p>
+    <div class="ewe-list">
+      <div class="ewe-empty">
+        <span class="ewe-empty__icon"><Icon name="image" /></span>
+        <div class="ewe-empty__title">No pictures or videos here</div>
+        <div class="ewe-empty__desc">{dir} has nothing to show. Choose a file to use one from anywhere.</div>
+      </div>
+    </div>
   {/if}
 
-  <p class="text-xs text-dim dark:text-dim">
-    Applied live and restored at every login by wallpaper.sh; a newly plugged-in monitor gets its
-    wallpaper automatically. Static images → {imgBackend || "no backend"}, GIFs animate via swww,
-    video plays via mpvpaper (always looped). Backend: {backendLabel}.
+  <p class="note">
+    Applied now and again every time you sign in (wallpaper.sh); a newly connected display gets its
+    wallpaper by itself. Pictures use {imgBackend || "no backend"}, GIFs animate with swww, and
+    videos loop with mpvpaper. Backend: {backendLabel}.
   </p>
   {#if anyAnimated}
-    <p class="text-xs text-warning">
-      Animated wallpapers keep the GPU decoding continuously — expect measurable battery drain.
-    </p>
+    <Alert tone="warning">Animated wallpapers keep the graphics card decoding all the time, which uses noticeably more battery.</Alert>
   {/if}
-</div>
+</Page>

@@ -104,5 +104,7 @@ export const setKbdBacklight = (value) => invoke("set_kbd_backlight", { value })
 
 /** the generated look, from ewe-theme.conf — injected at runtime by App.svelte */
 export const themeTokens = (theme) => invoke("theme_tokens", { theme });
-/** ewe-theme scheme <verb> … — palettes: list / apply / import / remove / set / from-wallpaper / export */
+/** ewe-theme scheme <verb> … — list / show / apply / import / duplicate / remove / set / from-wallpaper / export */
 export const themeScheme = (...args) => invoke("theme_scheme", { args });
+/** false where the compositor can't blur (EWE_NO_BLUR=1: VMs, NVIDIA) */
+export const blurAvailable = () => invoke("blur_available");

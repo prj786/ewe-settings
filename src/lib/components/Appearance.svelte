@@ -1,327 +1,423 @@
 <script>
   import { onMount } from "svelte";
+  import { Dialog } from "bits-ui";
   import * as api from "../api.js";
-  import { prefs, pane } from "../stores.js";
-  import { ACCENTS } from "../hypr.js";
+  import { prefs, pane, errorMsg, flashApplied, toast, accentDefault } from "../stores.js";
+  import { theme, refreshTheme } from "../theme.js";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { flashApplied, errorMsg } from "../stores.js";
-  import { Checkbox } from "./ui/checkbox/index.js";
+  import Page from "./ui/Page.svelte";
+  import Group from "./ui/Group.svelte";
+  import Row from "./ui/Row.svelte";
+  import Seg from "./ui/Seg.svelte";
+  import Icon from "./ui/Icon.svelte";
+  import Alert from "./ui/Alert.svelte";
+  import Sheet from "./ui/Sheet.svelte";
+  import SchemeCard from "./ui/SchemeCard.svelte";
+  import AccentPicker from "./ui/AccentPicker.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
-  import {
-    setAccent,
-    setTransparency,
-    setPrefs,
-    applyBorder
-  } from "../overrides.js";
+  import * as Select from "./ui/select/index.js";
+  import { setAccent, setTransparency, setPrefs, applyBorder } from "../overrides.js";
 
-  // There is ONE ewe look now (2026-09-04) — it is not picked from a list, it
-  // is DERIVED from the accent below. What is still a choice is its shape and
-  // how tightly it packs, and those are keys in ewe.conf [desktop.theme], so
-  // they sync with the rest of the machine instead of living in a second file
-  // that `ewe-conf pull` would quietly overwrite.
-  // Defaults mirror the engine's (2026-09 revamp): `round` corners and no
-  // outline on controls — separation is the background step, not an edge.
-  const shapeGroups = [
-    { key: "corner", title: "Corners", dflt: "round",
-      opts: [["none", "Square"], ["small", "Slight"], ["medium", "Rounded"], ["large", "Soft"], ["round", "Round"]] },
-    { key: "density", title: "Density", dflt: "comfortable",
-      opts: [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]] },
-    { key: "stroke", title: "Outlines", dflt: "none",
-      opts: [["none", "None"], ["thin", "Hairline"], ["thick", "Bold"]] }
-  ];
-  // Bar & dock transparency: 0 = solid, 100 = see-through. Stored as
-  // desktop.theme.bar_opacity (the inverse) through ewe-conf like the shape
-  // knobs; between 1 and 90 the compositor blurs behind the bar and dock
-  // (not on VMs / NVIDIA, where blur is off by policy). Every other panel
-  // stays opaque. Debounced: a slider fires dozens of times per drag and
-  // each write rebuilds the tokens and reloads Hyprland.
-  let barTransparency = 0;
-  let barTimer;
-  function slideBar(v) {
-    barTransparency = Math.round(v);
-    clearTimeout(barTimer);
-    barTimer = setTimeout(() => setShape("bar_opacity", 100 - barTransparency), 250);
-  }
-  // The live values come from the token file, which is what ewe-theme was
-  // last built from — never a second copy in this app that could disagree.
-  let shape = {};
-  async function loadShape() {
-    try {
-      const t = await api.themeTokens("ewe");
-      shape = (t && t.input) || {};
-      barTransparency = 100 - Math.max(0, Math.min(100, Number(shape.bar_opacity ?? 100)));
-    } catch { shape = {}; }
-  }
-  onMount(loadShape);
-  async function setShape(key, value) {
-    await run(() => api.setConf(`desktop.theme.${key}`, value));
-    await loadShape();
-  }
+  // Everything on this page goes through the commands the rest of ewe uses:
+  // `ewe-theme scheme …` for schemes (it writes ewe.conf through ewe-conf,
+  // whose hooks repaint the shell and the toolkits) and `ewe-conf set` for
+  // the look presets, the bar and Glass. What the page shows is read back
+  // from `ewe-theme show` (lib/theme.js), never from a copy kept here.
+  $: input = ($theme && $theme.input) || {};
+  $: glassPct = Math.round(Number(input.bar_opacity ?? 100));
 
-  // ── colours: accent-derived (the default), a scheme, or the wallpaper ──
-  // A scheme is a whole Base24 palette in ewe.conf ([[desktop.theme.schemes]]);
-  // ewe-theme owns every write and ewe-conf's hooks repaint everything, so
-  // this pane only asks and shows. Nothing is bundled — the user imports.
-  let schemes = []; // [{slug, name, variant, accent, current, swatch[5]}]
-  let schemeSlug = "accent"; // ewe.conf desktop.theme.scheme
-  let editOpen = false;
-  let currentPalette = null; // {base00…} of the active scheme, for the editor
-  $: colourMode = schemeSlug === "accent" ? "accent" : schemeSlug === "wallpaper" ? "wallpaper" : "scheme";
-  $: currentScheme = schemes.find((s) => s.slug === schemeSlug) || null;
-  async function loadSchemes() {
-    try {
-      const r = await api.themeScheme("list");
-      schemes = r.schemes || [];
-      schemeSlug = r.current || "accent";
-      if (schemeSlug !== "accent") {
-        const s = await api.themeScheme("show", schemeSlug);
-        currentPalette = (s.scheme && s.scheme.palette) || null;
-      } else currentPalette = null;
-    } catch (e) {
-      schemes = [];
-    }
-  }
-  onMount(loadSchemes);
-  async function scheme(...args) {
+  let busy = false;
+  async function run(fn) {
     busy = true;
     try {
-      const r = await api.themeScheme(...args);
-      await loadSchemes();
-      await loadShape();
-      // the accent swatches read $prefs.accent; keep it on the effective one
-      if (shape.accent) await setPrefs({ accent: shape.accent });
-      return r;
+      return await fn();
     } catch (e) {
       errorMsg.set(String(e));
     } finally {
       busy = false;
     }
   }
-  async function importScheme() {
-    const f = await openDialog({
-      multiple: false,
-      title: "Import a colour scheme",
-      filters: [{ name: "Colour schemes", extensions: ["yaml", "yml", "toml", "json"] }]
+
+  // ── schemes ────────────────────────────────────────────────────────────
+  let schemes = []; // `scheme list`: built-ins first, then imported and wallpaper schemes
+  let detail = {}; // slug → { roles, adjusted } from `scheme show`
+  let cards = [];
+  async function loadSchemes() {
+    try {
+      const r = await api.themeScheme("list");
+      schemes = r.schemes || [];
+    } catch {
+      schemes = [];
+    }
+    // the previews and adjusted roles, one `show` each, side by side
+    await Promise.all(
+      schemes.map(async (s) => {
+        try {
+          const d = await api.themeScheme("show", s.slug);
+          detail = { ...detail, [s.slug]: { roles: d.roles, adjusted: d.adjusted || [] } };
+        } catch {}
+      })
+    );
+  }
+  onMount(() => {
+    loadSchemes();
+    api.blurAvailable().then((b) => (blurOk = b !== false)).catch(() => {});
+  });
+
+  /** A scheme verb, then everything that follows from it re-read. */
+  async function scheme(...args) {
+    return run(async () => {
+      const r = await api.themeScheme(...args);
+      await Promise.all([loadSchemes(), refreshTheme()]);
+      return r;
     });
-    if (!f) return;
-    const r = await scheme("import", typeof f === "string" ? f : f.path, "--apply");
-    if (r && r.imported) flashApplied(`${r.imported.name} applied`);
   }
-  async function pickAccent(hex) {
-    if (colourMode === "accent") return run(() => setAccent(hex));
-    await scheme("set", "accent", hex);
-  }
-  async function exportScheme() {
-    const r = await api.themeScheme("export", schemeSlug);
+  const apply = (s) => scheme("apply", s.slug).then((r) => r && flashApplied(`Applied **${s.name}**`));
+
+  async function exportScheme(s) {
+    const r = await run(() => api.themeScheme("export", s.slug));
     if (r && r.yaml) {
       await navigator.clipboard.writeText(r.yaml);
-      flashApplied("Palette copied as Base24 YAML");
+      toast(`Copied **${s.name}** as YAML. Paste it into a file to edit it.`, "success");
     }
   }
-  const ROLES = [
-    ["base00", "Background"], ["base01", "Panels"], ["base02", "Cards & selection"], ["base03", "Lines & muted"],
-    ["base05", "Text"], ["base07", "Bright text"], ["base08", "Danger"], ["base0A", "Warning"], ["base0B", "Success"]
-  ];
-  let roleTimer;
-  function editRole(key, hex) {
-    clearTimeout(roleTimer);
-    roleTimer = setTimeout(() => scheme("set", key, hex), 300);
+  async function duplicate(s) {
+    const r = await scheme("duplicate", s.slug);
+    const d = r && r.duplicated;
+    if (d) toast(`Duplicated as **${d.name}**`, "success", 0, { label: "Apply", run: () => apply(d) });
+  }
+  let removing = null;
+  async function remove() {
+    const s = removing;
+    removing = null;
+    const r = await scheme("remove", s.slug);
+    if (r) flashApplied(`Removed **${s.name}**`);
+  }
+  async function fromWallpaper(light = false) {
+    const r = await scheme("from-wallpaper", "--apply", ...(light ? ["--light"] : []));
+    if (r && r.scheme) flashApplied(`Applied **${r.scheme.name}** from the wallpaper`);
   }
 
-  let busy = false;
-  async function run(fn) {
+  // Arrow keys move between scheme cards and apply (a radio group).
+  function cardKey(e, i) {
+    const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!d || e.target !== cards[i]) return;
+    e.preventDefault();
+    const n = (i + d + schemes.length) % schemes.length;
+    cards[n]?.focus();
+    apply(schemes[n]);
+  }
+  $: currentIdx = schemes.findIndex((s) => s.current);
+
+  // ── Import scheme: a Sheet with a file or a URL ─────────────────────────
+  let importOpen = false;
+  let importFile = "";
+  let importUrl = "";
+  let importName = "";
+  let importFlavour = "";
+  let importError = "";
+  $: importSrc = importFile || importUrl.trim();
+  $: isJson = /\.json($|\?)/i.test(importSrc);
+  const FLAVOURS = [
+    { value: " auto", label: "Automatic" },
+    { value: "latte", label: "Latte (light)" },
+    { value: "frappe", label: "Frappé" },
+    { value: "macchiato", label: "Macchiato" },
+    { value: "mocha", label: "Mocha" }
+  ];
+  function openImport() {
+    importFile = importUrl = importName = importFlavour = importError = "";
+    importOpen = true;
+  }
+  async function chooseFile() {
+    const f = await openDialog({
+      multiple: false,
+      title: "Import a scheme",
+      filters: [{ name: "Schemes (YAML, TOML, JSON)", extensions: ["yaml", "yml", "toml", "json"] }]
+    });
+    if (f) {
+      importFile = typeof f === "string" ? f : f.path;
+      importUrl = "";
+    }
+  }
+  async function doImport() {
+    importError = "";
+    const args = ["import", importSrc];
+    if (importName.trim()) args.push("--name", importName.trim());
+    if (isJson && importFlavour && importFlavour !== " auto") args.push("--flavour", importFlavour);
     busy = true;
     try {
-      await fn();
+      const r = await api.themeScheme(...args);
+      importOpen = false;
+      await loadSchemes();
+      const s = r && r.imported;
+      if (s) toast(`Imported **${s.name}**`, "success", 0, { label: "Apply", run: () => apply(s) });
     } catch (e) {
-      console.error(e);
+      importError = String(e);
     }
     busy = false;
   }
+
+  // ── accent ─────────────────────────────────────────────────────────────
+  // The presets are the generator's (ewe-theme show → accent_presets), so
+  // this app carries no color of its own. Without ewe-theme (an older ewe,
+  // or a browser) the picker offers only the custom swatch, which still
+  // shows and changes the current accent.
+  $: accentPresets = Array.isArray($theme && $theme.accent_presets) ? $theme.accent_presets : [];
+  $: currentScheme = schemes.find((s) => s.current) || null;
+  $: accent = String(input.accent || (currentScheme && currentScheme.accent) || accentDefault()).toLowerCase();
+  // the generator's moves on the accent roles, said in words (Accent picker)
+  $: accentMoves = ((currentScheme && detail[currentScheme.slug]?.adjusted) || []).filter((a) =>
+    ["accent-text", "focus-ring", "on-accent", "accent-hover", "accent-pressed", "glass-accent"].includes(a.role)
+  );
+  async function pickAccent(hex) {
+    await run(async () => {
+      // a built-in scheme wears ewe.conf's accent; a user scheme keeps its own
+      if (!currentScheme || currentScheme.builtin) await setAccent(hex);
+      else await api.themeScheme("set", "accent", hex);
+      await Promise.all([loadSchemes(), refreshTheme()]);
+    });
+  }
+
+  // ── look presets, bar and Glass: ewe.conf [desktop.theme] / [desktop.bar] ─
+  const corners = [["none", "Square"], ["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+  const densities = [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]];
+  const strokes = [["none", "None"], ["thin", "Thin"], ["thick", "Thick"]];
+  // [desktop.bar] icon_size: the bar has no height of its own, it is its
+  // icons plus padding (44 / 48 / 56). Text size 130% moves them a size up.
+  const barIconSizes = [["small", "Small"], ["normal", "Normal"], ["large", "Large"]];
+  $: barIconsSub = Number(input.text_scale ?? 100) >= 130
+    ? "The bar grows with its icons. At text size 130%, they’re one size larger."
+    : "The bar grows with its icons: 44, 48 or 56\u00a0px tall.";
+  async function setConf(key, value) {
+    await run(async () => {
+      await api.setConf(key, value);
+      await refreshTheme();
+    });
+  }
+  // Bar opacity is written on release (a write rebuilds the tokens and reloads
+  // Hyprland); the slider shows the value live meanwhile.
+  let blurOk = true;
+  const GLASS = 80; // the Glass preset (opacity-glass)
+  $: truthy = (v) => v === true || String(v).toLowerCase() === "true";
 </script>
 
-<div class="pane-body">
-  <h1 class="pane-title">Appearance</h1>
-
-  <section>
-    <div class="section-title">Shape &amp; density</div>
-    <div class="card p-6">
-      <div class="space-y-3">
-        {#each shapeGroups as g (g.key)}
-          <div class="flex gap-2" role="group" aria-label={g.title}>
-            {#each g.opts as [val, label] (val)}
-              <button
-                class="seg {(shape[g.key] || g.dflt) === val ? 'is-active' : ''}"
-                aria-pressed={(shape[g.key] || g.dflt) === val}
-                disabled={busy}
-                on:click={() => setShape(g.key, val)}
-              >{label}</button>
-            {/each}
-          </div>
-        {/each}
-      </div>
-      <div class="-mx-6 mt-3">
-        <SliderRow label="Bar & dock transparency" value={barTransparency} from={0} to={100} unit=" %" dim={busy} moved={slideBar} />
-        <ToggleRow
-          title="Blur apps"
-          sub="Every window at 85 % with what is behind it blurred — terminal, browser, files and the ewe apps alike. Fullscreen stays solid. A fixed level on purpose."
-          dim={busy}
-          on={String(shape.app_blur ?? false) === "true"}
-          toggled={() => setShape("app_blur", !(String(shape.app_blur ?? false) === "true"))}
+<Page title="Appearance" desc="The scheme, the accent color and the look of controls, the bar and the dock.">
+  <!-- ── Scheme ─────────────────────────────────────────────────────── -->
+  <Group title="Scheme" well={false}>
+    <svelte:fragment slot="action">
+      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={busy} on:click={() => fromWallpaper(false)}>
+        <Icon name="image" />From wallpaper
+      </button>
+      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={busy} on:click={openImport}>
+        <Icon name="fileDown" />Import scheme…
+      </button>
+    </svelte:fragment>
+    <div class="scheme-grid" role="radiogroup" aria-label="Scheme">
+      {#each schemes as s, i (s.slug)}
+        <SchemeCard
+          bind:el={cards[i]}
+          scheme={s}
+          roles={detail[s.slug]?.roles}
+          adjusted={detail[s.slug]?.adjusted}
+          tabindex={i === (currentIdx < 0 ? 0 : currentIdx) ? 0 : -1}
+          disabled={busy}
+          onApply={() => apply(s)}
+          onExport={() => exportScheme(s)}
+          onDuplicate={() => duplicate(s)}
+          onRemove={() => (removing = s)}
+          onLight={s.slug === "wallpaper" ? () => fromWallpaper(true) : null}
+          onKey={(e) => cardKey(e, i)}
         />
-      </div>
-      <p class="mt-3 text-sm text-dim">
-        These set the shape of the look: corner radius, spacing and control heights, and whether controls draw their own outline; then how see-through the top bar and dock are (what is behind them is blurred, except on VMs and NVIDIA where blur is off; the control centre and other panels stay solid). They live in ewe.conf, so they follow you to your other machines.
+      {/each}
+    </div>
+    <svelte:fragment slot="after">
+      <p class="note">
+        Every scheme is a palette. Duplicate one and export it to edit it in any text editor, then import
+        it again. Imports read Base16 and Base24 YAML, Omarchy colors.toml, Catppuccin palette.json and Gogh.
       </p>
-    </div>
-  </section>
+    </svelte:fragment>
+  </Group>
 
-  <section>
-    <div class="section-title">Colours</div>
-    <div class="card p-6">
-      <div class="flex gap-2" role="group" aria-label="Where the colours come from">
-        <button class="seg {colourMode === 'accent' ? 'is-active' : ''}" disabled={busy} on:click={() => scheme("apply", "accent")}>Accent</button>
-        <!-- always clickable: with nothing imported yet it opens the file dialog, which is the
-             only way a scheme ever arrives; with schemes it switches to the first one -->
-        <button class="seg {colourMode === 'scheme' ? 'is-active' : ''}" disabled={busy}
-          on:click={() => { const s = schemes.find((x) => x.slug !== 'wallpaper'); if (s) scheme('apply', s.slug); else importScheme(); }}>Scheme</button>
-        <button class="seg {colourMode === 'wallpaper' ? 'is-active' : ''}" disabled={busy} on:click={() => scheme("from-wallpaper", "--apply")}>Wallpaper</button>
+  <!-- ── Accent color ───────────────────────────────────────────────── -->
+  <Group title="Accent color">
+    <Row
+      sub={currentScheme && !currentScheme.builtin
+        ? `Buttons, switches, the focus ring and window borders follow it. Changing it changes ${currentScheme.name}.`
+        : "Buttons, switches, the focus ring and window borders follow it."}
+      block
+    >
+      <AccentPicker presets={accentPresets} value={accent} disabled={busy} onChange={pickAccent} />
+    </Row>
+    {#if accentMoves.length}
+      <div class="p-1">
+        <Alert tone="info">
+          This color can't be used as it is: {accentMoves.map((a) => a.role).join(", ")}
+          {accentMoves.length === 1 ? "was" : "were"} adjusted to stay readable.
+        </Alert>
       </div>
+    {/if}
+  </Group>
 
-      {#if colourMode === "accent"}
-        <p class="mt-3 text-sm text-dim">Every colour derives from one accent: the shell, window borders, GTK and Qt apps, the terminal.</p>
-      {:else if colourMode === "wallpaper"}
-        <p class="mt-3 text-sm text-dim">The palette is pulled out of the wallpaper and follows it when it changes. The accent below is the picture's strongest colour; pick another to override it.</p>
-      {:else}
-        <p class="mt-3 text-sm text-dim">A whole palette. Import Base16/Base24 YAML, an Omarchy <code>colors.toml</code>, Catppuccin's <code>palette.json</code> or a Gogh theme; a light scheme is honoured end to end.</p>
-      {/if}
-      {#if colourMode === "accent" && !schemes.some((s) => s.slug !== "wallpaper")}
-        <p class="mt-1 text-xs text-dim">No schemes yet — Scheme (or Import…) opens a file dialog; nothing is bundled.</p>
-      {/if}
+  <!-- ── Look presets ───────────────────────────────────────────────── -->
+  <Group title="Look" desc="Corners, spacing and outlines. They never change colors or text.">
+    <Row title="Corners">
+      <Seg label="Corners" options={corners} value={input.corner === "round" ? "large" : input.corner || "medium"} disabled={busy} picked={(v) => setConf("desktop.theme.corner", v)} />
+    </Row>
+    <Row title="Density" sub="How tall controls and rows are: 24, 28 or 32px.">
+      <Seg label="Density" options={densities} value={input.density || "comfortable"} disabled={busy} picked={(v) => setConf("desktop.theme.density", v)} />
+    </Row>
+    <Row title="Outlines" sub="The line around controls, cards and panels. Fields always keep one.">
+      <Seg label="Outlines" options={strokes} value={input.stroke || "thin"} disabled={busy} picked={(v) => setConf("desktop.theme.stroke", v)} />
+    </Row>
+  </Group>
 
-      <!-- the accent swatches work in every mode: on a scheme they override its accent -->
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        {#each ACCENTS as a (a.hex)}
-          <button
-            title={a.name}
-            aria-label={a.name}
-            class="swatch {String(shape.accent || $prefs.accent || '#0a84ff').toLowerCase() === a.hex ? 'is-active' : ''}"
-            style="background: {a.hex}"
-            disabled={busy}
-            on:click={() => pickAccent(a.hex)}
-          ></button>
-        {/each}
-        <label class="flex items-center gap-2 text-sm text-dim">
-          <input type="color" class="h-7 w-9 cursor-pointer rounded-md border-0 bg-transparent p-0" value={String(shape.accent || '#0a84ff')} disabled={busy}
-            on:change={(e) => pickAccent(e.currentTarget.value)} aria-label="Any accent colour" />
-          any
-        </label>
-      </div>
-
-      {#if schemes.length || colourMode !== "accent"}
-        <div class="mt-5 grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr))">
-          {#each schemes as s (s.slug)}
-            <button
-              class="rounded-xl border p-2 text-left transition {s.current ? 'border-[var(--brand-stroke-1)]' : 'border-transparent hover:border-[var(--stroke-2)]'}"
-              disabled={busy}
-              on:click={() => scheme("apply", s.slug)}
-              title={s.source || s.name}
-            >
-              <div class="flex h-7 overflow-hidden rounded-lg">
-                {#each s.swatch as c}<span class="flex-1" style="background: {c}"></span>{/each}
-              </div>
-              <div class="mt-1.5 flex items-center gap-1.5">
-                <span class="min-w-0 flex-1 truncate text-sm">{s.name}</span>
-                <span class="text-[10px] uppercase tracking-wide text-dim">{s.variant}</span>
-              </div>
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      <div class="mt-4 flex flex-wrap gap-2">
-        <button class="btn-ghost" disabled={busy} on:click={importScheme}>Import…</button>
-        {#if colourMode !== "accent" && currentScheme}
-          <button class="btn-ghost" disabled={busy} on:click={exportScheme}>Copy as YAML</button>
-          <button class="btn-ghost" disabled={busy} on:click={() => (editOpen = !editOpen)}>{editOpen ? "Done editing" : "Edit palette"}</button>
-          <button class="btn-ghost" disabled={busy} on:click={() => scheme("remove", currentScheme.slug)}>Remove</button>
-        {/if}
-        {#if colourMode === "wallpaper"}
-          <button class="btn-ghost" disabled={busy} on:click={() => scheme("from-wallpaper", "--apply", "--light")}>Light version</button>
+  <!-- ── Bar and dock (Glass) ───────────────────────────────────────── -->
+  <Group title="Bar and dock">
+    <Row title="Bar icons" sub={barIconsSub}>
+      <Seg label="Bar icons" options={barIconSizes} value={input.bar_icon_size || "normal"} disabled={busy} picked={(v) => setConf("desktop.bar.icon_size", v)} />
+    </Row>
+    <SliderRow
+      label="Bar opacity"
+      sub="How solid the bar, the dock and the lock screen card are. Below 100% the wallpaper shows through, blurred."
+      value={glassPct}
+      from={0}
+      to={100}
+      unit="%"
+      dim={busy}
+      moved={(v) => setConf("desktop.theme.bar_opacity", Math.round(v))}
+    />
+    <Row title="Glass" sub="The preset: 80%, the lowest opacity where text stays readable on any wallpaper.">
+      <button
+        class="ewe-btn ewe-btn--secondary ewe-btn--sm"
+        disabled={busy || glassPct === GLASS}
+        on:click={() => setConf("desktop.theme.bar_opacity", GLASS)}
+      >
+        {glassPct === GLASS ? "In use" : "Use Glass"}
+      </button>
+    </Row>
+    {#if glassPct < GLASS || (!blurOk && glassPct < 90 && glassPct < 100)}
+      <div class="p-1">
+        {#if !blurOk && glassPct < 90}
+          <Alert tone="warning" title="Text can be hard to read on bright wallpapers">
+            This computer can't blur behind the bar, so the wallpaper stays sharp. Use 90% or more.
+          </Alert>
+        {:else}
+          <Alert tone="warning" title="Text can be hard to read on bright wallpapers">
+            Below 80%, the bar's text can lose contrast. 80% or more keeps it readable.
+          </Alert>
         {/if}
       </div>
+    {/if}
+    <ToggleRow
+      title="App blur"
+      sub="Every window at 85% with the wallpaper blurred behind it. Fullscreen windows stay solid."
+      dim={busy}
+      on={truthy(input.app_blur)}
+      toggled={() => setConf("desktop.theme.app_blur", !truthy(input.app_blur))}
+    />
+    <ToggleRow
+      title="Window transparency"
+      sub="Windows you're not using turn very slightly see-through."
+      dim={busy}
+      on={truthy(input.window_transparency)}
+      toggled={(v) => run(async () => { await setTransparency(v); await refreshTheme(); })}
+    />
+  </Group>
 
-      {#if editOpen && currentPalette}
-        <div class="mt-4 grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(170px, 1fr))">
-          {#each ROLES as [key, label] (key)}
-            <label class="flex items-center gap-2 rounded-lg bg-elevated px-2 py-1.5 text-sm">
-              <input type="color" class="h-7 w-9 cursor-pointer rounded-md border-0 bg-transparent p-0" value={currentPalette[key] || "#000000"}
-                on:input={(e) => editRole(key, e.currentTarget.value)} aria-label={label} />
-              <span class="min-w-0 flex-1 truncate">{label}</span>
-              <span class="font-mono text-xs text-dim">{key}</span>
-            </label>
+  <!-- ── Windows and sound ──────────────────────────────────────────── -->
+  <Group title="Windows and sound">
+    <ToggleRow
+      title="Tint window borders"
+      sub="The active window's border follows the accent color."
+      dim={busy}
+      on={!!$prefs.tintBorders}
+      toggled={(v) => run(async () => { await setPrefs({ tintBorders: v }); await applyBorder(); })}
+    />
+    <ToggleRow
+      title="Event sounds"
+      sub="Chimes for notifications, volume, screenshots and power events."
+      dim={busy}
+      on={$prefs.eventSounds !== false}
+      toggled={(v) => run(() => setPrefs({ eventSounds: v }))}
+    />
+    <Row title="Animations" sub="Speed, character, curves and styles have their own page.">
+      <button class="ewe-link" on:click={() => pane.set("animations")}>Open Animations<Icon name="caretRight" /></button>
+    </Row>
+  </Group>
+</Page>
+
+<!-- Import scheme (Sheet): a file or a URL; a Toast offers to apply it -->
+<Sheet open={importOpen} title="Import scheme" onClose={() => (importOpen = false)}>
+  <button type="button" class="ewe-drop import-drop" on:click={chooseFile}>
+    <Icon name="fileDown" />
+    <span class="ewe-drop__title">{importFile ? "Choose another file…" : "Choose a file…"}</span>
+    <span class="ewe-drop__hint">YAML, TOML or JSON: Base16, Base24, Omarchy, Catppuccin or Gogh</span>
+  </button>
+  {#if importFile}
+    <div class="ewe-file">
+      <Icon name="fileDown" />
+      <div class="ewe-file__body">
+        <span class="ewe-file__name" title={importFile}>{importFile.split("/").pop()}</span>
+        <span class="ewe-file__meta">{importFile}</span>
+      </div>
+      <button class="ewe-iconbtn ewe-iconbtn--ghost ewe-iconbtn--sm" aria-label="Clear the file" on:click={() => (importFile = "")}><Icon name="x" /></button>
+    </div>
+  {/if}
+  <label class="ewe-field">
+    <span class="ewe-field__label">Or a web address</span>
+    <input class="ewe-input" type="url" placeholder="https://…/scheme.yaml" disabled={!!importFile} bind:value={importUrl} />
+  </label>
+  <label class="ewe-field">
+    <span class="ewe-field__label">Name <span class="ewe-field__optional">optional</span></span>
+    <input class="ewe-input" placeholder="The name in the file" bind:value={importName} />
+  </label>
+  {#if isJson}
+    <div class="ewe-field">
+      <span class="ewe-field__label">Catppuccin flavor</span>
+      <Select.Root type="single" value={importFlavour || " auto"} onValueChange={(v) => (importFlavour = v)}>
+        <Select.Trigger class="self-start select-trigger" aria-label="Catppuccin flavor">
+          {FLAVOURS.find((f) => f.value === (importFlavour || " auto"))?.label}
+        </Select.Trigger>
+        <Select.Content>
+          {#each FLAVOURS as f (f.value)}
+            <Select.Item value={f.value} label={f.label} />
           {/each}
-        </div>
-        <p class="mt-2 text-xs text-dim">Edits go into this scheme in ewe.conf and repaint live. Variant (dark/light) comes from the imported file; change it with <code>ewe-theme scheme set variant light</code>.</p>
-      {/if}
+        </Select.Content>
+      </Select.Root>
     </div>
-  </section>
+  {/if}
+  {#if importError}
+    <Alert tone="danger" title="Couldn't import the scheme">{importError}</Alert>
+  {/if}
+  <svelte:fragment slot="footer">
+    <button class="ewe-btn ewe-btn--secondary" on:click={() => (importOpen = false)}>Cancel</button>
+    <button class="ewe-btn ewe-btn--primary" disabled={busy || !importSrc} on:click={doImport}>
+      {busy ? "Importing…" : "Import scheme"}
+    </button>
+  </svelte:fragment>
+</Sheet>
 
-  <section>
-    <div class="section-title">Windows & animations</div>
-    <div class="card py-4">
-      <!-- Light mode is parked until it is actually fully light — the DE is
-           dark-only for now, so no colour-scheme toggle here. -->
-      <div class="row">
-        <div>
-          <div class="row-title">Tint window borders</div>
-          <div class="row-sub">Active window border follows the accent.</div>
+<!-- Remove a user scheme: irreversible, so a danger Dialog names it -->
+<Dialog.Root open={!!removing} onOpenChange={(v) => !v && (removing = null)}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="scrim" />
+    <Dialog.Content class="ewe-dialog is-floating">
+      <div class="ewe-dialog__head">
+        <span class="ewe-dialog__icon ewe-dialog__icon--danger"><Icon name="trash" /></span>
+        <div class="ewe-dialog__titles">
+          <Dialog.Title class="ewe-dialog__title">Remove {removing?.name}?</Dialog.Title>
+          <Dialog.Description class="ewe-dialog__desc">
+            The scheme is deleted from ewe.conf on every computer that syncs it. Export it first to keep a copy.
+            {#if removing?.current}The desktop switches to Ewe Dark.{/if}
+          </Dialog.Description>
         </div>
-        <Checkbox
-          checked={!!$prefs.tintBorders}
-          disabled={busy}
-          aria-label="Tint window borders"
-          onCheckedChange={(v) =>
-            run(async () => {
-              await setPrefs({ tintBorders: v });
-              await applyBorder();
-            })}
-        />
       </div>
-      <div class="row">
-        <div>
-          <div class="row-title">Window transparency</div>
-          <div class="row-sub">Unfocused windows slightly translucent.</div>
-        </div>
-        <Checkbox
-          checked={$prefs.windowTransparency !== false}
-          disabled={busy}
-          aria-label="Window transparency"
-          onCheckedChange={(v) => run(() => setTransparency(v))}
-        />
+      <div class="ewe-dialog__foot">
+        <Dialog.Close class="ewe-btn ewe-btn--secondary">Cancel</Dialog.Close>
+        <button class="ewe-btn ewe-btn--danger" on:click={remove}>Remove {removing?.name}</button>
       </div>
-      <div class="row">
-        <div>
-          <div class="row-title">Event sounds</div>
-          <div class="row-sub">Chimes for notifications, volume, screenshots and power events.</div>
-        </div>
-        <Checkbox
-          checked={$prefs.eventSounds !== false}
-          disabled={busy}
-          aria-label="Event sounds"
-          onCheckedChange={(v) => run(() => setPrefs({ eventSounds: v }))}
-        />
-      </div>
-      <div class="row">
-        <div>
-          <div class="row-title">Animations</div>
-          <div class="row-sub">Speed, presets, curves and styles moved to their own page.</div>
-        </div>
-        <button class="link-action" on:click={() => pane.set("animations")}>
-          Open Animations
-        </button>
-      </div>
-    </div>
-  </section>
-</div>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>

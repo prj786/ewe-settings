@@ -664,11 +664,13 @@ export function shortcutsModel(md) {
 
 // ── misc shared data ────────────────────────────────────────────────────────
 
+// The Accent picker's presets (design/system/components/AccentPicker):
+// each makes a readable accent in both built-in schemes. Data, not styling —
+// the value written to ewe.conf when one is picked.
 export const ACCENTS = [
-  { name: "Blue", hex: "#0a84ff" }, { name: "Indigo", hex: "#5e5ce6" }, { name: "Purple", hex: "#bf5af2" },
-  { name: "Pink", hex: "#ff375f" }, { name: "Red", hex: "#ff453a" }, { name: "Orange", hex: "#ff9f0a" },
-  { name: "Yellow", hex: "#ffd60a" }, { name: "Green", hex: "#30d158" }, { name: "Teal", hex: "#40c8e0" },
-  { name: "Graphite", hex: "#8e8e93" }
+  { name: "Ewellow", hex: "#eeb407" }, { name: "Amber", hex: "#f08a3c" }, { name: "Coral", hex: "#e5675b" },
+  { name: "Rose", hex: "#d86fb3" }, { name: "Iris", hex: "#9a8cf0" }, { name: "Sky", hex: "#62a8f5" },
+  { name: "Teal", hex: "#4cc1b0" }, { name: "Moss", hex: "#7cc36a" }, { name: "Stone", hex: "#a8a49d" }
 ];
 
 export const APP_CATS = [

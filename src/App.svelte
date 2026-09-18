@@ -9,6 +9,7 @@
   import Alert from "./lib/components/ui/Alert.svelte";
   import Toasts from "./lib/components/Toasts.svelte";
   import Appearance from "./lib/components/Appearance.svelte";
+  import Accessibility from "./lib/components/Accessibility.svelte";
   import Animations from "./lib/components/Animations.svelte";
   import Layout from "./lib/components/Layout.svelte";
   import Displays from "./lib/components/Displays.svelte";
@@ -33,6 +34,7 @@
   // the same font the shell uses. Sentence case, the words people use.
   const panes = [
     ["appearance", "Appearance", "palette", Appearance],
+    ["accessibility", "Accessibility", "accessibility", Accessibility],
     ["animations", "Animations", "gauge", Animations],
     ["layout", "Layout and dock", "layout", Layout],
     ["windowrules", "Window rules", "windowRules", WindowRules],

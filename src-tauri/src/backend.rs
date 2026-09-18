@@ -1018,6 +1018,7 @@ pub async fn theme_scheme(args: Vec<String>) -> Result<Value, String> {
         "show",
         "apply",
         "import",
+        "duplicate",
         "remove",
         "export",
         "set",
@@ -1600,6 +1601,15 @@ pub async fn mail_login(
         args.push("--starttls");
     }
     ewe_mail(&args, Some(&password)).await
+}
+
+/// Whether the compositor blurs behind translucent layers here. ewe's
+/// start-hyprland.sh exports EWE_NO_BLUR=1 on virtual machines and NVIDIA,
+/// and this process inherits the session's environment; Appearance uses it
+/// to suggest 90% or more when Glass can't blur (Glass card).
+#[tauri::command]
+pub fn blur_available() -> bool {
+    std::env::var("EWE_NO_BLUR").map(|v| v.trim() != "1").unwrap_or(true)
 }
 
 /// The generated theme tokens for one look, from `ewe-theme show` — which

@@ -56,7 +56,7 @@
       schemes.map(async (s) => {
         try {
           const d = await api.themeScheme("show", s.slug);
-          detail = { ...detail, [s.slug]: { roles: d.roles, adjusted: d.adjusted || [], palette: d.scheme?.palette } };
+          detail = { ...detail, [s.slug]: { roles: d.roles, adjusted: d.adjusted || [] } };
         } catch {}
       })
     );
@@ -160,19 +160,6 @@
     busy = false;
   }
 
-  // ── Edit colors (the palette of a user scheme; kept from the old page) ──
-  let editing = null; // scheme summary
-  const ROLES = [
-    ["base00", "Background"], ["base01", "Panels"], ["base02", "Cards and selection"], ["base03", "Lines and muted text"],
-    ["base05", "Text"], ["base07", "Bright text"], ["base08", "Danger"], ["base0A", "Warning"], ["base0B", "Success"]
-  ];
-  let roleTimer;
-  function editRole(key, hex) {
-    clearTimeout(roleTimer);
-    const slug = editing.slug;
-    roleTimer = setTimeout(() => scheme("set", key, hex, "--slug", slug), 300);
-  }
-
   // ── accent ─────────────────────────────────────────────────────────────
   $: currentScheme = schemes.find((s) => s.current) || null;
   $: accent = String(input.accent || (currentScheme && currentScheme.accent) || "#eeb407").toLowerCase();
@@ -230,7 +217,6 @@
           onExport={() => exportScheme(s)}
           onDuplicate={() => duplicate(s)}
           onRemove={() => (removing = s)}
-          onEdit={s.builtin ? null : () => (editing = s)}
           onLight={s.slug === "wallpaper" ? () => fromWallpaper(true) : null}
           onKey={(e) => cardKey(e, i)}
         />
@@ -401,34 +387,6 @@
       {busy ? "Importing…" : "Import scheme"}
     </button>
   </svelte:fragment>
-</Sheet>
-
-<!-- Edit colors: the palette of one user scheme, applied as you pick -->
-<Sheet open={!!editing} title={editing ? `Colors of ${editing.name}` : ""} onClose={() => (editing = null)}>
-  {#if editing}
-    {@const pal = detail[editing.slug]?.palette || {}}
-    <div class="palette-grid">
-      {#each ROLES as [key, label] (key)}
-        <label class="ewe-colorfield">
-          <input
-            type="color"
-            class="ewe-swatch"
-            value={pal[key] || "#000000"}
-            on:input={(e) => editRole(key, e.currentTarget.value)}
-            aria-label={label}
-          />
-          <span class="min-w-0 flex-1">
-            <span class="block truncate">{label}</span>
-            <span class="block font-mono text-xs text-dim">{key}</span>
-          </span>
-        </label>
-      {/each}
-    </div>
-    <p class="note">
-      Changes go into this scheme in ewe.conf and show at once. Its variant (dark or light) comes from
-      the file; change it with <code>ewe-theme scheme set variant light</code>.
-    </p>
-  {/if}
 </Sheet>
 
 <!-- Remove a user scheme: irreversible, so a danger Dialog names it -->

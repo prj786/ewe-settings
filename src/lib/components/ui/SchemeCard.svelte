@@ -20,7 +20,6 @@
   export let onExport = () => {};
   export let onDuplicate = () => {};
   export let onRemove = () => {};
-  export let onEdit = null; // user schemes: the palette's colors (the old Edit palette)
   export let onLight = null; // the wallpaper scheme: a light version
   export let onKey = () => {};
 
@@ -82,9 +81,6 @@
           <Menu.Item disabled={scheme.current} onSelect={onApply}><Icon name="check" /><span class="ewe-menu__label">Apply</span></Menu.Item>
           <Menu.Item onSelect={onExport}><Icon name="copy" /><span class="ewe-menu__label">Export as YAML</span></Menu.Item>
           <Menu.Item onSelect={onDuplicate}><Icon name="plus" /><span class="ewe-menu__label">Duplicate</span></Menu.Item>
-          {#if onEdit}
-            <Menu.Item onSelect={onEdit}><Icon name="palette" /><span class="ewe-menu__label">Edit colors…</span></Menu.Item>
-          {/if}
           {#if onLight}
             <Menu.Item onSelect={onLight}><Icon name="image" /><span class="ewe-menu__label">Make a light version</span></Menu.Item>
           {/if}

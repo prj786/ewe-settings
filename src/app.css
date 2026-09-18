@@ -300,17 +300,6 @@ code {
     appearance: auto;
     cursor: pointer;
   }
-  input[type="color"].ewe-swatch {
-    appearance: none;
-    padding: 0;
-  }
-  input[type="color"].ewe-swatch::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
-  input[type="color"].ewe-swatch::-webkit-color-swatch {
-    border: 0;
-    border-radius: var(--fully-rounded);
-  }
 
   /* ── overlays: open motion (README "Motion": base, fade + 4px slide) ───── */
 
@@ -799,14 +788,6 @@ code {
   }
   .ewe-swatch .ewe-icon {
     color: inherit;
-  }
-  .palette-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(calc(6 * var(--control-md)), 1fr));
-    gap: var(--space-s);
-  }
-  .palette-grid .ewe-swatch {
-    border-radius: var(--primary);
   }
 }
 

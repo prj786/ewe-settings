@@ -189,7 +189,7 @@
   const barIconSizes = [["small", "Small"], ["normal", "Normal"], ["large", "Large"]];
   $: barIconsSub = Number(input.text_scale ?? 100) >= 130
     ? "The bar grows with its icons. At text size 130%, they’re one size larger."
-    : "The bar grows with its icons: 44, 48 or 56\u00a0px tall.";
+    : "The bar grows with its icons: 36, 40 or 48\u00a0px tall.";
   async function setConf(key, value) {
     await run(async () => {
       await api.setConf(key, value);

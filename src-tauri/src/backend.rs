@@ -63,6 +63,24 @@ pub async fn set_conf(key: String, value: Value) -> Result<(), String> {
             String::from_utf8_lossy(&out.stderr)
         ));
     }
+    // `--no-hooks` exists for the SHELL, which live-applies itself; this app
+    // is another process, so the two pokes the hooks would have sent are its
+    // job: the shell re-reads theme-tokens.json + its state, and Hyprland
+    // re-sources generated/user.lua (the bar/dock blur rule, corners, gaps).
+    // Without them Glass, Bar opacity, Corners/Density/Outlines, App blur and
+    // every Accessibility mode persisted but repainted nothing until the next
+    // login (2026-09-20). desktop.input is applied live by its pane through
+    // `hyprctl eval`, so it skips the compositor reload.
+    crate::shell::reload_shell().await?;
+    if !key.starts_with("desktop.input") {
+        let _ = Command::new("hyprctl")
+            .arg("reload")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await;
+    }
     crate::shell::poke_sync();
     Ok(())
 }

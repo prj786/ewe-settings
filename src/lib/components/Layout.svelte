@@ -108,7 +108,7 @@
       title="Bar icons"
       sub={textScale >= 130
         ? "The bar grows with its icons. At text size 130%, they’re one size larger."
-        : "The bar grows with its icons: 44, 48 or 56\u00a0px tall."}
+        : "The bar grows with its icons: 36, 40 or 48\u00a0px tall."}
       dim={$prefs.barEnabled === false}
     >
       <Seg

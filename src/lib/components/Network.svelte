@@ -113,7 +113,7 @@
 
   async function toggleWired() {
     if (!st.wired || st.wired.state === "unavailable") return;
-    const on = !(st.wired.state === "connected" || st.wired.state === "connecting");
+    const on = !(wiredIs(st.wired.state, "connected") || wiredIs(st.wired.state, "connecting"));
     busy = "wired";
     try {
       await api.wiredSet(st.wired.dev, on);
@@ -125,6 +125,9 @@
     setTimeout(refresh, 1200);
   }
 
+  // a DEVICE state (nmcli device) is "connecting (getting IP configuration)",
+  // "connected (externally)" … — the bare word never matches on its own
+  const wiredIs = (s, w) => typeof s === "string" && s.startsWith(w);
   // what NetworkManager says, in words a person uses
   const stateWord = (s) =>
     s === "activated" ? "Connected" : s === "activating" ? "Connecting…" : s === "deactivating" ? "Disconnecting…" : s;
@@ -223,13 +226,13 @@
           icon="cable"
           title="Wired"
           sub={st.wired.state === "unavailable" ? "No cable"
-            : st.wired.state === "connected" ? "Connected"
-            : st.wired.state === "connecting" || busy === "wired" ? "Connecting…"
+            : wiredIs(st.wired.state, "connected") ? "Connected"
+            : wiredIs(st.wired.state, "connecting") || busy === "wired" ? "Connecting…"
             : "Off"}
         >
           <Toggle
             label="Wired"
-            on={st.wired.state === "connected" || st.wired.state === "connecting"}
+            on={wiredIs(st.wired.state, "connected") || wiredIs(st.wired.state, "connecting")}
             disabled={st.wired.state === "unavailable"}
             toggled={toggleWired}
           />

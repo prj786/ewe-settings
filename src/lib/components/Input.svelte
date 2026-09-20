@@ -36,6 +36,13 @@
   let registry = null;
 
   onMount(async () => {
+    // the per-device overrides FIRST: the "persist the live truth" write
+    // below sends `devices` along, and sending it before this file was read
+    // wiped every override on every open of this pane (2026-09-20)
+    try {
+      const j = JSON.parse((await api.readConfig("quickshell/input-devices.json")) || "{}");
+      if (j && typeof j === "object") devOverrides = j;
+    } catch {}
     try {
       const batch = INPUT_OPTIONS.map((o) => "getoption input:" + o[0]).join("; ");
       const text = await api.hyprctl(["--batch", batch]);
@@ -53,10 +60,6 @@
     } catch {}
     try {
       perWindowKb = await api.perWindowKb("status");
-    } catch {}
-    try {
-      const j = JSON.parse((await api.readConfig("quickshell/input-devices.json")) || "{}");
-      if (j && typeof j === "object") devOverrides = j;
     } catch {}
     try {
       const r = await api.xkbRegistry();

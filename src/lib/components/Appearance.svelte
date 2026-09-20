@@ -288,15 +288,13 @@
       dim={busy}
       moved={(v) => setConf("desktop.theme.bar_opacity", Math.round(v))}
     />
-    <Row title="Glass" sub="The preset: 80%, the lowest opacity where text stays readable on any wallpaper.">
-      <button
-        class="ewe-btn ewe-btn--secondary ewe-btn--sm"
-        disabled={busy || glassPct === GLASS}
-        on:click={() => setConf("desktop.theme.bar_opacity", GLASS)}
-      >
-        {glassPct === GLASS ? "In use" : "Use Glass"}
-      </button>
-    </Row>
+    <ToggleRow
+      title="Glass"
+      sub="See-through bar and dock. On starts at 80%, the lowest opacity where text stays readable on any wallpaper. Off makes them solid."
+      dim={busy}
+      on={glassPct < 100}
+      toggled={() => setConf("desktop.theme.bar_opacity", glassPct < 100 ? 100 : GLASS)}
+    />
     {#if glassPct < GLASS || (!blurOk && glassPct < 90 && glassPct < 100)}
       <div class="p-1">
         {#if !blurOk && glassPct < 90}

@@ -945,7 +945,7 @@ dependencies = [
 
 [[package]]
 name = "ewe-settings"
-version = "0.16.0-beta"
+version = "0.16.1-beta"
 dependencies = [
  "anyhow",
  "serde",

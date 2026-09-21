@@ -4,7 +4,7 @@
   import * as api from "./lib/api.js";
   import { prefs, pane, version, shellUp, themeKey, errorMsg } from "./lib/stores.js";
   import { refreshTheme, watchTheme } from "./lib/theme.js";
-  import sheep from "./assets/sheep.svg?raw";
+  import sheep from "./assets/ewe-mark.svg?raw";
   import Icon from "./lib/components/ui/Icon.svelte";
   import Alert from "./lib/components/ui/Alert.svelte";
   import Toasts from "./lib/components/Toasts.svelte";

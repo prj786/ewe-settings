@@ -11,8 +11,8 @@ pkgname=ewe-settings
 # extracts to <repo>-<tag without the leading v>, so the source URL and
 # the directory below follow _tag, never pkgver. The release workflow
 # rewrites both.
-_tag=v0.16.3-beta
-pkgver=0.16.3beta
+_tag=v0.16.4-beta
+pkgver=0.16.4beta
 pkgrel=1
 pkgdesc="Settings for the ewe desktop"
 arch=('x86_64' 'aarch64')
@@ -55,7 +55,11 @@ package() {
   ln -s ewe-settings "$pkgdir/usr/bin/hypr-settings"
   install -Dm644 packaging/ewe-settings.desktop \
     "$pkgdir/usr/share/applications/ewe-settings.desktop"
-  install -Dm644 src-tauri/icons/128x128.png \
-    "$pkgdir/usr/share/icons/hicolor/128x128/apps/ewe-settings.png"
+  for s in 32 64 128 256; do
+    install -Dm644 "src-tauri/icons/${s}x${s}.png" \
+      "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/ewe-settings.png"
+  done
+  install -Dm644 packaging/ewe-settings.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/ewe-settings.svg"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

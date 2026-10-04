@@ -17,6 +17,7 @@
   import * as api from "../api.js";
   import { prefs, errorMsg, flashApplied } from "../stores.js";
   import { setPrefs } from "../overrides.js";
+  import { addons, loadAddons, hasAddon, openAddons } from "../addons.js";
   import KV from "./ui/KV.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
@@ -57,7 +58,9 @@
     const wasSigned = cloud?.signedIn;
     cloud = await ipcStatus("cloud");
     google = await ipcStatus("google");
-    mail = await ipcStatus("mail");
+    // `mail` is the ewe.mail add-on's target since 0.25: without the add-on
+    // there is nothing to ask (the backend would log and answer "" anyway)
+    mail = mailAddon ? await ipcStatus("mail") : null;
     if (cloud?.signedIn && !wasSigned) avatarVersion++;
     try {
       gclient = await api.googleClientInfo();
@@ -65,8 +68,11 @@
       gclient = null;
     }
   }
+  $: mailAddon = hasAddon($addons, "ewe.mail");
+  const getAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
+
   onMount(() => {
-    refresh();
+    loadAddons().then(refresh);
     let n = 0;
     timer = setInterval(async () => {
       n++;
@@ -321,8 +327,18 @@
     {/if}
   </Group>
 
-  <!-- What is connected, and the one preference that is this machine's. -->
+  <!-- What is connected, and the one preference that is this machine's.
+       The badge, the Quick settings page and the notifications are the
+       ewe.mail add-on (0.25); the account itself still lives in ewe-sync. -->
   <Group title="Mail">
+    {#if $addons.loaded && !mailAddon}
+      <Row
+        title="Mail in the bar is an add-on."
+        sub="Unread mail in Quick settings, a badge in the bar and a notification for new mail. Install it from Komble; your account stays in ewe-sync."
+      >
+        <button class="ewe-btn ewe-btn--secondary" on:click={getAddons}>Get add-ons</button>
+      </Row>
+    {:else}
     <Row
       title={mailSource === "imap"
         ? mail?.imapUser || "IMAP account"
@@ -345,6 +361,7 @@
         on={!!mail.notify}
         toggled={() => call("mail", "setNotify", mail.notify ? "false" : "true")}
       />
+    {/if}
     {/if}
   </Group>
 

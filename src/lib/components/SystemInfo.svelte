@@ -1,15 +1,22 @@
 <script>
   import { onMount } from "svelte";
   import * as api from "../api.js";
-  import { version } from "../stores.js";
+  import { version, errorMsg } from "../stores.js";
+  import { addons, loadAddons, openAddons } from "../addons.js";
   import KV from "./ui/KV.svelte";
 
   let d = null;
   onMount(async () => {
+    loadAddons();
     try {
       d = await api.diagnostics();
     } catch {}
   });
+
+  // Add-ons (ewe 0.25): Komble installs them; this is the way there from
+  // Settings, plus what is on right now. On an older ewe the list is unknown.
+  $: installedAddons = ($addons.plugins || []).filter((p) => p.enabled && p.valid !== false);
+  const browseAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
   import Row from "./ui/Row.svelte";
@@ -27,6 +34,15 @@
       <KV k="Disk (/)" v={d.disk || "—"} />
     {:else}
       <Row sub="Checking…" />
+    {/if}
+  </Group>
+
+  <Group title="Add-ons">
+    <Row title="Add-ons" sub="Extra features like the dock, music, the phone and mail. Komble installs and removes them; their settings appear here once they're on.">
+      <button class="ewe-btn ewe-btn--secondary" on:click={browseAddons}>Browse add-ons</button>
+    </Row>
+    {#if $addons.loaded && !$addons.legacy}
+      <KV k="On right now" v={installedAddons.length ? installedAddons.map((p) => p.name || p.id).join(", ") : "None"} />
     {/if}
   </Group>
 

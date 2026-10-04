@@ -4,6 +4,7 @@
   import * as api from "./lib/api.js";
   import { prefs, pane, version, shellUp, themeKey, errorMsg } from "./lib/stores.js";
   import { refreshTheme, watchTheme } from "./lib/theme.js";
+  import { loadAddons } from "./lib/addons.js";
   import sheep from "./assets/ewe-mark.svg?raw";
   import Icon from "./lib/components/ui/Icon.svelte";
   import Alert from "./lib/components/ui/Alert.svelte";
@@ -89,13 +90,22 @@
   }
 
   let unwatch = () => {};
+  // Add-ons are installed in Komble, next door: re-read the list whenever
+  // this window comes back into focus, so the dock's controls (or the mail
+  // row) appear without a relaunch.
+  const refreshAddons = () => loadAddons(true);
   onMount(async () => {
     unwatch = watchTheme();
+    loadAddons();
+    window.addEventListener("focus", refreshAddons);
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
     try { version.set(await api.shellVersion()); } catch { version.set("unknown"); }
     try { shellUp.set(await api.shellRunning()); } catch { shellUp.set(false); }
   });
-  onDestroy(() => unwatch());
+  onDestroy(() => {
+    unwatch();
+    window.removeEventListener("focus", refreshAddons);
+  });
 </script>
 
 <svelte:window on:keydown={globalKey} />

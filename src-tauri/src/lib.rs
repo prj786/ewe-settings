@@ -1,3 +1,4 @@
+mod addons;
 mod backend;
 mod shell;
 mod util;
@@ -91,6 +92,8 @@ pub fn run() {
             backend::avatar_from_url,
             backend::set_real_name,
             backend::user_info,
+            addons::addons_state,
+            addons::open_addons,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Settings");

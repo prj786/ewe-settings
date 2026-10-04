@@ -117,7 +117,7 @@
   <p class="note">Current timeline: {policy}</p>
   <p class="note">
     With the screensaver off, the desktop still locks after 5 minutes idle. On battery it suspends
-    after 15 minutes, and every stage comes sooner. Playing media, a fullscreen window or keep awake
+    after 15 minutes, and every stage comes sooner. Playing media, a fullscreen window or Insomnia
     in the bar hold all of this off. hypridle applies changes at once; no restart needed.
   </p>
 </Page>

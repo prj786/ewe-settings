@@ -137,20 +137,62 @@ pub async fn write_prefs(patch: Value) -> Result<Value, String> {
     Ok(cur)
 }
 
+/// The parent pid from a `/proc/<pid>/stat` line. The comm field is in
+/// parentheses and may itself contain spaces or `)`, so split after the LAST
+/// `)`: what follows is "state ppid …".
+fn ppid_from_stat(stat: &str) -> Option<&str> {
+    let rest = stat.rsplit_once(')')?.1;
+    let mut it = rest.split_whitespace();
+    it.next()?; // state
+    it.next()
+}
+
+fn proc_comm(pid: &str) -> String {
+    std::fs::read_to_string(format!("/proc/{pid}/comm"))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// The shell's `qs` process for the unit's MainPID. Since 0.24.1 the unit
+/// runs `qs-launch.sh` (a bash restart net) that keeps `qs` as its CHILD, so
+/// MainPID is bash and `qs ipc --pid <MainPID>` answers "No instance found" —
+/// every Settings poke was silently lost. Use MainPID when it is qs, else its
+/// qs child; None lets `qs ipc` find the instance by config path.
+fn qs_pid_for(main: &str) -> Option<String> {
+    if proc_comm(main) == "qs" {
+        return Some(main.to_string());
+    }
+    for e in std::fs::read_dir("/proc").ok()?.flatten() {
+        let name = e.file_name();
+        let p = name.to_string_lossy();
+        if !p.bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{p}/stat")) else {
+            continue;
+        };
+        if ppid_from_stat(&stat) == Some(main) && proc_comm(&p) == "qs" {
+            return Some(p.to_string());
+        }
+    }
+    None
+}
+
 /// The DE shell's qs pid — targeting it makes `qs ipc` unambiguous even when
 /// another qs instance exists (nested tests). The unit is `ewe.service` since
 /// the rename; `hypr-shell.service` is probed second for pre-rename installs.
 pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
     let mut pid: Option<String> = None;
     for unit in ["ewe.service", "hypr-shell.service"] {
-        pid = Command::new("systemctl")
+        let main = Command::new("systemctl")
             .args(["--user", "show", "-p", "MainPID", "--value", unit])
             .output()
             .await
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .filter(|p| !p.is_empty() && p != "0");
-        if pid.is_some() {
+        if let Some(m) = main {
+            pid = qs_pid_for(&m);
             break;
         }
     }
@@ -193,4 +235,26 @@ pub async fn poke_shell() -> Result<(), String> {
 pub async fn shell_running() -> Result<bool, String> {
     let out = qs_call(&["settings", "ping"]).await;
     Ok(matches!(out, Ok(o) if o.status.success()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ppid_from_stat_reads_the_fourth_field() {
+        assert_eq!(
+            ppid_from_stat("628839 (qs) S 628835 628835 1 0 -1"),
+            Some("628835")
+        );
+        // a comm with spaces and a ')' of its own must not shift the fields
+        assert_eq!(ppid_from_stat("42 (a b) c)) R 7 42 42"), Some("7"));
+        assert_eq!(ppid_from_stat("garbage"), None);
+    }
+
+    #[test]
+    fn no_qs_child_means_no_pid() {
+        // this test process is not qs and has no qs child
+        assert_eq!(qs_pid_for(&std::process::id().to_string()), None);
+    }
 }

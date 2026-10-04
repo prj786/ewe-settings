@@ -89,9 +89,9 @@ fn ewe_conf_bin() -> Option<PathBuf> {
     ewe_tool("ewe-conf")
 }
 
-/// One of the DE's CLI tools (ewe-conf, ewe-mail, …): the deployed payload
-/// first (the symlink farm's `bin/`), then the packaged copy.
-fn ewe_tool(name: &str) -> Option<PathBuf> {
+/// One of the DE's CLI tools (ewe-conf, ewe-mail, ewe-plugin, …): the
+/// deployed payload first (the symlink farm's `bin/`), then the packaged copy.
+pub(crate) fn ewe_tool(name: &str) -> Option<PathBuf> {
     let farm = home().join(format!(".config/quickshell/../../bin/{name}"));
     if farm.exists() {
         return Some(farm);
@@ -1541,6 +1541,20 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
         args.push(a.as_str());
     }
     let out = crate::shell::qs_call(&args).await.map_err(estr)?;
+    // Targets owned by an add-on since ewe 0.25 (`mail` is the ewe.mail
+    // plugin's legacy alias). Without the add-on the target does not exist
+    // and qs exits non-zero — that is not an error for the user, it means
+    // "nothing to show": log it and hand the pane an empty reply, which it
+    // already reads as absent. `google` and `cloud` stay core and keep their
+    // full reply.
+    const ADDON_TARGETS: &[&str] = &["mail"];
+    if !out.status.success() && ADDON_TARGETS.contains(&target.as_str()) {
+        eprintln!(
+            "qs ipc {target} {func}: no such target (add-on not installed, or the shell is down) — ignored: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+        return Ok(String::new());
+    }
     let mut s = String::from_utf8_lossy(&out.stdout).to_string();
     s.push_str(&String::from_utf8_lossy(&out.stderr));
     Ok(s)

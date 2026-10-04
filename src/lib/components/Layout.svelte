@@ -4,10 +4,21 @@
   import { prefs, errorMsg } from "../stores.js";
   import { theme, refreshTheme } from "../theme.js";
   import { layout, loadLayout, applyGaps, setTiling, setPrefs, setLayoutMode, setColumnWidth } from "../overrides.js";
+  import { addons, loadAddons, hasAddon, addonInstalled, barWidgetPlugins, openAddons } from "../addons.js";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
 
-  onMount(loadLayout);
+  onMount(() => {
+    loadLayout();
+    loadAddons();
+  });
+
+  // The dock is an add-on since ewe 0.25 (ewe.dock, installed from Komble).
+  // Its keys stay desktop.dock.* in ewe.conf, read by the add-on; without it
+  // the controls would move nothing, so the group says what to do instead.
+  $: dockOn = hasAddon($addons, "ewe.dock");
+  $: dockInstalled = addonInstalled($addons, "ewe.dock");
+  const getAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
 
   function setLayout(patch) {
     layout.update((l) => ({ ...l, ...patch }));
@@ -53,8 +64,10 @@
     ["tray", "System tray", "Icons from apps that ask for one."],
     ["tiling", "Tiling or floating", "The layout switch."]
   ];
-  // The camera and the scissors are plugins since ewe 0.21 (ewe.screenshot,
-  // ewe.clipboard) — Komble → Plugins turns them off, not this list.
+  // Plugins with a bar widget (the camera, the scissors, the system monitor…)
+  // get a row each, keyed `plugin:<id>` in the same map — the shell's
+  // BarPluginSlots reads exactly that key, so a widget hides without the
+  // plugin being turned off. Installing or removing one is Komble's job.
   const barShows = (key) => !($prefs.barShow && $prefs.barShow[key] === false);
   const setBarShow = (key, on) => setPrefs({ barShow: { ...($prefs.barShow || {}), [key]: on } });
   import Page from "./ui/Page.svelte";
@@ -125,30 +138,54 @@
     {#each barItems as [key, title, sub] (key)}
       <ToggleRow {title} {sub} dim={$prefs.barEnabled === false} on={barShows(key)} toggled={() => setBarShow(key, !barShows(key))} />
     {/each}
+    {#each barWidgetPlugins($addons) as p (p.id)}
+      <ToggleRow
+        title={p.name || p.id}
+        sub={p.description || "An add-on's widget in the bar."}
+        dim={$prefs.barEnabled === false}
+        on={barShows("plugin:" + p.id)}
+        toggled={() => setBarShow("plugin:" + p.id, !barShows("plugin:" + p.id))}
+      />
+    {/each}
   </Group>
 
   <Group title="Dock">
-    <ToggleRow
-      title="Dock"
-      sub="The dock at the bottom, with pinned apps, the launcher and Places."
-      on={$prefs.dockEnabled !== false}
-      toggled={() => setPrefs({ dockEnabled: !($prefs.dockEnabled !== false) })}
-    />
-    <ToggleRow
-      title="Intelligent auto-hide"
-      sub="Slides away when a window needs the space; comes back when you point at the bottom edge."
-      dim={$prefs.dockEnabled === false}
-      on={!!$prefs.dockAutohide}
-      toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
-    />
-    <Row title="Icon size" sub="How big the dock buttons and workspace groups are." dim={$prefs.dockEnabled === false}>
-      <Seg
-        label="Dock icon size"
-        options={iconSizes}
-        value={$prefs.dockIconSize || "normal"}
-        disabled={$prefs.dockEnabled === false}
-        picked={(id) => setPrefs({ dockIconSize: id })}
+    {#if !$addons.loaded}
+      <Row sub="Checking…" />
+    {:else if dockOn}
+      <ToggleRow
+        title="Dock"
+        sub="The dock at the bottom, with pinned apps, the launcher and your workspaces."
+        on={$prefs.dockEnabled !== false}
+        toggled={() => setPrefs({ dockEnabled: !($prefs.dockEnabled !== false) })}
       />
-    </Row>
+      <ToggleRow
+        title="Intelligent auto-hide"
+        sub="Slides away when a window needs the space; comes back when you point at the bottom edge."
+        dim={$prefs.dockEnabled === false}
+        on={!!$prefs.dockAutohide}
+        toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
+      />
+      <Row title="Icon size" sub="How big the dock buttons and workspace groups are." dim={$prefs.dockEnabled === false}>
+        <Seg
+          label="Dock icon size"
+          options={iconSizes}
+          value={$prefs.dockIconSize || "normal"}
+          disabled={$prefs.dockEnabled === false}
+          picked={(id) => setPrefs({ dockIconSize: id })}
+        />
+      </Row>
+    {:else}
+      <!-- the add-on is absent (or off): no controls, one honest sentence
+           and the way to the catalog -->
+      <Row
+        title="The dock is an add-on."
+        sub={dockInstalled
+          ? "It's installed but turned off. Turn it on in Komble → Add-ons and its settings return here."
+          : "Pinned apps, the launcher and your workspaces at the bottom of the screen. Install it from Komble; its settings appear here."}
+      >
+        <button class="ewe-btn ewe-btn--secondary" on:click={getAddons}>{dockInstalled ? "Manage add-ons" : "Get add-ons"}</button>
+      </Row>
+    {/if}
   </Group>
 </Page>

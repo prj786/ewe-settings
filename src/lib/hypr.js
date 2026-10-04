@@ -606,7 +606,9 @@ export function hypridleConfText(saver, lowPower) {
     "general {\n" +
     `    lock_cmd         = ${lockCmd}\n` +
     `    before_sleep_cmd = ${lockCmd}\n` +
-    "    after_sleep_cmd  = hyprctl dispatch 'hl.dsp.dpms(\"on\")'\n" +
+    // wake only a panel that really is dpms-off: an unconditional dpms-on of a
+    // lit xe panel blinks it (same guarded line as the shell's hypridle.conf)
+    "    after_sleep_cmd  = hyprctl monitors all -j | grep -q '\"dpmsStatus\": *false' && hyprctl dispatch 'hl.dsp.dpms(\"on\")' || true\n" +
     "    ignore_dbus_inhibit = false\n" +
     "}\n";
   const saverSec = idleAt(Math.max(60, Math.round(saver.min * 60)));

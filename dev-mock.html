@@ -8,6 +8,9 @@
        pane=<nav label>                          open that section ("Networking")
        click=<css selector>                      click that element (open a sheet)
        focus=<css selector>                      keyboard-focus that element
+       addons=fresh|dock|legacy                  fresh (default): no dock, two bar
+                                                 widgets; dock: ewe.dock on too;
+                                                 legacy: an ewe before add-ons
      The theme replies are real `ewe-theme show` / `scheme list|show` output,
      generated into .dev-mock/ (git-ignored) from an isolated XDG_CONFIG_HOME;
      without them the compiled tokens.css (Ewe Dark) stands. -->
@@ -55,6 +58,35 @@
             }
             case "blur_available": return Promise.resolve(q.get("blur") !== "0");
             case "set_conf": return Promise.resolve(null);
+            // ewe-plugin list --json, as src-tauri/src/addons.rs shapes it
+            case "addons_state": {
+              const mode = q.get("addons") || "fresh";
+              if (mode === "legacy") return Promise.resolve({ legacy: true, why: "mock: ewe-plugin predates add-ons", installed: {}, plugins: [], available: [], removed: [] });
+              const plugins = [
+                { id: "ewe.clipboard", name: "Clipboard & emoji", description: "Clipboard history and an emoji picker under a scissors icon in the bar; records copies, never passwords.", kinds: ["bar-widget", "panel", "service"], barWidget: { defaultSection: "right" }, enabled: true, valid: true },
+                { id: "ewe.sysmon", name: "System monitor", description: "CPU and memory meters in Quick settings; this shows them in the bar too.", kinds: ["quick-tile", "bar-widget"], barWidget: { defaultSection: "right" }, enabled: true, valid: true },
+                { id: "ewe.insomnia", name: "Insomnia", description: "Keeps the screen on.", kinds: ["service", "quick-tile", "bar-status"], barWidget: null, enabled: true, valid: true }
+              ];
+              if (mode === "dock") plugins.push({ id: "ewe.dock", name: "Dock", description: "Pinned apps, the launcher and your workspaces at the bottom.", kinds: ["panel", "service"], barWidget: null, enabled: true, valid: true });
+              const have = new Set(plugins.map((p) => p.id));
+              const catalog = [
+                ["ewe.dock", "Dock", "Pinned apps, the launcher and your workspaces at the bottom.", "icDock"],
+                ["ewe.media", "Music", "What's playing, with controls.", "icMusic"],
+                ["ewe.places", "Places", "Your folders, drives and the Trash.", "icFolder"],
+                ["ewe.phone", "Phone", "Your phone's notifications, battery and messages (KDE Connect).", "icPhone"],
+                ["ewe.mail", "Mail", "Unread mail in the bar and Quick settings.", "icMail"],
+                ["ewe.cast", "Cast to TV", "Mirror the screen to a Miracast TV.", "icCast"],
+                ["ewe.vpn", "VPN", "A tile and a page for your VPNs.", "icShield"],
+                ["ewe.ssh", "SSH", "Hosts, tunnels and scripts.", "icTerminal"],
+                ["ewe.sysmon", "System monitor", "CPU and memory meters.", "icGauge"],
+                ["ewe.insomnia", "Insomnia", "Keeps the screen on.", "icEye"],
+                ["ewe.clipboard", "Clipboard & emoji", "Clipboard history and an emoji picker.", "icScissors"],
+                ["ewe.screenshot", "Screenshot", "A camera in the bar and the Print keys.", "icCamera"],
+                ["ewe.passwords", "Passwords", "Fill a login from your password manager.", "icKey"]
+              ].map(([id, name, description, icon]) => ({ id, name, description, icon, version: "0.1.0", kinds: [], installed: have.has(id), enabled: have.has(id), requires: { packages: [], commands: [] }, missing: { packages: [], commands: [] } }));
+              return Promise.resolve({ legacy: false, installed: Object.fromEntries(plugins.map((p) => [p.id, p.enabled])), plugins, available: catalog, removed: [] });
+            }
+            case "open_addons": return Promise.resolve(q.get("komble") !== "0");
             case "net_status": return Promise.resolve({
               hasWifi: true, wifiOn: true,
               wired: { dev: "enp3s0", state: "unavailable" },

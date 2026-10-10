@@ -37,7 +37,7 @@
     ["appearance", "Appearance", "palette", Appearance],
     ["accessibility", "Accessibility", "accessibility", Accessibility],
     ["animations", "Animations", "gauge", Animations],
-    ["layout", "Layout and dock", "layout", Layout],
+    ["layout", "Layout", "layout", Layout],
     ["windowrules", "Window rules", "windowRules", WindowRules],
     ["displays", "Displays", "monitor", Displays],
     ["network", "Networking", "wifi", Network],
@@ -79,32 +79,51 @@
     }
   }
 
+  // Is the shell answering? Asked at start, on focus, and every 10 s while
+  // it is not. It used to be asked ONCE: a shell restarting at that moment
+  // (login, an update, a plugin install) left "The shell isn't running" up
+  // for the life of the window. Two misses in a row before saying so — one
+  // restart gap is not "down".
+  let misses = 0;
+  async function probeShell() {
+    let up = false;
+    try { up = await api.shellRunning(); } catch { up = false; }
+    misses = up ? 0 : misses + 1;
+    shellUp.set(up || misses < 2);
+  }
   let restarting = false;
   async function restartShell() {
     restarting = true;
     try { await api.restartShell(); } catch (e) { errorMsg.set(String(e)); }
     setTimeout(async () => {
-      try { shellUp.set(await api.shellRunning()); } catch { shellUp.set(false); }
+      await probeShell();
       restarting = false;
     }, 2500);
   }
 
   let unwatch = () => {};
-  // Add-ons are installed in Komble, next door: re-read the list whenever
-  // this window comes back into focus, so the dock's controls (or the mail
-  // row) appear without a relaunch.
-  const refreshAddons = () => loadAddons(true);
+  let probeTimer;
+  // Plugins are installed in Komble, next door: re-read the list whenever
+  // this window comes back into focus, so their rows appear without a
+  // relaunch.
+  const onFocus = () => {
+    loadAddons(true);
+    probeShell();
+  };
   onMount(async () => {
     unwatch = watchTheme();
     loadAddons();
-    window.addEventListener("focus", refreshAddons);
+    window.addEventListener("focus", onFocus);
+    probeTimer = setInterval(() => { if (!$shellUp || misses) probeShell(); }, 10000);
     try { prefs.set(await api.readPrefs()); } catch (e) { console.error(e); }
     try { version.set(await api.shellVersion()); } catch { version.set("unknown"); }
-    try { shellUp.set(await api.shellRunning()); } catch { shellUp.set(false); }
+    await probeShell();
+    if (misses) setTimeout(probeShell, 1500);
   });
   onDestroy(() => {
     unwatch();
-    window.removeEventListener("focus", refreshAddons);
+    clearInterval(probeTimer);
+    window.removeEventListener("focus", onFocus);
   });
 </script>
 

@@ -4,7 +4,7 @@
   import { prefs, errorMsg } from "../stores.js";
   import { theme, refreshTheme } from "../theme.js";
   import { layout, loadLayout, applyGaps, setTiling, setPrefs, setLayoutMode, setColumnWidth } from "../overrides.js";
-  import { addons, loadAddons, hasAddon, addonInstalled, barWidgetPlugins, openAddons } from "../addons.js";
+  import { addons, loadAddons, hasAddon, addonInstalled, openAddons, openPluginOptions } from "../addons.js";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
 
@@ -13,12 +13,13 @@
     loadAddons();
   });
 
-  // The dock is an add-on since ewe 0.25 (ewe.dock, installed from Komble).
-  // Its keys stay desktop.dock.* in ewe.conf, read by the add-on; without it
-  // the controls would move nothing, so the group says what to do instead.
+  // The dock is a plugin (ewe.dock, installed from Komble) and its settings
+  // are its own since Dock 1.1.0 — Komble → Plugins → Dock → Options. This
+  // page keeps one row that says so and opens that dialog.
   $: dockOn = hasAddon($addons, "ewe.dock");
   $: dockInstalled = addonInstalled($addons, "ewe.dock");
-  const getAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
+  const getPlugins = () => openAddons().catch((e) => errorMsg.set(String(e)));
+  const dockOptions = () => openPluginOptions("ewe.dock").catch((e) => errorMsg.set(String(e)));
 
   function setLayout(patch) {
     layout.update((l) => ({ ...l, ...patch }));
@@ -64,10 +65,9 @@
     ["tray", "System tray", "Icons from apps that ask for one."],
     ["tiling", "Tiling or floating", "The layout switch."]
   ];
-  // Plugins with a bar widget (the camera, the scissors, the system monitor…)
-  // get a row each, keyed `plugin:<id>` in the same map — the shell's
-  // BarPluginSlots reads exactly that key, so a widget hides without the
-  // plugin being turned off. Installing or removing one is Komble's job.
+  // A plugin's place in the bar (the camera, the scissors, the system
+  // monitor…) is that plugin's Show in bar switch in Komble's Options
+  // (`ewe-plugin bar`) — one switch, where the rest of its settings are.
   const barShows = (key) => !($prefs.barShow && $prefs.barShow[key] === false);
   const setBarShow = (key, on) => setPrefs({ barShow: { ...($prefs.barShow || {}), [key]: on } });
   import Page from "./ui/Page.svelte";
@@ -76,7 +76,7 @@
   import Seg from "./ui/Seg.svelte";
 </script>
 
-<Page title="Layout and dock" desc="How windows tile, the space around them, the top bar and the dock.">
+<Page title="Layout" desc="How windows tile, the space around them, and the top bar.">
   <Group title="Window behavior">
     <ToggleRow
       title="Tiling"
@@ -138,53 +138,31 @@
     {#each barItems as [key, title, sub] (key)}
       <ToggleRow {title} {sub} dim={$prefs.barEnabled === false} on={barShows(key)} toggled={() => setBarShow(key, !barShows(key))} />
     {/each}
-    {#each barWidgetPlugins($addons) as p (p.id)}
-      <ToggleRow
-        title={p.name || p.id}
-        sub={p.description || "An add-on's widget in the bar."}
-        dim={$prefs.barEnabled === false}
-        on={barShows("plugin:" + p.id)}
-        toggled={() => setBarShow("plugin:" + p.id, !barShows("plugin:" + p.id))}
-      />
-    {/each}
+    <Row title="Plugins in the bar" sub="Each plugin's Show in bar switch is in its Options, in Komble → Plugins.">
+      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={getPlugins}>Open Plugins</button>
+    </Row>
   </Group>
 
+  <!-- The dock's settings are the Dock plugin's own (Komble → Options);
+       one row says where, and opens that dialog. -->
   <Group title="Dock">
     {#if !$addons.loaded}
       <Row sub="Checking…" />
-    {:else if dockOn}
-      <ToggleRow
-        title="Dock"
-        sub="The dock at the bottom, with pinned apps, the launcher and your workspaces."
-        on={$prefs.dockEnabled !== false}
-        toggled={() => setPrefs({ dockEnabled: !($prefs.dockEnabled !== false) })}
-      />
-      <ToggleRow
-        title="Intelligent auto-hide"
-        sub="Slides away when a window needs the space; comes back when you point at the bottom edge."
-        dim={$prefs.dockEnabled === false}
-        on={!!$prefs.dockAutohide}
-        toggled={() => setPrefs({ dockAutohide: !$prefs.dockAutohide })}
-      />
-      <Row title="Icon size" sub="How big the dock buttons and workspace groups are." dim={$prefs.dockEnabled === false}>
-        <Seg
-          label="Dock icon size"
-          options={iconSizes}
-          value={$prefs.dockIconSize || "normal"}
-          disabled={$prefs.dockEnabled === false}
-          picked={(id) => setPrefs({ dockIconSize: id })}
-        />
+    {:else if dockInstalled}
+      <Row
+        title="Dock options"
+        sub={dockOn
+          ? "Auto-hide and icon size are the Dock plugin's own settings, in Komble."
+          : "The Dock plugin is installed but turned off. Turn it on in Komble; its settings are there too."}
+      >
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={dockOptions}>Dock options</button>
       </Row>
     {:else}
-      <!-- the add-on is absent (or off): no controls, one honest sentence
-           and the way to the catalog -->
       <Row
-        title="The dock is an add-on."
-        sub={dockInstalled
-          ? "It's installed but turned off. Turn it on in Komble → Add-ons and its settings return here."
-          : "Pinned apps, the launcher and your workspaces at the bottom of the screen. Install it from Komble; its settings appear here."}
+        title="The dock is a plugin."
+        sub="Pinned apps, the launcher and your workspaces at the bottom of the screen. Install it in Komble → Plugins; its settings come with it."
       >
-        <button class="ewe-btn ewe-btn--secondary" on:click={getAddons}>{dockInstalled ? "Manage add-ons" : "Get add-ons"}</button>
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={getPlugins}>Get plugins</button>
       </Row>
     {/if}
   </Group>

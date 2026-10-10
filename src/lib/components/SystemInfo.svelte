@@ -13,8 +13,9 @@
     } catch {}
   });
 
-  // Add-ons (ewe 0.25): Komble installs them; this is the way there from
-  // Settings, plus what is on right now. On an older ewe the list is unknown.
+  // Plugins (ewe 0.25): Komble installs them and holds their settings
+  // (Options); this is the way there from Settings, plus what is on right
+  // now. On an older ewe the list is unknown.
   $: installedAddons = ($addons.plugins || []).filter((p) => p.enabled && p.valid !== false);
   const browseAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
   import Page from "./ui/Page.svelte";
@@ -37,9 +38,9 @@
     {/if}
   </Group>
 
-  <Group title="Add-ons">
-    <Row title="Add-ons" sub="Extra features like the dock, music, the phone and mail. Komble installs and removes them; their settings appear here once they're on.">
-      <button class="ewe-btn ewe-btn--secondary" on:click={browseAddons}>Browse add-ons</button>
+  <Group title="Plugins">
+    <Row title="Plugins" sub="Extra features like the dock, music, the phone and mail. Komble installs and removes them, and each one's settings are in its Options there.">
+      <button class="ewe-btn ewe-btn--secondary" on:click={browseAddons}>Open Plugins</button>
     </Row>
     {#if $addons.loaded && !$addons.legacy}
       <KV k="On right now" v={installedAddons.length ? installedAddons.map((p) => p.name || p.id).join(", ") : "None"} />

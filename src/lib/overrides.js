@@ -5,7 +5,7 @@
 
 import { get, writable } from "svelte/store";
 import * as api from "./api.js";
-import { animLuaLines, transparencyLua, hex6 } from "./hypr.js";
+import { animLuaLines, hex6 } from "./hypr.js";
 import { prefs, effectiveAccent, flashApplied, errorMsg } from "./stores.js";
 import { reapplyForSpeed } from "./animations.js";
 
@@ -58,7 +58,7 @@ function overridesInput() {
     rounding: l.rounding,
     tintBorders: !!p.tintBorders,
     accent: get(effectiveAccent),
-    windowTransparency: p.windowTransparency !== false,
+    windowTransparency: p.windowTransparency === true,
     animationSpeed: p.animationSpeed ?? 1,
     tilingEnabled: p.tilingEnabled !== false
   };
@@ -128,10 +128,15 @@ export async function setAnimationSpeed(m) {
   if (!(await reapplyForSpeed())) await evals(animLuaLines(Number(m)));
 }
 
+/** Window transparency goes the way Bar opacity and App blur go: one
+ *  `ewe-conf set` (user.lua regenerated, Hyprland reloaded). The old path
+ *  also evaluated `active_opacity = 1.0` live, which turned every window
+ *  solid while App blur was on, until the reload put 0.85 back — and it
+ *  absorbed the whole user-theme.json, so a stale copy of the other Glass
+ *  keys could ride back over ewe.conf. */
 export async function setTransparency(on) {
-  await setPrefs({ windowTransparency: on });
-  await evals([transparencyLua(on)]);
-  await writeUserLua();
+  await api.setConf("desktop.theme.window_transparency", !!on);
+  prefs.update((p) => ({ ...p, windowTransparency: !!on }));
 }
 
 /** A window rule cannot be withdrawn at runtime, so both directions reload. */

@@ -7,27 +7,26 @@
   // folders — so those controls live there and nowhere else. Adding a mail
   // account went with them. What is left here is read-only status plus the
   // per-machine preferences that are genuinely Settings' own (avatar, name,
-  // avatar shape, the new-mail notification).
+  // avatar shape).
   // Google stays: it is an OPTIONAL extra for Gmail and a Drive folder, needs
   // the user's own client file, and ewe-sync does not cover it. This app never
   // touches a token; every verb goes through the shell over IPC.
+  // Mail notifications are the Mail plugin's own setting (Komble → Plugins →
+  // Mail → Options); the mail account is ewe-sync's.
   import { onMount, onDestroy } from "svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import * as api from "../api.js";
-  import { prefs, errorMsg, flashApplied } from "../stores.js";
+  import { prefs, errorMsg, flashApplied, shellUp } from "../stores.js";
   import { setPrefs } from "../overrides.js";
-  import { addons, loadAddons, hasAddon, openAddons } from "../addons.js";
   import KV from "./ui/KV.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
-  import ToggleRow from "./ui/ToggleRow.svelte";
 
   let info = null;
   let syncApp = false; // ewe-sync (RFC-006) installed → "Manage in ewe-sync"
   api.syncAppInstalled().then((v) => (syncApp = !!v)).catch(() => {});
-  let cloud = null; // `qs ipc call cloud status` (null = shell absent)
+  let cloud = null; // `qs ipc call cloud status` (null = no answer yet)
   let google = null; // `qs ipc call google status`
-  let mail = null; // `qs ipc call mail status`
   let gclient = null; // google_client_info
   let faceVersion = 0;
   let nameEdit = "";
@@ -40,12 +39,15 @@
   $: faceUrl = info?.hasFace ? convertFileSrc(`${home()}/.face`) + `?v=${faceVersion}` : "";
   $: cloudAvatar = cloud?.avatarPath ? convertFileSrc(cloud.avatarPath) + `?v=${avatarVersion}` : "";
 
-  async function ipcStatus(target) {
+  /** The last good status stays when a reply is missing or unreadable: one
+   *  bad poll (the shell restarting under us) is not "the shell is gone".
+   *  Whether the shell runs at all is App.svelte's probe ($shellUp). */
+  async function ipcStatus(target, prev) {
     try {
       const raw = (await api.qsIpc(target, "status")).trim();
-      return raw ? JSON.parse(raw) : null;
+      return raw ? JSON.parse(raw) : prev;
     } catch {
-      return null; // shell not running
+      return prev;
     }
   }
 
@@ -56,11 +58,8 @@
       errorMsg.set(String(e));
     }
     const wasSigned = cloud?.signedIn;
-    cloud = await ipcStatus("cloud");
-    google = await ipcStatus("google");
-    // `mail` is the ewe.mail add-on's target since 0.25: without the add-on
-    // there is nothing to ask (the backend would log and answer "" anyway)
-    mail = mailAddon ? await ipcStatus("mail") : null;
+    cloud = await ipcStatus("cloud", cloud);
+    google = await ipcStatus("google", google);
     if (cloud?.signedIn && !wasSigned) avatarVersion++;
     try {
       gclient = await api.googleClientInfo();
@@ -68,11 +67,9 @@
       gclient = null;
     }
   }
-  $: mailAddon = hasAddon($addons, "ewe.mail");
-  const getAddons = () => openAddons().catch((e) => errorMsg.set(String(e)));
 
   onMount(() => {
-    loadAddons().then(refresh);
+    refresh();
     let n = 0;
     timer = setInterval(async () => {
       n++;
@@ -158,18 +155,6 @@
     }
   }
 
-  /** One shell verb; the pane re-reads status shortly after. */
-  async function call(target, verb, arg) {
-    busy = true;
-    try {
-      await api.qsIpc(target, verb, arg);
-      setTimeout(refresh, 800);
-    } catch (e) {
-      errorMsg.set(String(e));
-    }
-    busy = false;
-  }
-
   /** Everything that CHANGES the account happens in ewe-sync. */
   const openSync = () => api.openSyncApp().catch((e) => errorMsg.set(String(e)));
 
@@ -199,7 +184,8 @@
 
   // ── derived ────────────────────────────────────────────────────────────────
   $: quotaPct = cloud?.quota?.total > 0 ? Math.min(100, Math.round((cloud.quota.used / cloud.quota.total) * 100)) : null;
-  $: mailSource = mail?.source || (mail?.imapConfigured ? "imap" : google?.signedIn ? "gmail" : "");
+  // no answer yet: "Reading…" while the shell is up, the honest note when not
+  $: noShell = cloud === null && !$shellUp;
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
   import Row from "./ui/Row.svelte";
@@ -250,8 +236,10 @@
 
   <!-- Read-only by design (RFC-006). ewe-sync owns the account; this shows it. -->
   <Group title="Your account · Nextcloud">
-    {#if cloud === null}
+    {#if noShell}
       <Row sub="The shell isn't running, and your account is managed through it." />
+    {:else if cloud === null}
+      <Row sub="Reading…" />
     {:else if !cloud.signedIn}
       <Row title="Not signed in" sub="Settings sync, your files as a folder, your calendar. You sign in from ewe-sync.">
         {#if syncApp}
@@ -297,7 +285,11 @@
 
   <!-- Status only. Back up, sync, push and restore are ewe-sync's verbs. -->
   <Group title="Settings sync">
-    {#if !cloud?.signedIn}
+    {#if noShell}
+      <Row sub="The shell isn't running, so the sync status is unknown. ewe-sync still backs up and restores." />
+    {:else if cloud === null}
+      <Row sub="Reading…" />
+    {:else if !cloud.signedIn}
       <Row sub="Sign in from ewe-sync to keep this computer's settings, apps and look in your account, and bring them back on the next one." />
     {:else}
       <Row
@@ -305,7 +297,7 @@
         sub={cloud.syncState === "syncing"
           ? "Syncing…"
           : cloud.syncConflict
-            ? `Another computer${cloud.remoteMachine ? ` (“${cloud.remoteMachine}”)` : ""} saved newer settings. Resolve it in ewe-sync.`
+            ? cloud.syncError || "The copy in your account changed since this computer last synced. Resolve it in ewe-sync."
             : cloud.syncError
               ? cloud.syncError
               : !cloud.lastSync
@@ -313,7 +305,11 @@
                 : cloud.inSync
                   ? "Up to date."
                   : "Changed since the last sync."}
-      />
+      >
+        {#if cloud.syncConflict && syncApp}
+          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={openSync}>Resolve in ewe-sync</button>
+        {/if}
+      </Row>
       <KV k="Backup in your account"
         v={cloud.remoteMachine || cloud.remoteModified ? `Saved by “${cloud.remoteMachine || "another computer"}” · ${fmtSync(cloud.remoteModified)}` : "None yet"} />
       <KV k="This computer last synced"
@@ -327,51 +323,15 @@
     {/if}
   </Group>
 
-  <!-- What is connected, and the one preference that is this machine's.
-       The badge, the Quick settings page and the notifications are the
-       ewe.mail add-on (0.25); the account itself still lives in ewe-sync. -->
-  <Group title="Mail">
-    {#if $addons.loaded && !mailAddon}
-      <Row
-        title="Mail in the bar is an add-on."
-        sub="Unread mail in Quick settings, a badge in the bar and a notification for new mail. Install it from Komble; your account stays in ewe-sync."
-      >
-        <button class="ewe-btn ewe-btn--secondary" on:click={getAddons}>Get add-ons</button>
-      </Row>
-    {:else}
-    <Row
-      title={mailSource === "imap"
-        ? mail?.imapUser || "IMAP account"
-        : mailSource === "gmail"
-          ? "Gmail"
-          : "No mail account"}
-      sub={mailSource === "imap"
-        ? `${mail?.imapHost || ""}${mail?.state === "auth" ? " · The server rejected the password" : mail?.state === "offline" ? " · Offline" : mail?.unread ? ` · ${mail.unread} unread` : ""}`
-        : mailSource === "gmail"
-          ? "Through your Google client. Unread mail shows as a badge in Quick settings."
-          : "The inbox that comes with your Nextcloud account, or any IMAP server. You add it in ewe-sync."}
-    />
-    {#if mail?.error && mailSource === "imap"}
-      <Row><span class="text-warning">{mail.error}</span></Row>
-    {/if}
-    {#if mail && mailSource}
-      <ToggleRow
-        title="Notifications"
-        sub="A notification for new mail while you're signed in."
-        on={!!mail.notify}
-        toggled={() => call("mail", "setNotify", mail.notify ? "false" : "true")}
-      />
-    {/if}
-    {/if}
-  </Group>
-
   <!-- Read-only, like the account above: connecting, disconnecting and the
        client-file guidance all live in ewe-sync → Google. -->
   <Group title="Google (optional)">
     <Row sub="For Gmail notifications and a Drive folder, never settings sync. ewe ships no Google client of its own: you bring your own OAuth client, and ewe-sync → Google explains where it goes and connects the account." />
     <KV k="Client file" v={gclient ? (gclient.valid ? "Found" : gclient.exists ? "Found, but not a desktop app client JSON" : "Missing") : google?.configured ? "Found" : "Missing"} />
-    {#if google === null}
+    {#if google === null && !$shellUp}
       <Row sub="The shell isn't running, and Google is managed through it." />
+    {:else if google === null}
+      <Row sub="Reading…" />
     {:else if !google.signedIn}
       <Row sub="Not connected." />
     {:else}

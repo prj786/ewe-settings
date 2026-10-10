@@ -1555,84 +1555,18 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
         );
         return Ok(String::new());
     }
-    let mut s = String::from_utf8_lossy(&out.stdout).to_string();
-    s.push_str(&String::from_utf8_lossy(&out.stderr));
-    Ok(s)
-}
-
-// ── mail account (ewe-mail — any IMAP inbox; RFC-005) ───────────────────────
-
-fn valid_host(h: &str) -> bool {
-    !h.is_empty()
-        && h.len() <= 253
-        && h.chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
-        && !h.starts_with('-')
-}
-
-async fn ewe_mail(args: &[&str], stdin_line: Option<&str>) -> Result<Value, String> {
-    let Some(bin) = ewe_tool("ewe-mail") else {
-        return Err("ewe-mail not installed".into());
-    };
-    let mut cmd = Command::new("python3");
-    cmd.arg(bin)
-        .args(args)
-        .stdin(if stdin_line.is_some() {
-            Stdio::piped()
+    // The reply is stdout alone. Appending stderr (a qs warning, a log line)
+    // turned a perfectly good `status` JSON into something the pane could
+    // not parse — which it reported as "the shell isn't running".
+    if !out.status.success() {
+        let why = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if why.is_empty() {
+            format!("the shell did not answer {target} {func}")
         } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(estr)?;
-    if let Some(line) = stdin_line {
-        use tokio::io::AsyncWriteExt;
-        if let Some(mut si) = child.stdin.take() {
-            si.write_all(line.as_bytes()).await.map_err(estr)?;
-            si.write_all(b"\n").await.map_err(estr)?;
-            drop(si);
-        }
+            why
+        });
     }
-    let out = child.wait_with_output().await.map_err(estr)?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    serde_json::from_str(text.trim())
-        .map_err(|_| format!("ewe-mail: unreadable reply: {}", text.trim()))
-}
-
-/// Test + store an IMAP login. The password travels on stdin, never argv;
-/// ewe-mail keeps it in the keyring and records host/user/port in ewe.conf.
-#[tauri::command]
-pub async fn mail_login(
-    host: String,
-    port: u16,
-    user: String,
-    password: String,
-    starttls: Option<bool>,
-) -> Result<Value, String> {
-    if !valid_host(&host) {
-        return Err("invalid mail server name".into());
-    }
-    if user.is_empty() || user.len() > 200 || user.chars().any(|c| c.is_control()) {
-        return Err("invalid mail user".into());
-    }
-    if port == 0 {
-        return Err("invalid port".into());
-    }
-    if password.is_empty() || password.contains('\n') || password.contains('\r') {
-        return Err("invalid password".into());
-    }
-    let port_s = port.to_string();
-    let mut args = vec![
-        "login",
-        host.as_str(),
-        user.as_str(),
-        "--port",
-        port_s.as_str(),
-    ];
-    if starttls.unwrap_or(false) {
-        args.push("--starttls");
-    }
-    ewe_mail(&args, Some(&password)).await
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
 /// Whether the compositor blurs behind translucent layers here. ewe's
@@ -1671,16 +1605,6 @@ pub async fn theme_tokens(theme: String) -> Result<Value, String> {
         .await
         .map_err(estr)?;
     serde_json::from_slice(&out.stdout).map_err(|_| "ewe-theme: unreadable reply".to_string())
-}
-
-#[tauri::command]
-pub async fn mail_status() -> Result<Value, String> {
-    ewe_mail(&["status"], None).await
-}
-
-#[tauri::command]
-pub async fn mail_logout() -> Result<Value, String> {
-    ewe_mail(&["logout"], None).await
 }
 
 // ── the optional Google client file (RFC-005: ewe ships none) ───────────────

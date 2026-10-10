@@ -125,22 +125,39 @@ async fn probe() -> Value {
     })
 }
 
-/// Komble is the add-on catalog (`komble --addons`). Argv only, detached,
+/// Komble is the plugin catalog (`komble --addons`, the flag installed callers use). Argv only, detached,
 /// nothing inherited from this process — the same shape as opening ewe-sync.
 fn komble_bin() -> Option<PathBuf> {
     let p = PathBuf::from("/usr/bin/komble");
     p.exists().then_some(p)
 }
 
-/// Open Komble on its Add-ons page. `Ok(false)` when Komble is not installed;
-/// the pane says so instead of failing silently.
+/// A plugin id fit for an argv (`ewe.dock`): the same rule as ewe-plugin's.
+fn plugin_id_ok(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id.contains('.')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))
+}
+
+/// Open Komble on its Plugins page — with one plugin's Options dialog open
+/// when `options` names it (`komble --options=<id>`; an older Komble ignores
+/// the flag and opens on its last page). `Ok(false)` when Komble is not
+/// installed; the pane says so instead of failing silently.
 #[tauri::command]
-pub async fn open_addons() -> Result<bool, String> {
+pub async fn open_addons(options: Option<String>) -> Result<bool, String> {
     let Some(bin) = komble_bin() else {
         return Ok(false);
     };
+    let arg = match options.as_deref() {
+        Some(id) if plugin_id_ok(id) => format!("--options={id}"),
+        Some(_) => return Err("bad plugin id".into()),
+        None => "--addons".into(),
+    };
     Command::new(bin)
-        .arg("--addons")
+        .arg(arg)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

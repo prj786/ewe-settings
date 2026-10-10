@@ -573,14 +573,6 @@ export function animationsLuaText(state, mult) {
   );
 }
 
-export function transparencyLua(windowTransparency) {
-  return (
-    "hl.config({ decoration = { active_opacity = 1.0, inactive_opacity = " +
-    (windowTransparency ? "0.97" : "1.0") +
-    " } })"
-  );
-}
-
 export function tilingLua(tilingEnabled) {
   return tilingEnabled
     ? ""

@@ -1560,7 +1560,11 @@ pub async fn qs_ipc(target: String, func: String, arg: Option<String>) -> Result
     // not parse — which it reported as "the shell isn't running".
     if !out.status.success() {
         let why = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        return Err(if why.is_empty() { format!("the shell did not answer {target} {func}") } else { why });
+        return Err(if why.is_empty() {
+            format!("the shell did not answer {target} {func}")
+        } else {
+            why
+        });
     }
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }

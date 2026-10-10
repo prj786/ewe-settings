@@ -194,7 +194,11 @@ async fn qs_run(pid: Option<&str>, args: &[&str]) -> std::io::Result<std::proces
         Ok(r) => r,
         Err(_) => Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
-            format!("the shell did not answer `{}` within {}s", args.join(" "), QS_CALL_TIMEOUT.as_secs()),
+            format!(
+                "the shell did not answer `{}` within {}s",
+                args.join(" "),
+                QS_CALL_TIMEOUT.as_secs()
+            ),
         )),
     }
 }

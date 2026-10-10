@@ -1,6 +1,10 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import * as api from "../api.js";
+  import { addons, loadAddons, hasAddon } from "../addons.js";
+  loadAddons();
+  // mention the ewe.vpn plugin only while it is installed and on
+  $: vpnPlugin = hasAddon($addons, "ewe.vpn");
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { errorMsg, flashApplied } from "../stores.js";
   import Toggle from "./ui/Toggle.svelte";
@@ -424,7 +428,7 @@
     {/if}
 
     <p class="note">
-      NetworkManager manages these. You can also switch VPNs from the VPN card in Quick settings; the
+      NetworkManager manages these.{#if vpnPlugin} You can also switch VPNs from the VPN card in Quick settings.{/if} The
       first connection asks for credentials once and keeps them in the profile.
     </p>
   {/if}

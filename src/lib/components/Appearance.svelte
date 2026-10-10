@@ -184,12 +184,7 @@
   const corners = [["none", "Square"], ["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   const densities = [["compact", "Compact"], ["comfortable", "Comfortable"], ["roomy", "Roomy"]];
   const strokes = [["none", "None"], ["thin", "Thin"], ["thick", "Thick"]];
-  // [desktop.bar] icon_size: the bar has no height of its own, it is its
-  // icons plus padding (44 / 48 / 56). Text size 130% moves them a size up.
-  const barIconSizes = [["small", "Small"], ["normal", "Normal"], ["large", "Large"]];
-  $: barIconsSub = Number(input.text_scale ?? 100) >= 130
-    ? "The bar grows with its icons. At text size 130%, they’re one size larger."
-    : "The bar grows with its icons: 36, 40 or 48\u00a0px tall.";
+  // (Bar icons live in Layout → Top bar, beside the bar's own switch.)
   async function setConf(key, value) {
     await run(async () => {
       await api.setConf(key, value);
@@ -200,10 +195,34 @@
   // Hyprland); the slider shows the value live meanwhile.
   let blurOk = true;
   const GLASS = 80; // the Glass preset (opacity-glass)
-  $: truthy = (v) => v === true || String(v).toLowerCase() === "true";
+  // Below BAR_BLUR_MIN (ewe-conf) there is no blur at all and the bar is a
+  // tint over sharp wallpaper; the slider starts there instead of offering
+  // a Glass that is "on" but does nothing Glass does.
+  const GLASS_MIN = 10;
+  // the same truthiness as ewe-theme / ewe-conf (_truthy / _on)
+  $: truthy = (v) => v === true || !["0", "0.0", "false", "no", "off", "", "undefined", "null"].includes(String(v).trim().toLowerCase());
+  // Reduce transparency and Increase contrast make the bar and dock solid
+  // whatever these say, and Reduce transparency every window too (ewe-conf
+  // gen_user_lua, ewe-theme): say so instead of showing controls that do
+  // nothing. solidBy covers Glass; windowsSolid also App blur and Window
+  // transparency.
+  $: windowsSolid = truthy(input.reduce_transparency);
+  $: solidBy = windowsSolid ? "Reduce transparency" : truthy(input.increase_contrast) ? "Increase contrast" : "";
+  // Glass on returns to the last opacity the user chose, not always 80 —
+  // remembered on this machine only (ewe.conf holds the live value).
+  const LAST = "ewe-settings.lastGlass";
+  $: if (glassPct >= GLASS_MIN && glassPct < 100) {
+    try { localStorage.setItem(LAST, String(glassPct)); } catch {}
+  }
+  function toggleGlass() {
+    if (glassPct < 100) return setConf("desktop.theme.bar_opacity", 100);
+    let last = GLASS;
+    try { last = Number(localStorage.getItem(LAST)) || GLASS; } catch {}
+    return setConf("desktop.theme.bar_opacity", Math.min(99, Math.max(GLASS_MIN, Math.round(last))));
+  }
 </script>
 
-<Page title="Appearance" desc="The scheme, the accent color and the look of controls, the bar and the dock.">
+<Page title="Appearance" desc="The scheme, the accent color, the look of controls, and Glass.">
   <!-- ── Scheme ─────────────────────────────────────────────────────── -->
   <Group title="Scheme" well={false}>
     <svelte:fragment slot="action">
@@ -273,29 +292,37 @@
     </Row>
   </Group>
 
-  <!-- ── Bar and dock (Glass) ───────────────────────────────────────── -->
-  <Group title="Bar and dock">
-    <Row title="Bar icons" sub={barIconsSub}>
-      <Seg label="Bar icons" options={barIconSizes} value={input.bar_icon_size || "normal"} disabled={busy} picked={(v) => setConf("desktop.bar.icon_size", v)} />
-    </Row>
-    <SliderRow
-      label="Bar opacity"
-      sub="How solid the bar, the dock and the lock screen card are. Below 100% the wallpaper shows through, blurred."
-      value={glassPct}
-      from={0}
-      to={100}
-      unit="%"
-      dim={busy}
-      moved={(v) => setConf("desktop.theme.bar_opacity", Math.round(v))}
-    />
+  <!-- ── Glass and transparency ─────────────────────────────────────── -->
+  <!-- Bar opacity moves the bar, the dock and the lock card only; the
+       Overview and desktop widgets keep the Glass material at 80%. -->
+  <Group title="Glass and transparency">
+    {#if solidBy}
+      <div class="p-1">
+        <Alert tone="info" title="{solidBy} is on">
+          {windowsSolid
+            ? "The bar, the dock and every window stay solid while it is. Turn it off in Accessibility to use these."
+            : "The bar and the dock stay solid while it is. Turn it off in Accessibility to use Glass."}
+        </Alert>
+      </div>
+    {/if}
     <ToggleRow
       title="Glass"
-      sub="See-through bar and dock. On starts at 80%, the lowest opacity where text stays readable on any wallpaper. Off makes them solid."
-      dim={busy}
+      sub="A see-through bar and dock with the desktop blurred behind them. On returns to your last opacity, 80% the first time. Off makes them solid."
+      dim={busy || !!solidBy}
       on={glassPct < 100}
-      toggled={() => setConf("desktop.theme.bar_opacity", glassPct < 100 ? 100 : GLASS)}
+      toggled={toggleGlass}
     />
-    {#if glassPct < GLASS || (!blurOk && glassPct < 90 && glassPct < 100)}
+    <SliderRow
+      label="Bar opacity"
+      sub="How solid the bar, the dock and the lock screen card are. Below 100% what is behind them shows through, blurred."
+      value={glassPct}
+      from={GLASS_MIN}
+      to={100}
+      unit="%"
+      dim={busy || !!solidBy}
+      moved={(v) => setConf("desktop.theme.bar_opacity", Math.round(v))}
+    />
+    {#if !solidBy && (glassPct < GLASS || (!blurOk && glassPct < 90 && glassPct < 100))}
       <div class="p-1">
         {#if !blurOk && glassPct < 90}
           <Alert tone="warning" title="Text can be hard to read on bright wallpapers">
@@ -310,16 +337,20 @@
     {/if}
     <ToggleRow
       title="App blur"
-      sub="Every window at 85% with the wallpaper blurred behind it. Fullscreen windows stay solid."
-      dim={busy}
-      on={truthy(input.app_blur)}
+      sub={blurOk
+        ? "Every window at 85% with what is behind it blurred. Fullscreen windows stay solid."
+        : "This computer can't blur (a virtual machine or an NVIDIA card), so windows stay solid even when this is on."}
+      dim={busy || windowsSolid}
+      on={truthy(input.app_blur) && !windowsSolid}
       toggled={() => setConf("desktop.theme.app_blur", !truthy(input.app_blur))}
     />
     <ToggleRow
       title="Window transparency"
-      sub="Windows you're not using turn very slightly see-through."
-      dim={busy}
-      on={truthy(input.window_transparency)}
+      sub={truthy(input.app_blur) && blurOk
+        ? "App blur already makes every window see-through, so this has no effect while it is on."
+        : "Windows you're not using turn very slightly see-through."}
+      dim={busy || windowsSolid || (truthy(input.app_blur) && blurOk)}
+      on={truthy(input.window_transparency) && !windowsSolid}
       toggled={(v) => run(async () => { await setTransparency(v); await refreshTheme(); })}
     />
   </Group>

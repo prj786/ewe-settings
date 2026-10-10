@@ -178,9 +178,36 @@ fn qs_pid_for(main: &str) -> Option<String> {
     None
 }
 
+/// How long one `qs ipc call` may take. A wedged shell (or one mid-restart)
+/// must not hang the pane that asked — and a hung probe used to leave the
+/// "shell isn't running" note up until Settings was reopened.
+const QS_CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+async fn qs_run(pid: Option<&str>, args: &[&str]) -> std::io::Result<std::process::Output> {
+    let mut cmd = Command::new("qs");
+    cmd.arg("ipc");
+    if let Some(p) = pid {
+        cmd.args(["--pid", p]);
+    }
+    cmd.arg("call").args(args).kill_on_drop(true);
+    match tokio::time::timeout(QS_CALL_TIMEOUT, cmd.output()).await {
+        Ok(r) => r,
+        Err(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("the shell did not answer `{}` within {}s", args.join(" "), QS_CALL_TIMEOUT.as_secs()),
+        )),
+    }
+}
+
 /// The DE shell's qs pid — targeting it makes `qs ipc` unambiguous even when
 /// another qs instance exists (nested tests). The unit is `ewe.service` since
 /// the rename; `hypr-shell.service` is probed second for pre-rename installs.
+///
+/// The pid is a hint, not a requirement: across a shell restart (the
+/// launcher's bash wrapper is up, its qs child not yet, or the pid we read
+/// already gone) a `--pid` call fails although a shell answers a moment
+/// later by its config path — so a failed `--pid` call is retried once
+/// without it.
 pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
     let mut pid: Option<String> = None;
     for unit in ["ewe.service", "hypr-shell.service"] {
@@ -196,13 +223,12 @@ pub async fn qs_call(args: &[&str]) -> std::io::Result<std::process::Output> {
             break;
         }
     }
-    let mut cmd = Command::new("qs");
-    cmd.arg("ipc");
-    if let Some(p) = &pid {
-        cmd.args(["--pid", p]);
+    let first = qs_run(pid.as_deref(), args).await;
+    match (&pid, &first) {
+        (Some(_), Ok(o)) if !o.status.success() => qs_run(None, args).await,
+        (Some(_), Err(_)) => qs_run(None, args).await,
+        _ => first,
     }
-    cmd.arg("call").args(args);
-    cmd.output().await
 }
 
 /// Fire-and-forget "user state changed": the shell debounces the pokes and

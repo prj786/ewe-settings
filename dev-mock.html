@@ -8,9 +8,11 @@
        pane=<nav label>                          open that section ("Networking")
        click=<css selector>                      click that element (open a sheet)
        focus=<css selector>                      keyboard-focus that element
+       sync=conflict                             User: the account's copy changed (conflict)
+       shell=down                                the shell answers nothing
        addons=fresh|dock|legacy                  fresh (default): no dock, two bar
                                                  widgets; dock: ewe.dock on too;
-                                                 legacy: an ewe before add-ons
+                                                 legacy: an ewe before opt-in plugins
      The theme replies are real `ewe-theme show` / `scheme list|show` output,
      generated into .dev-mock/ (git-ignored) from an isolated XDG_CONFIG_HOME;
      without them the compiled tokens.css (Ewe Dark) stands. -->
@@ -47,7 +49,21 @@
             case "write_prefs": return Promise.resolve({ accent: "#eeb407" });
             case "vrr_caps": return Promise.resolve({ "eDP-1": false, "DP-1": true });
             case "shell_version": return Promise.resolve("0.21.2-beta");
-            case "shell_running": return Promise.resolve(true);
+            case "shell_running": return Promise.resolve(q.get("shell") !== "down");
+            case "sync_app_installed": return Promise.resolve(true);
+            // the shell's account snapshot (`qs ipc call cloud status`):
+            // ?sync=conflict shows the refused-push state, ?shell=down none at all
+            case "qs_ipc": {
+              if (q.get("shell") === "down") return Promise.reject("the shell did not answer");
+              if (args.target === "cloud" && args.func === "status") return Promise.resolve(JSON.stringify({
+                probed: true, signedIn: true, displayName: "Nino", user: "nino", email: "nino@example.org",
+                serverHost: "cloud.example.org", quota: { used: 62474867, total: 8589934592 },
+                syncState: q.get("sync") === "conflict" ? "error" : "idle", syncConflict: q.get("sync") === "conflict",
+                syncError: q.get("sync") === "conflict" ? "The copy in your account was saved by this computer but is not the one it last synced — push anyway to replace it, or restore it. Open ewe-sync to decide." : "",
+                inSync: q.get("sync") !== "conflict", lastSync: "2026-10-10T09:00:00Z", localSyncedAt: "2026-10-10T09:00:00Z",
+                autoSync: true, remoteMachine: "emoh", remoteModified: "2026-10-10T09:00:00Z", filesMounted: true, filesPath: "~/Nextcloud", calState: "ok", eventCount: 3 }));
+              return Promise.resolve("");
+            }
             case "user_info": return Promise.resolve({ user: "mock", host: "ewe", realName: "Nino Beridze", uptime: "3 h 12 min" });
             case "theme_tokens": return json(`/.dev-mock/theme-${scheme}.json`);
             case "theme_scheme": {
@@ -61,7 +77,7 @@
             // ewe-plugin list --json, as src-tauri/src/addons.rs shapes it
             case "addons_state": {
               const mode = q.get("addons") || "fresh";
-              if (mode === "legacy") return Promise.resolve({ legacy: true, why: "mock: ewe-plugin predates add-ons", installed: {}, plugins: [], available: [], removed: [] });
+              if (mode === "legacy") return Promise.resolve({ legacy: true, why: "mock: ewe-plugin predates opt-in plugins", installed: {}, plugins: [], available: [], removed: [] });
               const plugins = [
                 { id: "ewe.clipboard", name: "Clipboard & emoji", description: "Clipboard history and an emoji picker under a scissors icon in the bar; records copies, never passwords.", kinds: ["bar-widget", "panel", "service"], barWidget: { defaultSection: "right" }, enabled: true, valid: true },
                 { id: "ewe.sysmon", name: "System monitor", description: "CPU and memory meters in Quick settings; this shows them in the bar too.", kinds: ["quick-tile", "bar-widget"], barWidget: { defaultSection: "right" }, enabled: true, valid: true },

@@ -1,6 +1,10 @@
 <script>
   import { onMount } from "svelte";
   import * as api from "../api.js";
+  import { addons, loadAddons, hasAddon } from "../addons.js";
+  loadAddons();
+  // mention the ewe.insomnia plugin only while it is installed and on
+  $: insomnia = hasAddon($addons, "ewe.insomnia");
   import { hypridleConfText, idlePolicyText } from "../hypr.js";
   import { prefs, errorMsg, flashApplied } from "../stores.js";
   import { setPrefs } from "../overrides.js";
@@ -117,7 +121,7 @@
   <p class="note">Current timeline: {policy}</p>
   <p class="note">
     With the screensaver off, the desktop still locks after 5 minutes idle. On battery it suspends
-    after 15 minutes, and every stage comes sooner. Playing media, a fullscreen window or Insomnia
-    in the bar hold all of this off. hypridle applies changes at once; no restart needed.
+    after 15 minutes, and every stage comes sooner. Playing media{insomnia ? ", a fullscreen window or Insomnia in the bar" : " or a fullscreen window"}
+    hold all of this off. hypridle applies changes at once; no restart needed.
   </p>
 </Page>

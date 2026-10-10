@@ -57,16 +57,11 @@ export const setMimeDefault = (desktopId, mimes, setBrowser) =>
 // target an add-on owns (`mail`) answers "" when the add-on is absent.
 export const qsIpc = (target, func, arg) => invoke("qs_ipc", { target, func, arg });
 
-// add-ons (ewe 0.25): what `ewe-plugin list --json` knows, cached a few
-// seconds; `legacy: true` on an older ewe means "treat every add-on as
-// installed". `openAddons` opens Komble → Add-ons; false = Komble missing.
+// plugins (ewe 0.25): what `ewe-plugin list --json` knows, cached a few
+// seconds; `legacy: true` on an older ewe means "treat every plugin as
+// installed". `openAddons` opens Komble → Plugins (one plugin's Options with an id); false = Komble missing.
 export const addonsState = (refresh = false) => invoke("addons_state", { refresh });
-export const openAddons = () => invoke("open_addons");
-// RFC-005: any IMAP inbox for the Control Center badge (password on stdin, keyring after)
-export const mailLogin = (host, port, user, password, starttls = false) =>
-  invoke("mail_login", { host, port, user, password, starttls });
-export const mailStatus = () => invoke("mail_status");
-export const mailLogout = () => invoke("mail_logout");
+export const openAddons = (options = null) => invoke("open_addons", { options });
 export const googleClientInfo = () => invoke("google_client_info");
 
 // networking

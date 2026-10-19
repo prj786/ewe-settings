@@ -9,6 +9,7 @@
   import { errorMsg, flashApplied } from "../stores.js";
   import Toggle from "./ui/Toggle.svelte";
   import KV from "./ui/KV.svelte";
+  import NetDetails from "./NetDetails.svelte";
 
   let st = null;
   let pwTarget = ""; // SSID awaiting a password
@@ -16,12 +17,44 @@
   let busy = "";
   let timer;
 
+  // saved Wi-Fi / wired profiles, each with a details sheet (NetDetails)
+  let conns = [];
+  let detailsUuid = "";
+  async function refreshConns() {
+    try {
+      conns = await api.netConnections();
+    } catch (e) {
+      /* the page still works without the list */
+    }
+  }
+
   async function refresh() {
     try {
       st = await api.netStatus();
     } catch (e) {
       errorMsg.set(String(e));
     }
+    refreshConns();
+  }
+
+  // the machine's name on the network (hostnamectl; polkit may ask)
+  let hostname = "";
+  let hostDraft = "";
+  let hostBusy = false;
+  api
+    .hostnameGet()
+    .then((h) => (hostname = hostDraft = h))
+    .catch(() => {});
+  async function saveHostname() {
+    hostBusy = true;
+    try {
+      await api.hostnameSet(hostDraft.trim());
+      hostname = hostDraft = hostDraft.trim();
+      flashApplied(`This computer is now ${hostname}`);
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+    hostBusy = false;
   }
   onMount(() => {
     refresh();
@@ -220,7 +253,7 @@
   ];
 </script>
 
-<Page title="Networking" desc="Wi-Fi, the wired connection and VPNs, through NetworkManager.">
+<Page title="Networking" desc="Wi-Fi, the wired connection, IP and DNS settings and VPNs, through NetworkManager.">
   {#if !st}
     <p class="note">Checking the network…</p>
   {:else}
@@ -299,6 +332,42 @@
       {#each st.ips as ip (ip)}
         <KV k="IP address" v={ip} mono />
       {/each}
+    </Group>
+
+    <!-- Saved Wi-Fi and wired profiles: each opens a sheet with its IP,
+         DNS, MAC and MTU settings (NetDetails) -->
+    <Group title="Saved networks" desc="IP addresses, DNS servers and more for each network.">
+      {#each conns as c (c.uuid)}
+        <button class="ewe-row ewe-row--interactive net-row" on:click={() => (detailsUuid = c.uuid)}>
+          <span class="ewe-row__lead ewe-row__lead--tile"><Icon name={c.type === "802-11-wireless" ? "wifi" : "cable"} /></span>
+          <span class="ewe-row__text">
+            <span class="ewe-row__title">{c.name}</span>
+            <span class="ewe-row__desc">{typeWord(c.type)}{c.active ? ` · Connected · ${c.dev}` : ""}</span>
+          </span>
+          <span class="ewe-row__trail"><Icon name="caretRight" /></span>
+        </button>
+      {:else}
+        <Row sub="No saved networks yet." />
+      {/each}
+    </Group>
+
+    <Group title="This computer">
+      <form class="net-form" on:submit|preventDefault={saveHostname}>
+        <label class="ewe-field">
+          <span class="ewe-field__label">Name on the network</span>
+          <div class="flex gap-2">
+            <input class="ewe-input flex-1 font-mono" aria-label="Name on the network" bind:value={hostDraft} />
+            <button
+              class="ewe-btn ewe-btn--secondary"
+              type="submit"
+              disabled={hostBusy || !hostDraft.trim() || hostDraft.trim() === hostname}
+            >
+              {hostBusy ? "Renaming…" : "Rename"}
+            </button>
+          </div>
+          <span class="ewe-field__helper">What other devices see. Letters, digits and dashes.</span>
+        </label>
+      </form>
     </Group>
 
     <Group title="VPN">
@@ -433,3 +502,5 @@
     </p>
   {/if}
 </Page>
+
+<NetDetails uuid={detailsUuid} onClose={() => (detailsUuid = "")} changed={refresh} />

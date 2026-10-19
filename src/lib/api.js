@@ -77,6 +77,13 @@ export const vpnSetSecrets = (name, user, password, psk) => invoke("vpn_set_secr
 export const vpnAddL2tp = (name, gateway, user, password, psk) => invoke("vpn_add_l2tp", { name, gateway, user, password, psk });
 export const vpnImport = (kind, path) => invoke("vpn_import", { kind, path });
 export const connectionSet = (name, up) => invoke("connection_set", { name, up });
+// per-connection IP / DNS / MAC (the Networking pane's details sheet)
+export const netConnections = () => invoke("net_connections");
+export const netConnDetails = (uuid) => invoke("net_conn_details", { uuid });
+export const netConnApply = (uuid, changes) => invoke("net_conn_apply", { uuid, changes });
+export const netConnForget = (uuid) => invoke("net_conn_forget", { uuid });
+export const hostnameGet = () => invoke("hostname_get");
+export const hostnameSet = (name) => invoke("hostname_set", { name });
 
 // bluetooth (ewe-bt — bluez over D-Bus). The pairing dialog is the SHELL's
 // (BtAgent); a pair started here lands there. `btScan` returns at once and

@@ -2254,6 +2254,403 @@ pub async fn vpn_import(kind: String, path: String) -> Result<String, String> {
     Ok(out.trim().to_string())
 }
 
+// ── connection details: IP, DNS, MAC, metered (nmcli, argv-only) ────────────
+//
+// The Networking pane's per-connection sheet. Reads one profile with
+// `nmcli -t connection show <uuid>` (one `key:value` per line; the IP4.* /
+// IP6.* lines are the live configuration while it is up) and writes back
+// only the keys in NET_KEYS, each value checked before nmcli sees it. DNS
+// goes to systemd-resolved through NetworkManager (system/networkmanager/
+// 10-ewe-dns.conf), so per-link servers and DNS over TLS take effect there.
+
+/// What the sheet may read and write. The two link families' MAC/MTU keys
+/// are both listed; a profile only answers for its own.
+const NET_KEYS: &[&str] = &[
+    "connection.autoconnect",
+    "connection.metered",
+    "connection.dns-over-tls",
+    "ipv4.method",
+    "ipv4.addresses",
+    "ipv4.gateway",
+    "ipv4.dns",
+    "ipv4.dns-search",
+    "ipv4.ignore-auto-dns",
+    "ipv6.method",
+    "ipv6.addresses",
+    "ipv6.gateway",
+    "ipv6.dns",
+    "ipv6.ignore-auto-dns",
+    "802-11-wireless.cloned-mac-address",
+    "802-11-wireless.mtu",
+    "802-3-ethernet.cloned-mac-address",
+    "802-3-ethernet.mtu",
+];
+
+fn valid_uuid(u: &str) -> bool {
+    u.len() == 36 && u.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
+/// "a, b c" → ["a", "b", "c"]: the sheet's fields take commas or spaces.
+fn net_list(v: &str) -> Vec<&str> {
+    v.split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn is_ip(s: &str, v6: bool) -> bool {
+    if v6 {
+        s.parse::<std::net::Ipv6Addr>().is_ok()
+    } else {
+        s.parse::<std::net::Ipv4Addr>().is_ok()
+    }
+}
+
+/// address/prefix (the prefix is optional: nmcli defaults it to /32 · /128)
+fn is_cidr(s: &str, v6: bool) -> bool {
+    let (ip, pfx) = s.split_once('/').unwrap_or((s, ""));
+    is_ip(ip, v6)
+        && (pfx.is_empty()
+            || pfx
+                .parse::<u8>()
+                .map(|p| p <= if v6 { 128 } else { 32 })
+                .unwrap_or(false))
+}
+
+fn is_mac(s: &str) -> bool {
+    let p: Vec<&str> = s.split(':').collect();
+    p.len() == 6
+        && p.iter()
+            .all(|b| b.len() == 2 && b.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+/// The value nmcli gets for `key`, normalised — or why it is refused.
+fn net_value(key: &str, v: &str) -> Result<String, String> {
+    let v = v.trim();
+    let bad = || Err(format!("{key}: “{v}” is not a valid value"));
+    let v6 = key.starts_with("ipv6.");
+    match key {
+        "connection.autoconnect" | "ipv4.ignore-auto-dns" | "ipv6.ignore-auto-dns" => {
+            if matches!(v, "yes" | "no") {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "connection.metered" => {
+            if matches!(v, "unknown" | "yes" | "no") {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        // -1 default (resolved's global setting), 0 off, 1 opportunistic, 2 on
+        "connection.dns-over-tls" => {
+            if matches!(v, "-1" | "0" | "1" | "2") {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "ipv4.method" => {
+            if matches!(v, "auto" | "manual" | "disabled" | "link-local" | "shared") {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "ipv6.method" => {
+            if matches!(
+                v,
+                "auto" | "dhcp" | "manual" | "disabled" | "ignore" | "link-local"
+            ) {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "ipv4.addresses" | "ipv6.addresses" => {
+            let l = net_list(v);
+            if l.iter().all(|a| is_cidr(a, v6)) {
+                Ok(l.join(","))
+            } else {
+                bad()
+            }
+        }
+        "ipv4.gateway" | "ipv6.gateway" => {
+            if v.is_empty() || is_ip(v, v6) {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "ipv4.dns" | "ipv6.dns" => {
+            let l = net_list(v);
+            if l.iter().all(|a| is_ip(a, v6)) {
+                Ok(l.join(","))
+            } else {
+                bad()
+            }
+        }
+        // search domains; "~." routes every lookup to this link's servers
+        "ipv4.dns-search" => {
+            let l = net_list(v);
+            let ok = l.iter().all(|d| {
+                d.len() <= 253
+                    && d.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '~'))
+            });
+            if ok {
+                Ok(l.join(","))
+            } else {
+                bad()
+            }
+        }
+        "802-11-wireless.cloned-mac-address" | "802-3-ethernet.cloned-mac-address" => {
+            if matches!(v, "" | "preserve" | "permanent" | "random" | "stable") || is_mac(v) {
+                Ok(v.into())
+            } else {
+                bad()
+            }
+        }
+        "802-11-wireless.mtu" | "802-3-ethernet.mtu" => {
+            let n = if v.is_empty() || v == "auto" {
+                Some(0)
+            } else {
+                v.parse::<u32>().ok()
+            };
+            match n {
+                Some(n) if n == 0 || (576..=9000).contains(&n) => Ok(n.to_string()),
+                _ => bad(),
+            }
+        }
+        _ => Err(format!("{key} cannot be changed here")),
+    }
+}
+
+/// The saved Wi-Fi and wired profiles: {name, uuid, type, dev, active}.
+#[tauri::command]
+pub async fn net_connections() -> Result<Vec<Value>, String> {
+    let text = run_out(
+        "nmcli",
+        &[
+            "-t",
+            "-f",
+            "UUID,TYPE,DEVICE,ACTIVE,NAME",
+            "connection",
+            "show",
+        ],
+    )
+    .await?;
+    let mut out = Vec::new();
+    for l in text.lines() {
+        // NAME last: the fixed fields split cleanly and the rest is the name
+        let p: Vec<&str> = l.splitn(5, ':').collect();
+        if p.len() != 5 || !valid_uuid(p[0]) {
+            continue;
+        }
+        if p[1] != "802-11-wireless" && p[1] != "802-3-ethernet" {
+            continue;
+        }
+        out.push(json!({
+            "uuid": p[0], "type": p[1], "dev": p[2], "active": p[3] == "yes",
+            "name": p[4].replace("\\:", ":"),
+        }));
+    }
+    // the ones in use first, then by name
+    out.sort_by_key(|c| {
+        (
+            !c["active"].as_bool().unwrap_or(false),
+            c["name"].as_str().unwrap_or("").to_lowercase(),
+        )
+    });
+    Ok(out)
+}
+
+/// One profile: `settings` (the NET_KEYS it has, as nmcli prints them) and
+/// `live` — what is in effect while it is up (addresses, gateway, DNS, the
+/// device and its hardware address).
+#[tauri::command]
+pub async fn net_conn_details(uuid: String) -> Result<Value, String> {
+    if !valid_uuid(&uuid) {
+        return Err("invalid connection".into());
+    }
+    let text = run_out("nmcli", &["-t", "connection", "show", uuid.as_str()]).await?;
+    if let Some(e) = nm_failed(&text) {
+        return Err(e);
+    }
+    let mut settings = serde_json::Map::new();
+    let mut live = serde_json::Map::new();
+    let mut name = String::new();
+    let mut ctype = String::new();
+    for l in text.lines() {
+        let Some((k, v)) = l.split_once(':') else {
+            continue;
+        };
+        let v = v.trim();
+        match k {
+            "connection.id" => name = v.to_string(),
+            "connection.type" => ctype = v.to_string(),
+            _ => {}
+        }
+        if NET_KEYS.contains(&k) {
+            settings.insert(k.to_string(), json!(v));
+            continue;
+        }
+        // IP4.ADDRESS[1], IP4.DNS[2] … → live["IP4.ADDRESS"] = [..]
+        let base = k.split('[').next().unwrap_or(k);
+        if matches!(
+            base,
+            "IP4.ADDRESS"
+                | "IP4.GATEWAY"
+                | "IP4.DNS"
+                | "IP4.DOMAIN"
+                | "IP6.ADDRESS"
+                | "IP6.GATEWAY"
+                | "IP6.DNS"
+                | "IP6.DOMAIN"
+                | "GENERAL.DEVICES"
+        ) && !v.is_empty()
+        {
+            let e = live.entry(base.to_string()).or_insert_with(|| json!([]));
+            if let Some(a) = e.as_array_mut() {
+                a.push(json!(v));
+            }
+        }
+    }
+    let dev = live
+        .get("GENERAL.DEVICES")
+        .and_then(|d| d.get(0))
+        .and_then(|d| d.as_str())
+        .unwrap_or("")
+        .to_string();
+    if !dev.is_empty() {
+        let hw = run_out(
+            "nmcli",
+            &["-g", "GENERAL.HWADDR", "device", "show", dev.as_str()],
+        )
+        .await
+        .unwrap_or_default()
+        .trim()
+        .replace("\\:", ":");
+        if is_mac(&hw) {
+            live.insert("HWADDR".into(), json!(hw));
+        }
+    }
+    Ok(json!({
+        "uuid": uuid, "name": name, "type": ctype, "dev": dev,
+        "settings": settings, "live": live,
+    }))
+}
+
+/// Write the changed keys in one `nmcli connection modify`, then put them in
+/// effect on a profile that is up: `device reapply` keeps the link (IP and
+/// DNS changes), and when NetworkManager cannot reapply a key (MAC, MTU) the
+/// profile is brought up again.
+#[tauri::command]
+pub async fn net_conn_apply(
+    uuid: String,
+    changes: std::collections::BTreeMap<String, String>,
+) -> Result<String, String> {
+    if !valid_uuid(&uuid) {
+        return Err("invalid connection".into());
+    }
+    if changes.is_empty() {
+        return Ok(String::new());
+    }
+    let mut args: Vec<String> = vec!["connection".into(), "modify".into(), uuid.clone()];
+    for (k, v) in &changes {
+        if !NET_KEYS.contains(&k.as_str()) {
+            return Err(format!("{k} cannot be changed here"));
+        }
+        args.push(k.clone());
+        args.push(net_value(k, v)?);
+    }
+    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = run_out("nmcli", &argv).await?;
+    if let Some(e) = nm_failed(&out) {
+        return Err(e);
+    }
+
+    let dev = run_out(
+        "nmcli",
+        &["-g", "GENERAL.DEVICES", "connection", "show", uuid.as_str()],
+    )
+    .await
+    .unwrap_or_default()
+    .trim()
+    .to_string();
+    if !dev.is_empty() && !dev.contains("Error") {
+        let r = run_out("nmcli", &["device", "reapply", dev.as_str()]).await?;
+        if nm_failed(&r).is_some() {
+            let up = run_out("nmcli", &["connection", "up", uuid.as_str()]).await?;
+            if let Some(e) = nm_failed(&up) {
+                return Err(format!("Saved, but it did not come back up: {e}"));
+            }
+        }
+    }
+    crate::shell::poke_sync();
+    Ok(out.trim().to_string())
+}
+
+/// Forget a saved Wi-Fi or wired profile.
+#[tauri::command]
+pub async fn net_conn_forget(uuid: String) -> Result<(), String> {
+    if !valid_uuid(&uuid) {
+        return Err("invalid connection".into());
+    }
+    let out = run_out("nmcli", &["connection", "delete", uuid.as_str()]).await?;
+    if let Some(e) = nm_failed(&out) {
+        return Err(e);
+    }
+    crate::shell::poke_sync();
+    Ok(())
+}
+
+/// The machine's name on the network (what DHCP and mDNS announce).
+#[tauri::command]
+pub async fn hostname_get() -> Result<String, String> {
+    let h = run_out("hostnamectl", &["hostname"])
+        .await
+        .unwrap_or_default();
+    let h = h.trim();
+    if h.is_empty() {
+        return Ok(std::fs::read_to_string("/etc/hostname")
+            .unwrap_or_default()
+            .trim()
+            .to_string());
+    }
+    Ok(h.to_string())
+}
+
+/// Rename the machine. hostnamed asks polkit, so a password prompt may appear.
+#[tauri::command]
+pub async fn hostname_set(name: String) -> Result<(), String> {
+    let n = name.trim();
+    let ok = !n.is_empty()
+        && n.len() <= 63
+        && !n.starts_with('-')
+        && !n.ends_with('-')
+        && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if !ok {
+        return Err("A name uses letters, digits and dashes (up to 63), not starting or ending with a dash.".into());
+    }
+    let out = Command::new("hostnamectl")
+        .args(["set-hostname", n])
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !out.status.success() {
+        let e = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if e.is_empty() {
+            "hostnamectl failed".into()
+        } else {
+            e
+        });
+    }
+    Ok(())
+}
+
 // ── user account (avatar / name / session facts) ────────────────────────────
 
 /// ~/.face + AccountsService — the same pipeline the in-shell pane used, so
@@ -2554,4 +2951,47 @@ pub async fn bt_forget(address: String) -> Result<(), String> {
         return Err("bad device address".into());
     }
     ewe_bt(&["forget", address.as_str()]).await.map(|_| ())
+}
+
+#[cfg(test)]
+mod net_tests {
+    use super::net_value;
+
+    #[test]
+    fn lists_are_normalised_and_checked_per_family() {
+        assert_eq!(
+            net_value("ipv4.dns", "1.1.1.1, 8.8.8.8").unwrap(),
+            "1.1.1.1,8.8.8.8"
+        );
+        assert!(net_value("ipv4.dns", "2606:4700::1111").is_err());
+        assert_eq!(
+            net_value("ipv6.dns", "2606:4700:4700::1111").unwrap(),
+            "2606:4700:4700::1111"
+        );
+        assert_eq!(
+            net_value("ipv4.addresses", "192.168.1.20/24").unwrap(),
+            "192.168.1.20/24"
+        );
+        assert!(net_value("ipv4.addresses", "192.168.1.20/33").is_err());
+        assert_eq!(net_value("ipv4.dns", "").unwrap(), "");
+        assert_eq!(
+            net_value("ipv4.dns-search", "home.arpa ~.").unwrap(),
+            "home.arpa,~."
+        );
+        assert!(net_value("ipv4.dns-search", "a;rm -rf").is_err());
+    }
+
+    #[test]
+    fn enums_mac_mtu_and_unknown_keys() {
+        assert!(net_value("ipv4.method", "manual").is_ok());
+        assert!(net_value("ipv4.method", "dhcp").is_err());
+        assert!(net_value("connection.dns-over-tls", "2").is_ok());
+        assert!(net_value("802-11-wireless.cloned-mac-address", "stable").is_ok());
+        assert!(net_value("802-11-wireless.cloned-mac-address", "02:1a:2b:3c:4d:5e").is_ok());
+        assert!(net_value("802-11-wireless.cloned-mac-address", "02:1a").is_err());
+        assert_eq!(net_value("802-3-ethernet.mtu", "auto").unwrap(), "0");
+        assert_eq!(net_value("802-3-ethernet.mtu", "1400").unwrap(), "1400");
+        assert!(net_value("802-3-ethernet.mtu", "100").is_err());
+        assert!(net_value("connection.id", "x").is_err());
+    }
 }

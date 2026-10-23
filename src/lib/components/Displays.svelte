@@ -5,8 +5,9 @@
     snapshot, specFromMonitor, keyFor, luaArgs, monitorsLuaText,
     modeMapFor, modeRes, specW, specH, verifyAgainst, scaleOptions, nearestValidScale
   } from "../hypr.js";
-  import { errorMsg, flashApplied } from "../stores.js";
+  import { errorMsg, flashApplied, prefs } from "../stores.js";
   import SelectRow from "./ui/SelectRow.svelte";
+  import Seg from "./ui/Seg.svelte";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import KV from "./ui/KV.svelte";
 
@@ -21,6 +22,31 @@
   let revertSpecs = null;
   let revertLeft = 0;
   let countdown;
+
+  // ── Workspaces on several displays (ewe 0.35, ewe.conf [desktop.workspaces]
+  //    mode): separate — every display has its own workspaces 1, 2, 3 …
+  //    (macOS "Displays have separate Spaces") — or shared — one set across
+  //    all of them, switching one switches every display. set_conf reloads
+  //    the shell and Hyprland, whose workspaces.lua does the switching.
+  const wsModes = [
+    { label: "Separate", value: "separate" },
+    { label: "Shared", value: "shared" },
+  ];
+  let wsBusy = false;
+  $: wsMode = $prefs.workspacesMode === "shared" ? "shared" : "separate";
+  async function setWorkspacesMode(v) {
+    if (wsBusy || v === wsMode) return;
+    wsBusy = true;
+    try {
+      await api.setConf("desktop.workspaces.mode", v);
+      prefs.set(await api.readPrefs());
+      flashApplied("Saved");
+    } catch (e) {
+      errorMsg.set(String(e));
+    } finally {
+      wsBusy = false;
+    }
+  }
 
   $: specs = snapshot(monitors, profiles);
   $: activeSpecs = specs.filter((s) => !s.disabled);
@@ -368,6 +394,19 @@
           {/each}
         </div>
       </div>
+    </Group>
+  {/if}
+
+  {#if loaded && activeSpecs.length > 1}
+    <Group title="Workspaces">
+      <Row
+        title="Separate or shared"
+        sub={wsMode === "shared"
+          ? "One set of workspaces across every display. Switching one switches all of them."
+          : "Every display has its own workspaces. Switching changes only the display you are on."}
+      >
+        <Seg label="Workspaces" options={wsModes} value={wsMode} disabled={wsBusy} picked={setWorkspacesMode} />
+      </Row>
     </Group>
   {/if}
 

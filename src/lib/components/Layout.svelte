@@ -29,7 +29,8 @@
   const layoutModes = [
     ["dwindle", "Dwindle", "Each new window splits the focused one in half. The classic tiling feel."],
     ["master", "Master", "One large window on the left, a stack on the right."],
-    ["scrolling", "Scrolling", "Windows sit on an endless horizontal strip, like PaperWM. Scroll with Super+Alt+[ and ]."]
+    ["scrolling", "Scrolling", "Windows sit on an endless horizontal strip, like PaperWM. Scroll with Super+Alt+[ and ]."],
+    ["monocle", "Monocle", "One window at a time, filling the screen. Super+Tab turns the stack."]
   ];
 
   const iconSizes = [

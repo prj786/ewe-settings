@@ -79,7 +79,8 @@ export async function writeUserLua() {
 }
 
 /** Window layout (0.8): dwindle · master · scrolling (Hyprland's PaperWM-style
- *  tape). Live-applied like the gaps, persisted through desktop.layout. */
+ *  tape) · monocle (0.36, Hyprland ≥ 0.54: one window at a time, filling the
+ *  screen). Live-applied like the gaps, persisted through desktop.layout. */
 export async function setLayoutMode(mode) {
   layout.update((l) => ({ ...l, mode }));
   const l = get(layout);

@@ -1025,6 +1025,15 @@ pub async fn apply_colorscheme(scheme: String, accent: String) -> Result<(), Str
     Ok(())
 }
 
+/// The `ewe-theme scheme` verbs that write ewe.conf. `list`, `show` and
+/// `export` only read it, so they must never ask for a sync.
+fn scheme_verb_writes(verb: &str) -> bool {
+    matches!(
+        verb,
+        "apply" | "import" | "duplicate" | "remove" | "set" | "from-wallpaper"
+    )
+}
+
 /// `ewe-theme scheme <verb> …` — the palette side of Appearance. Verbs and
 /// arguments are checked here (argv, never a shell); ewe-theme writes
 /// ewe.conf through ewe-conf, whose hooks repaint the shell and the
@@ -1063,7 +1072,12 @@ pub async fn theme_scheme(args: Vec<String>) -> Result<Value, String> {
         .output()
         .await
         .map_err(estr)?;
-    crate::shell::poke_sync();
+    // Only a verb that changed ewe.conf has anything to sync. Opening
+    // Appearance runs `list` plus one `show` per scheme, and each of those
+    // used to poke the shell's sync as if something had been saved.
+    if scheme_verb_writes(verb) {
+        crate::shell::poke_sync();
+    }
     if verb == "export" {
         return Ok(
             json!({ "ok": out.status.success(), "yaml": String::from_utf8_lossy(&out.stdout) }),
@@ -2993,5 +3007,27 @@ mod net_tests {
         assert_eq!(net_value("802-3-ethernet.mtu", "1400").unwrap(), "1400");
         assert!(net_value("802-3-ethernet.mtu", "100").is_err());
         assert!(net_value("connection.id", "x").is_err());
+    }
+}
+
+#[cfg(test)]
+mod revamp_tests {
+    use super::*;
+
+    #[test]
+    fn only_writing_scheme_verbs_poke_sync() {
+        for v in ["list", "show", "export"] {
+            assert!(!scheme_verb_writes(v), "{v} only reads");
+        }
+        for v in [
+            "apply",
+            "import",
+            "duplicate",
+            "remove",
+            "set",
+            "from-wallpaper",
+        ] {
+            assert!(scheme_verb_writes(v), "{v} writes ewe.conf");
+        }
     }
 }

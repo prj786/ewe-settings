@@ -36,9 +36,8 @@
   let registry = null;
 
   onMount(async () => {
-    // the per-device overrides FIRST: the "persist the live truth" write
-    // below sends `devices` along, and sending it before this file was read
-    // wiped every override on every open of this pane (2026-09-20)
+    // the per-device overrides FIRST: every write sends `devices` along, and
+    // sending it before this file was read wiped every override (2026-09-20)
     try {
       const j = JSON.parse((await api.readConfig("quickshell/input-devices.json")) || "{}");
       if (j && typeof j === "object") devOverrides = j;
@@ -48,8 +47,10 @@
       const text = await api.hyprctl(["--batch", batch]);
       inp = parseInputBlocks(text, inp);
       loaded = true;
-      // persist the live truth right away: covers first run and migration
-      writeInputFile();
+      // Nothing is written here. Opening this page used to persist the live
+      // values at once, which rewrote ewe.conf [desktop.input] and input.lua
+      // (and asked for a sync) just from looking. The first real change
+      // sends the whole object anyway, so a first run still ends up complete.
     } catch (e) {
       errorMsg.set(String(e));
     }

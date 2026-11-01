@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { Dialog } from "bits-ui";
   import * as api from "../api.js";
-  import { prefs, pane, errorMsg, flashApplied, toast, accentDefault } from "../stores.js";
+  import { prefs, errorMsg, flashApplied, toast, accentDefault } from "../stores.js";
   import { theme, refreshTheme } from "../theme.js";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import Page from "./ui/Page.svelte";
@@ -171,6 +171,15 @@
   $: accentMoves = ((currentScheme && detail[currentScheme.slug]?.adjusted) || []).filter((a) =>
     ["accent-text", "focus-ring", "on-accent", "accent-hover", "accent-pressed", "glass-accent"].includes(a.role)
   );
+  // the roles in words, not token names
+  const ROLE_WORDS = {
+    "accent-text": "accent text",
+    "focus-ring": "the focus ring",
+    "on-accent": "text on the accent",
+    "accent-hover": "the hover color",
+    "accent-pressed": "the pressed color",
+    "glass-accent": "the Glass tint"
+  };
   async function pickAccent(hex) {
     await run(async () => {
       // a built-in scheme wears ewe.conf's accent; a user scheme keeps its own
@@ -222,18 +231,14 @@
   }
 </script>
 
-<Page title="Appearance" desc="The scheme, the accent color, the look of controls, and Glass.">
-  <!-- ── Scheme ─────────────────────────────────────────────────────── -->
+<Page title="Appearance" desc="Scheme, accent, the look of controls, and Glass.">
+  <svelte:fragment slot="actions">
+    <button class="ewe-btn ewe-btn--secondary" data-setting="Import scheme" disabled={busy} on:click={openImport}>Import scheme…</button>
+  </svelte:fragment>
+
+  <!-- ── Scheme: equal cards, four across, then "From wallpaper" ──────── -->
   <Group title="Scheme" well={false}>
-    <svelte:fragment slot="action">
-      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={busy} on:click={() => fromWallpaper(false)}>
-        <Icon name="image" />From wallpaper
-      </button>
-      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={busy} on:click={openImport}>
-        <Icon name="fileDown" />Import scheme…
-      </button>
-    </svelte:fragment>
-    <div class="scheme-grid" role="radiogroup" aria-label="Scheme">
+    <div class="scheme-grid" role="radiogroup" aria-label="Scheme" data-setting="Scheme">
       {#each schemes as s, i (s.slug)}
         <SchemeCard
           bind:el={cards[i]}
@@ -250,96 +255,103 @@
           onKey={(e) => cardKey(e, i)}
         />
       {/each}
+      <button type="button" class="scheme-add" data-setting="From wallpaper" disabled={busy} on:click={() => fromWallpaper(false)}>
+        <Icon name="image" />
+        <span class="scheme-add__title">From wallpaper</span>
+        <span class="scheme-add__desc">Colors picked from your picture</span>
+      </button>
     </div>
-    <svelte:fragment slot="after">
-      <p class="note">
-        Every scheme is a palette. Duplicate one and export it to edit it in any text editor, then import
-        it again. Imports read Base16 and Base24 YAML, Omarchy colors.toml, Catppuccin palette.json and Gogh.
-      </p>
-    </svelte:fragment>
   </Group>
 
   <!-- ── Accent color ───────────────────────────────────────────────── -->
   <Group title="Accent color">
-    <Row
-      sub={currentScheme && !currentScheme.builtin
-        ? `Buttons, switches, the focus ring and window borders follow it. Changing it changes ${currentScheme.name}.`
-        : "Buttons, switches, the focus ring and window borders follow it."}
-      block
-    >
+    <div data-setting="Accent color">
       <AccentPicker presets={accentPresets} value={accent} disabled={busy} onChange={pickAccent} />
-    </Row>
+    </div>
+    {#if currentScheme && !currentScheme.builtin}
+      <Row sub="Changing it changes {currentScheme.name}." />
+    {/if}
     {#if accentMoves.length}
-      <div class="p-1">
+      <div class="row-pad">
         <Alert tone="info">
-          This color can't be used as it is: {accentMoves.map((a) => a.role).join(", ")}
-          {accentMoves.length === 1 ? "was" : "were"} adjusted to stay readable.
+          Adjusted to stay readable: {accentMoves.map((a) => ROLE_WORDS[a.role] || a.role).join(", ")}.
         </Alert>
       </div>
     {/if}
   </Group>
 
   <!-- ── Look presets ───────────────────────────────────────────────── -->
-  <Group title="Look" desc="Corners, spacing and outlines. They never change colors or text.">
+  <Group title="Look">
     <Row title="Corners">
       <Seg label="Corners" options={corners} value={input.corner === "round" ? "large" : input.corner || "medium"} disabled={busy} picked={(v) => setConf("desktop.theme.corner", v)} />
     </Row>
-    <Row title="Density" sub="How tall controls and rows are: 24, 28 or 32px.">
+    <Row title="Density" sub="How tall controls and rows are">
       <Seg label="Density" options={densities} value={input.density || "comfortable"} disabled={busy} picked={(v) => setConf("desktop.theme.density", v)} />
     </Row>
-    <Row title="Outlines" sub="The line around controls, cards and panels. Fields always keep one.">
+    <Row title="Outlines" sub="The line around controls, cards and panels">
       <Seg label="Outlines" options={strokes} value={input.stroke || "thin"} disabled={busy} picked={(v) => setConf("desktop.theme.stroke", v)} />
     </Row>
   </Group>
 
-  <!-- ── Glass and transparency ─────────────────────────────────────── -->
-  <!-- Bar opacity moves the bar, the dock and the lock card only; the
-       Overview and desktop widgets keep the Glass material at 80%. -->
-  <Group title="Glass and transparency">
+  <!-- ── Glass: the switch reveals its opacity ──────────────────────────
+       Opacity moves the bar, the dock and the lock card only; the Overview
+       and desktop widgets keep the Glass material at 80%. -->
+  <Group title="Glass">
     {#if solidBy}
-      <div class="p-1">
+      <div class="row-pad">
         <Alert tone="info" title="{solidBy} is on">
           {windowsSolid
-            ? "The bar, the dock and every window stay solid while it is. Turn it off in Accessibility to use these."
+            ? "The bar, the dock and every window stay solid while it is. Turn it off in Accessibility to use Glass."
             : "The bar and the dock stay solid while it is. Turn it off in Accessibility to use Glass."}
         </Alert>
       </div>
     {/if}
     <ToggleRow
       title="Glass"
-      sub="A see-through bar and dock with the desktop blurred behind them. On returns to your last opacity, 80% the first time. Off makes them solid."
+      sub="A see-through bar and dock, with the desktop blurred behind them"
       dim={busy || !!solidBy}
       on={glassPct < 100}
       toggled={toggleGlass}
     />
-    <SliderRow
-      label="Bar opacity"
-      sub="How solid the bar, the dock and the lock screen card are. Below 100% what is behind them shows through, blurred."
-      value={glassPct}
-      from={GLASS_MIN}
-      to={100}
-      unit="%"
-      dim={busy || !!solidBy}
-      moved={(v) => setConf("desktop.theme.bar_opacity", Math.round(v))}
-    />
-    {#if !solidBy && (glassPct < GLASS || (!blurOk && glassPct < 90 && glassPct < 100))}
-      <div class="p-1">
-        {#if !blurOk && glassPct < 90}
+    {#if glassPct < 100}
+      <SliderRow
+        label="Opacity"
+        value={glassPct}
+        from={GLASS_MIN}
+        to={99}
+        unit="%"
+        indent
+        dim={busy || !!solidBy}
+        moved={(v) => setConf("desktop.theme.bar_opacity", Math.min(99, Math.round(v)))}
+      />
+      {#if !solidBy && (glassPct < GLASS || (!blurOk && glassPct < 90))}
+        <div class="row-pad">
           <Alert tone="warning" title="Text can be hard to read on bright wallpapers">
-            This computer can't blur behind the bar, so the wallpaper stays sharp. Use 90% or more.
+            {!blurOk && glassPct < 90
+              ? "This computer can't blur behind the bar, so the wallpaper stays sharp. Use 90% or more."
+              : "Below 80%, the bar's text can lose contrast. 80% or more keeps it readable."}
           </Alert>
-        {:else}
-          <Alert tone="warning" title="Text can be hard to read on bright wallpapers">
-            Below 80%, the bar's text can lose contrast. 80% or more keeps it readable.
-          </Alert>
-        {/if}
-      </div>
+        </div>
+      {/if}
     {/if}
+  </Group>
+
+  <!-- ── Windows ────────────────────────────────────────────────────── -->
+  <Group title="Windows">
+    <ToggleRow
+      title="Tint window borders"
+      sub="The active window's border follows the accent color"
+      dim={busy}
+      on={!!$prefs.tintBorders}
+      toggled={(v) => run(async () => { await setPrefs({ tintBorders: v }); await applyBorder(); })}
+    />
     <ToggleRow
       title="App blur"
-      sub={blurOk
-        ? "Every window at 85% with what is behind it blurred. Fullscreen windows stay solid."
-        : "This computer can't blur (a virtual machine or an NVIDIA card), so windows stay solid even when this is on."}
+      sub={!blurOk
+        ? "This computer can't blur, so windows stay solid even when this is on"
+        : windowsSolid
+          ? "Off while Reduce transparency is on"
+          : "Every window slightly see-through, blurred behind. Fullscreen stays solid."}
       dim={busy || windowsSolid}
       on={truthy(input.app_blur) && !windowsSolid}
       toggled={() => setConf("desktop.theme.app_blur", !truthy(input.app_blur))}
@@ -347,33 +359,23 @@
     <ToggleRow
       title="Window transparency"
       sub={truthy(input.app_blur) && blurOk
-        ? "App blur already makes every window see-through, so this has no effect while it is on."
-        : "Windows you're not using turn very slightly see-through."}
+        ? "App blur already makes every window see-through"
+        : "Windows you're not using turn very slightly see-through"}
       dim={busy || windowsSolid || (truthy(input.app_blur) && blurOk)}
       on={truthy(input.window_transparency) && !windowsSolid}
       toggled={(v) => run(async () => { await setTransparency(v); await refreshTheme(); })}
     />
   </Group>
 
-  <!-- ── Windows and sound ──────────────────────────────────────────── -->
-  <Group title="Windows and sound">
-    <ToggleRow
-      title="Tint window borders"
-      sub="The active window's border follows the accent color."
-      dim={busy}
-      on={!!$prefs.tintBorders}
-      toggled={(v) => run(async () => { await setPrefs({ tintBorders: v }); await applyBorder(); })}
-    />
+  <!-- ── Sound ──────────────────────────────────────────────────────── -->
+  <Group title="Sound">
     <ToggleRow
       title="Event sounds"
-      sub="Chimes for notifications, volume, screenshots and power events."
+      sub="Chimes for notifications, volume, screenshots and power"
       dim={busy}
       on={$prefs.eventSounds !== false}
       toggled={(v) => run(() => setPrefs({ eventSounds: v }))}
     />
-    <Row title="Animations" sub="Speed, character, curves and styles have their own page.">
-      <button class="ewe-link" on:click={() => pane.set("animations")}>Open Animations<Icon name="caretRight" /></button>
-    </Row>
   </Group>
 </Page>
 
@@ -382,7 +384,7 @@
   <button type="button" class="ewe-drop import-drop" on:click={chooseFile}>
     <Icon name="fileDown" />
     <span class="ewe-drop__title">{importFile ? "Choose another file…" : "Choose a file…"}</span>
-    <span class="ewe-drop__hint">YAML, TOML or JSON: Base16, Base24, Omarchy, Catppuccin or Gogh</span>
+    <span class="ewe-drop__hint">Base16, Base24, Omarchy, Catppuccin or Gogh</span>
   </button>
   {#if importFile}
     <div class="ewe-file">
@@ -420,6 +422,10 @@
   {#if importError}
     <Alert tone="danger" title="Couldn't import the scheme">{importError}</Alert>
   {/if}
+  <p class="note">
+    To make your own, duplicate a scheme, copy it as YAML, change the colors in any text editor and import
+    it here.
+  </p>
   <svelte:fragment slot="footer">
     <button class="ewe-btn ewe-btn--secondary" on:click={() => (importOpen = false)}>Cancel</button>
     <button class="ewe-btn ewe-btn--primary" disabled={busy || !importSrc} on:click={doImport}>
@@ -438,7 +444,7 @@
         <div class="ewe-dialog__titles">
           <Dialog.Title class="ewe-dialog__title">Remove {removing?.name}?</Dialog.Title>
           <Dialog.Description class="ewe-dialog__desc">
-            The scheme is deleted from ewe.conf on every computer that syncs it. Export it first to keep a copy.
+            It's deleted on every computer that syncs your settings. Copy it as YAML first to keep it.
             {#if removing?.current}The desktop switches to Ewe Dark.{/if}
           </Dialog.Description>
         </div>

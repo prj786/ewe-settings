@@ -2,8 +2,9 @@
   /**
    * Accent picker (design/system/components/AccentPicker): the presets as
    * 28px swatches in a radio group, the selected one with a check in black
-   * or white (whichever contrasts) and a double ring, and a custom swatch
-   * that opens the system color chooser. Arrow keys move between swatches.
+   * or white (whichever contrasts) and a double ring; a custom color in use
+   * shows as one more selected swatch. The hex and a "Custom…" button (the
+   * system color chooser) sit on the right. Arrow keys move between swatches.
    */
   import Icon from "./Icon.svelte";
   import { accentDefault } from "../../stores.js";
@@ -37,42 +38,50 @@
   }
 </script>
 
-<div class="ewe-swatches" role="radiogroup" aria-label="Accent color">
-  {#each presets as p, i (p.hex)}
-    <button
-      bind:this={items[i]}
-      type="button"
-      class="ewe-swatch"
-      class:is-selected={cur === p.hex}
-      role="radio"
-      aria-checked={cur === p.hex}
-      aria-label={p.name}
-      title={p.name}
-      tabindex={cur === p.hex || (!isPreset && i === 0) ? 0 : -1}
-      style="--swatch: {p.hex}; --swatch-ink: {p.ink || ink(p.hex)}"
-      {disabled}
-      on:click={() => cur !== p.hex && onChange(p.hex)}
-      on:keydown={(e) => key(e, i)}
-    >
-      {#if cur === p.hex}<Icon name="check" />{/if}
-    </button>
-  {/each}
-  <!-- a custom color: the swatch is the system color chooser's button -->
-  <label
-    class="ewe-swatch ewe-swatch--custom"
-    class:is-selected={!isPreset && cur}
-    style={!isPreset && cur ? `--swatch: ${cur}; background: ${cur}; border-style: solid; color: ${ink(cur)}` : ""}
-    title={!isPreset && cur ? `Custom ${cur}` : "Pick any color"}
-  >
-    <Icon name={!isPreset && cur ? "check" : "plus"} />
+<div class="accent-row">
+  <div class="ewe-swatches" role="radiogroup" aria-label="Accent color">
+    {#each presets as p, i (p.hex)}
+      <button
+        bind:this={items[i]}
+        type="button"
+        class="ewe-swatch"
+        class:is-selected={cur === p.hex}
+        role="radio"
+        aria-checked={cur === p.hex}
+        aria-label={p.name}
+        title={p.name}
+        tabindex={cur === p.hex || (!isPreset && i === 0) ? 0 : -1}
+        style="--swatch: {p.hex}; --swatch-ink: {p.ink || ink(p.hex)}"
+        {disabled}
+        on:click={() => cur !== p.hex && onChange(p.hex)}
+        on:keydown={(e) => key(e, i)}
+      >
+        {#if cur === p.hex}<Icon name="check" />{/if}
+      </button>
+    {/each}
+    {#if !isPreset && cur}
+      <!-- the custom color in use, selected like a preset -->
+      <span
+        class="ewe-swatch is-selected"
+        role="radio"
+        aria-checked="true"
+        aria-label="Custom {cur}"
+        title="Custom {cur}"
+        style="--swatch: {cur}; --swatch-ink: {ink(cur)}"
+      ><Icon name="check" /></span>
+    {/if}
+  </div>
+  <span class="accent-hex">{cur}</span>
+  <!-- Custom…: the system color chooser behind a ghost button -->
+  <label class="ewe-btn ewe-btn--ghost ewe-btn--sm accent-custom" title="Pick any color">
+    Custom…
     <input
       type="color"
       class="sr-only"
       value={cur || accentDefault()}
       {disabled}
-      aria-label={!isPreset && cur ? `Custom color ${cur}` : "Pick any color"}
+      aria-label="Pick any color"
       on:change={(e) => onChange(e.currentTarget.value)}
     />
   </label>
-  <span class="accent-hex" aria-hidden="true">{cur}</span>
 </div>

@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "icons": "bash scripts/gen-icons.sh"
+    "icons": "bash scripts/gen-icons.sh",
+    "check": "node scripts/check-search.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

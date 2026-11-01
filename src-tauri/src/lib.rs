@@ -100,5 +100,5 @@ pub fn run() {
             addons::open_addons,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Settings");
+        .expect("error while running ewe Settings");
 }

@@ -1,7 +1,9 @@
 # ewe-settings
 
-The settings app for [ewe](https://github.com/prj786/ewe) — an Arch-only
-Hyprland desktop. Tauri v2 + Svelte 5. Formerly `hypr-shell-settings`; the
+**ewe Settings**, the settings app for [ewe](https://github.com/prj786/ewe) —
+an Arch-only Hyprland desktop. Tauri v2 + Svelte 5. The display name is
+"ewe Settings"; the package, the binary, the desktop file and the window
+class stay `ewe-settings`. Formerly `hypr-shell-settings`; the
 package `provides`/`replaces` the old name and ships a `hypr-settings`
 compatibility symlink.
 
@@ -60,7 +62,11 @@ The checkout is found via `$EWE_REPO` (or the legacy `$HYPR_SHELL_REPO`), then
 ```bash
 npm install
 npm run tauri dev
+npm run check   # Find a setting's index still matches the pages
 ```
+
+`dev-mock.html` (on the dev server) fakes the Tauri bridge so every page
+can be looked at in a browser; its header lists the query parameters.
 
 Packaging is a `PKGBUILD` — Arch only, built on Arch:
 

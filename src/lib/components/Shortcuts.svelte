@@ -5,15 +5,18 @@
   import { addons, loadAddons, hasAddon } from "../addons.js";
 
   let rows = [];
+  let loaded = false;
   onMount(async () => {
     loadAddons();
     try {
       rows = shortcutsModel(await api.readConfig("hypr/SHORTCUTS.md"));
     } catch {}
+    loaded = true;
   });
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
   import Row from "./ui/Row.svelte";
+  import Icon from "./ui/Icon.svelte";
   // A heading or row that names a plugin (`ewe.screenshot`, `ewe.cast`…)
   // is that plugin's bind: shown only while the plugin is installed and on,
   // so the page never lists a key that does nothing.
@@ -33,15 +36,23 @@
   const keys = (a) => String(a).split(/\s*\+\s*/).filter(Boolean);
 </script>
 
-<Page title="Keyboard shortcuts" desc="Every shortcut the desktop knows. They're always shown, never required.">
-  {#if rows.length === 0}
-    <p class="note">SHORTCUTS.md wasn't found.</p>
+<Page title="Keyboard shortcuts" desc="Every shortcut the desktop knows. They're always there, never required.">
+  {#if !loaded}
+    <Group title="Shortcuts"><Row sub="Reading the shortcuts…" /></Group>
+  {:else if rows.length === 0}
+    <Group title="Shortcuts">
+      <div class="ewe-empty">
+        <span class="ewe-empty__icon"><Icon name="command" /></span>
+        <div class="ewe-empty__title">No shortcuts to show</div>
+        <div class="ewe-empty__desc">The list of shortcuts is missing from this computer. Updating ewe brings it back.</div>
+      </div>
+    </Group>
   {/if}
 
   {#each groups as g, gi (gi)}
-    <Group title={g.title}>
+    <Group title={g.title || "Shortcuts"}>
       {#each g.rows as r, i (i)}
-        <Row title={r.b} dense>
+        <Row title={r.b}>
           <span class="ewe-kbd-combo">
             {#each keys(r.a) as k, ki (ki)}{#if ki}<span aria-hidden="true">+</span>{/if}<kbd class="ewe-kbd">{k}</kbd>{/each}
           </span>

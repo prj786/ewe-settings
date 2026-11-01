@@ -13,6 +13,14 @@
        addons=fresh|dock|legacy                  fresh (default): no dock, two bar
                                                  widgets; dock: ewe.dock on too;
                                                  legacy: an ewe before opt-in plugins
+       find=<words>                              type that into Find a setting
+       open=1                                    …and open the first result
+       glass=<0-100>                             the bar opacity (100 = Glass off)
+     Every invoke is logged in window.__calls ([cmd, args]), so a test can
+     assert that just viewing a page writes nothing (set_conf, write_*);
+     ?calls appends them to the page as <pre id="calls"> for --dump-dom.
+     Fonts: copy ewe/design/system/fonts/*.woff2 into .dev-mock/fonts/ and
+     the page uses Geist like the real app.
      The theme replies are real `ewe-theme show` / `scheme list|show` output,
      generated into .dev-mock/ (git-ignored) from an isolated XDG_CONFIG_HOME;
      without them the compiled tokens.css (Ewe Dark) stands. -->
@@ -20,7 +28,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Settings (mock)</title>
+    <title>ewe Settings (mock)</title>
     <script>
       const q = new URLSearchParams(location.search);
       const scheme = q.get("scheme") || "ewe-dark";
@@ -32,10 +40,18 @@
         disabled: false, mirrorOf: "none",
         availableModes: [w + "x" + h + "@120.00Hz", w + "x" + h + "@60.00Hz", "1920x1080@60.00Hz"]
       });
+      window.__calls = [];
+      document.write(`<style>
+        @font-face { font-family: "Geist"; src: url("/.dev-mock/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; }
+        @font-face { font-family: "Geist Mono"; src: url("/.dev-mock/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      </style>`);
+      const glass = q.get("glass");
+      const withGlass = (t) => (glass && t && t.input ? { ...t, input: { ...t.input, bar_opacity: Number(glass) } } : t);
       window.__TAURI_INTERNALS__ = {
         transformCallback: (cb) => cb,
         metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
         invoke: (cmd, args) => {
+          window.__calls.push([cmd, args]);
           switch (cmd) {
             case "hyprctl_query":
               if (args && args.args && args.args[0] === "devices") return Promise.resolve(JSON.stringify({ mice: [{ name: "logitech-mx-master-3" }, { name: "elan-touchpad" }] }));
@@ -44,7 +60,9 @@
                 mon("eDP-1", 2880, 1800, 0, 0, 2, "BOE NE160QDM"),
                 mon("DP-1", 2560, 1440, 1440, 0, 1, "Dell U2724D")
               ]));
-            case "read_config": return Promise.resolve("");
+            case "read_config":
+              if (args.rel === "hypr/SHORTCUTS.md") return Promise.resolve("## Windows\n| Super + Q | Close the window |\n| Super + F | Fullscreen |\n## Workspaces\n| Super + 1 … 9 | Go to a workspace |\n| Super + Shift + 1 … 9 | Move the window there |");
+              return Promise.resolve("");
             case "read_prefs": return Promise.resolve({ accent: "#eeb407", tintBorders: true, eventSounds: true });
             case "write_prefs": return Promise.resolve({ accent: "#eeb407" });
             case "vrr_caps": return Promise.resolve({ "eDP-1": false, "DP-1": true });
@@ -65,7 +83,7 @@
               return Promise.resolve("");
             }
             case "user_info": return Promise.resolve({ user: "mock", host: "ewe", realName: "Nino Beridze", uptime: "3 h 12 min" });
-            case "theme_tokens": return json(`/.dev-mock/theme-${scheme}.json`);
+            case "theme_tokens": return json(`/.dev-mock/theme-${scheme}.json`).then(withGlass);
             case "theme_scheme": {
               const verb = args.args[0];
               if (verb === "list") return json(`/.dev-mock/list-${listSlug}.json`);
@@ -125,7 +143,21 @@
                 { address: "EE:FF", name: "Pixel 9", icon: "phone", paired: false, connected: false, rssi: -61 }
               ]
             });
-            case "diagnostics": return Promise.resolve({ hypr: "0.55.1", kernel: "7.2.6-arch2-1", gpu: "amdgpu", mem: "12.1 GB of 32 GB", disk: "212 GB free", gsession: "active", portal: "active", portal_hypr: "active", portal_gtk: "inactive", browser: "helium.desktop" });
+            case "diagnostics": return Promise.resolve({ hypr: "0.57.0", hypr_raw: "Hyprland 0.57.0 built from branch v0.57.0 at commit 0aa6745f clean", kernel: "7.2.11-arch1-1", gpu: "amdgpu", mem: "12.0 GB of 30.8 GB in use", disk: "254 GB of 953 GB used", gsession: "active", portal: "active", portal_hypr: "active", portal_gtk: "inactive", browser: "helium.desktop", hypridle: "yes" });
+            // Default apps: what xdg-mime / gio answer, and the names behind the ids
+            case "mime_default": return Promise.resolve({ "x-scheme-handler/https": "helium.desktop", "x-scheme-handler/mailto": "", "text/plain": "dev.zed.Zed.desktop", "image/png": "org.gnome.Loupe.desktop", "video/mp4": "mpv.desktop", "inode/directory": "org.gnome.Nautilus.desktop" }[args.mime] ?? "");
+            case "mime_apps": return Promise.resolve({ "x-scheme-handler/https": ["helium.desktop", "zen.desktop", "kitty-open.desktop"], "x-scheme-handler/mailto": [], "text/plain": ["dev.zed.Zed.desktop", "org.gnome.TextEditor.desktop"], "image/png": ["org.gnome.Loupe.desktop", "helium.desktop"], "video/mp4": ["mpv.desktop", "vlc.desktop"], "inode/directory": ["org.gnome.Nautilus.desktop"] }[args.mime] ?? []);
+            case "app_names": return Promise.resolve(Object.fromEntries(Object.entries({ "helium.desktop": "Helium", "zen.desktop": "Zen Browser", "kitty-open.desktop": "kitty URL Launcher", "dev.zed.Zed.desktop": "Zed", "org.gnome.TextEditor.desktop": "Text Editor", "org.gnome.Loupe.desktop": "Image Viewer", "mpv.desktop": "mpv Media Player", "vlc.desktop": "VLC media player", "org.gnome.Nautilus.desktop": "Files" }).filter(([k]) => args.ids.includes(k))));
+            case "power_info": return Promise.resolve({ battery: { capacity: 84, status: "Discharging", health: 0.91, cycles: 212, chargeLimit: 80, chargeLimitWritable: true }, kbdBacklight: { present: true, value: 1, max: 3 }, profiles: ["power-saver", "balanced", "performance"], profile: "balanced" });
+            case "default_wallpaper_dir": return Promise.resolve("/usr/share/ewe/system/branding/wallpapers");
+            case "list_wallpapers": return Promise.resolve([]);
+            case "wallpaper_backend": return Promise.resolve("img=awww video=mpvpaper");
+            case "time_info": return Promise.resolve({ timezone: "Asia/Tbilisi", auto: true, ntp: true, ntpSynced: true });
+            case "list_timezones": return Promise.resolve(["Asia/Tbilisi", "Asia/Tokyo", "Europe/Berlin", "Europe/London", "America/New_York"]);
+            case "locale_info": return Promise.resolve({ current: "en_US.UTF-8", currentLabel: "English (United States)", generated: true, choices: [{ code: "en_US.UTF-8", label: "English (United States)", generated: true }, { code: "ka_GE.UTF-8", label: "Georgian (Georgia)", generated: false }, { code: "de_DE.UTF-8", label: "German (Germany)", generated: true }] });
+            case "hostname_get": return Promise.resolve("ewe-laptop");
+            case "net_connections": return Promise.resolve([{ uuid: "1", name: "office", type: "802-11-wireless", active: true, dev: "wlan0" }, { uuid: "2", name: "Home", type: "802-11-wireless", active: false }]);
+            case "desktop_apps": return Promise.resolve([{ id: "helium", name: "Helium", exec: "helium %U", icon: "helium", comment: "Web browser" }, { id: "kitty", name: "kitty", exec: "kitty", icon: "kitty", comment: "Terminal" }, { id: "org.gnome.Nautilus", name: "Files", exec: "nautilus", icon: "files", comment: "Your files" }]);
             default: return Promise.resolve("");
           }
         }
@@ -138,6 +170,21 @@
         const focus = q.get("focus");
         setTimeout(() => {
           if (pane) document.querySelector(`.ewe-navitem[title="${pane}"]`)?.click();
+          const find = q.get("find");
+          if (find) {
+            const f = document.querySelector(".nav-search input");
+            f.focus();
+            f.value = find;
+            f.dispatchEvent(new Event("input", { bubbles: true }));
+            if (q.get("open")) setTimeout(() => f.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })), 50);
+          }
+          // ?calls: after the page settles, list every command it ran
+          if (q.has("calls")) setTimeout(() => {
+            const pre = document.createElement("pre");
+            pre.id = "calls";
+            pre.textContent = JSON.stringify(window.__calls.map(([c, a]) => (c === "theme_scheme" ? `${c} ${a.args[0]}` : c)));
+            document.body.append(pre);
+          }, 2500);
           setTimeout(() => {
             if (q.get("click")) document.querySelector(q.get("click"))?.click();
             if (focus) document.querySelector(focus)?.focus();

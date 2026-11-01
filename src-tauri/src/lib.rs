@@ -51,6 +51,7 @@ pub fn run() {
             backend::default_wallpaper_dir,
             backend::list_wallpapers,
             backend::desktop_apps,
+            backend::app_names,
             backend::mime_default,
             backend::mime_apps,
             backend::set_mime_default,
@@ -99,5 +100,5 @@ pub fn run() {
             addons::open_addons,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Settings");
+        .expect("error while running ewe Settings");
 }

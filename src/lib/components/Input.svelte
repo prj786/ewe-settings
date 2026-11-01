@@ -36,9 +36,8 @@
   let registry = null;
 
   onMount(async () => {
-    // the per-device overrides FIRST: the "persist the live truth" write
-    // below sends `devices` along, and sending it before this file was read
-    // wiped every override on every open of this pane (2026-09-20)
+    // the per-device overrides FIRST: every write sends `devices` along, and
+    // sending it before this file was read wiped every override (2026-09-20)
     try {
       const j = JSON.parse((await api.readConfig("quickshell/input-devices.json")) || "{}");
       if (j && typeof j === "object") devOverrides = j;
@@ -48,8 +47,10 @@
       const text = await api.hyprctl(["--batch", batch]);
       inp = parseInputBlocks(text, inp);
       loaded = true;
-      // persist the live truth right away: covers first run and migration
-      writeInputFile();
+      // Nothing is written here. Opening this page used to persist the live
+      // values at once, which rewrote ewe.conf [desktop.input] and input.lua
+      // (and asked for a sync) just from looking. The first real change
+      // sends the whole object anyway, so a first run still ends up complete.
     } catch (e) {
       errorMsg.set(String(e));
     }
@@ -178,15 +179,21 @@
   import Row from "./ui/Row.svelte";
   import Icon from "./ui/Icon.svelte";
   import PickList from "./ui/PickList.svelte";
+  import Sheet from "./ui/Sheet.svelte";
 </script>
 
 <Page title="Keyboard and mouse" desc="Keyboard layouts and typing, the mouse and the touchpad.">
   {#if !loaded}
-    <p class="note">Reading the input settings…</p>
+    <Group title="Keyboard layouts"><Row sub="Reading the input settings…" /></Group>
   {:else}
-    <Group title="Keyboard layouts">
+    <Group title="Keyboard layouts" desc="The first one is used when you sign in.">
+      <svelte:fragment slot="action">
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => ((addQuery = ""), (showAdd = true))}>
+          <Icon name="plus" />Add layout…
+        </button>
+      </svelte:fragment>
       {#each kbActive as l, i (l.code + i)}
-        <div class="ewe-row">
+        <div class="ewe-row" data-setting={i === 0 ? "Keyboard layouts" : undefined}>
           <span class="ewe-badge layout-code"><span class="ewe-badge__label">{l.code.toUpperCase()}</span></span>
           <div class="ewe-row__text"><div class="ewe-row__title">{nameOf(l.code)}</div></div>
           <div class="ewe-row__trail">
@@ -196,7 +203,7 @@
               onValueChange={(raw) => kbSetVariant(i, vDec(raw))}
             >
               <Select.Trigger size="sm" class="select-trigger" aria-label="Variant of {nameOf(l.code)}">
-                {l.variant || "Default"}
+                {variantOpts(l.code).find((v) => v.value === l.variant)?.label || l.variant || "Default"}
               </Select.Trigger>
               <Select.Content>
                 {#each variantOpts(l.code) as v (vEnc(v.value))}
@@ -212,35 +219,19 @@
           </div>
         </div>
       {/each}
-      {#if showAdd}
-        <div class="ewe-list__divider"></div>
-        <PickList
-          bind:query={addQuery}
-          placeholder="Search layouts"
-          items={addCandidates.slice(0, 30).map((p) => ({ id: p.c, title: p.n, trail: p.c.toUpperCase(), p }))}
-          pick={(it) => kbAdd(it.p.c)}
-        />
-        <div class="flex justify-end p-1">
-          <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => (showAdd = false)}>Cancel</button>
-        </div>
-      {:else}
-        <div class="p-1">
-          <button class="ewe-btn ewe-btn--ghost ewe-btn--sm" on:click={() => (showAdd = true)}><Icon name="plus" />Add layout</button>
-        </div>
-      {/if}
     </Group>
 
-    <Group title="Switching and typing">
+    <Group title="Typing">
       <SelectRow
         label="Switch layouts with"
-        sub="Super+Space always works too."
+        sub="Super+Space always works too"
         options={GRP_OPTIONS}
         value={kbOptToken("grp:")}
         picked={(v) => setKbOptPrefix("grp:", v)}
       />
       <ToggleRow
         title="Remember the layout for each window"
-        sub="Every window keeps its own keyboard layout."
+        sub="Every window keeps its own keyboard layout"
         on={perWindowKb}
         toggled={() => setPerWindowKb(!perWindowKb)}
       />
@@ -249,15 +240,15 @@
         on={!!inp.numlock_by_default}
         toggled={() => applyInput({ numlock_by_default: !inp.numlock_by_default })}
       />
-      <SliderRow label="Key repeat rate" value={Number(inp.repeat_rate)} from={5} to={80} unit="/s" moved={(v) => applyInput({ repeat_rate: Math.round(v) })} />
-      <SliderRow label="Repeat delay" value={Number(inp.repeat_delay)} from={150} to={1000} step={10} unit=" ms" moved={(v) => applyInput({ repeat_delay: Math.round(v) })} />
+      <SliderRow label="Key repeat rate" sub="Characters per second while a key is held" value={Number(inp.repeat_rate)} from={5} to={80} unit="/s" moved={(v) => applyInput({ repeat_rate: Math.round(v) })} />
+      <SliderRow label="Repeat delay" sub="How long to hold a key before it repeats" value={Number(inp.repeat_delay)} from={150} to={1000} step={10} unit=" ms" moved={(v) => applyInput({ repeat_delay: Math.round(v) })} />
     </Group>
 
     <Group title="Mouse">
       {#if pointerMice.length > 1}
         <SelectRow
           label="Configure"
-          sub="Settings for one device override the ones for all."
+          sub="Settings for one device override the ones for all"
           options={[{ label: "All pointing devices", value: "" }, ...pointerMice.map((n) => ({ label: n, value: n }))]}
           value={devTarget}
           picked={(v) => (devTarget = v)}
@@ -267,14 +258,16 @@
       <SelectRow
         label="Acceleration"
         options={[
-          { label: "Adaptive (default)", value: "" },
-          { label: "Flat (no acceleration)", value: "flat" }
+          { label: "Adaptive", value: "" },
+          { label: "Flat", value: "flat" }
         ]}
+        sub="Flat moves the pointer the same distance however fast you move"
         value={devTarget === "" ? inp.accel_profile : (devOverrides[devTarget]?.accel_profile ?? "")}
         picked={(v) => setMouse({ accel_profile: v })}
       />
       <ToggleRow
         title="Natural scrolling"
+        sub="The content follows your fingers, like on a phone"
         on={devTarget === "" ? !!inp.natural_scroll : !!(devOverrides[devTarget]?.natural_scroll ?? inp.natural_scroll)}
         toggled={() =>
           setMouse({
@@ -295,19 +288,29 @@
     {#if hasTouchpad}
       <Group title="Touchpad">
         <ToggleRow title="Tap to click" on={!!inp.tp_tap} toggled={() => applyInput({ tp_tap: !inp.tp_tap })} />
-        <ToggleRow title="Natural scrolling" on={!!inp.tp_natural_scroll} toggled={() => applyInput({ tp_natural_scroll: !inp.tp_natural_scroll })} />
+        <ToggleRow title="Natural scrolling" sub="The content follows your fingers" on={!!inp.tp_natural_scroll} toggled={() => applyInput({ tp_natural_scroll: !inp.tp_natural_scroll })} />
         <ToggleRow title="Turn off while typing" on={!!inp.tp_dwt} toggled={() => applyInput({ tp_dwt: !inp.tp_dwt })} />
         <ToggleRow
           title="Two-finger right-click"
-          sub="Two fingers click right, three click middle, instead of corner zones."
+          sub="Two fingers click right and three click middle, instead of corner zones"
           on={!!inp.tp_clickfinger}
           toggled={() => applyInput({ tp_clickfinger: !inp.tp_clickfinger })}
         />
-        <ToggleRow title="Middle-button emulation" on={!!inp.tp_mbe} toggled={() => applyInput({ tp_mbe: !inp.tp_mbe })} />
+        <ToggleRow title="Middle-button emulation" sub="Click left and right together for a middle click" on={!!inp.tp_mbe} toggled={() => applyInput({ tp_mbe: !inp.tp_mbe })} />
         <ToggleRow title="Tap and drag" on={!!inp.tp_tap_drag} toggled={() => applyInput({ tp_tap_drag: !inp.tp_tap_drag })} />
-        <ToggleRow title="Drag lock" on={!!inp.tp_drag_lock} toggled={() => applyInput({ tp_drag_lock: !inp.tp_drag_lock })} />
+        <ToggleRow title="Drag lock" sub="Lifting your finger mid-drag doesn't drop what you're dragging" on={!!inp.tp_drag_lock} toggled={() => applyInput({ tp_drag_lock: !inp.tp_drag_lock })} />
         <SliderRow label="Scroll speed" value={Number(inp.tp_scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ tp_scroll_factor: Math.round(v * 10) / 10 })} />
       </Group>
     {/if}
   {/if}
 </Page>
+
+<!-- Add a keyboard layout: pick it in a Sheet -->
+<Sheet open={showAdd} title="Add a keyboard layout" onClose={() => (showAdd = false)}>
+  <PickList
+    bind:query={addQuery}
+    placeholder="Search layouts"
+    items={addCandidates.slice(0, 60).map((p) => ({ id: p.c, title: p.n, trail: p.c.toUpperCase(), p }))}
+    pick={(it) => kbAdd(it.p.c)}
+  />
+</Sheet>

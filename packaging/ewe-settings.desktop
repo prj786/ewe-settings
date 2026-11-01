@@ -1,10 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Settings
+Name=ewe Settings
+GenericName=Settings
 Comment=Appearance, displays, input, power and startup
 Exec=ewe-settings
 Icon=ewe-settings
 Terminal=false
 Categories=Settings;DesktopSettings;
-Keywords=settings;preferences;appearance;display;power;
+Keywords=settings;preferences;appearance;display;wallpaper;network;wifi;bluetooth;keyboard;mouse;power;
 StartupWMClass=ewe-settings

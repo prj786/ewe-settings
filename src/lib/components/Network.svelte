@@ -8,7 +8,9 @@
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { errorMsg, flashApplied } from "../stores.js";
   import Toggle from "./ui/Toggle.svelte";
+  import Sheet from "./ui/Sheet.svelte";
   import KV from "./ui/KV.svelte";
+  import ToggleRow from "./ui/ToggleRow.svelte";
   import NetDetails from "./NetDetails.svelte";
 
   let st = null;
@@ -214,6 +216,11 @@
       addError = String(e);
     }
   }
+  let addOpen = false;
+  function openAddVpn() {
+    addError = "";
+    addOpen = true;
+  }
   async function addVpn() {
     addError = "";
     addBusy = true;
@@ -223,7 +230,7 @@
         flashApplied(`${addName.trim()} added`);
       } else {
         await api.vpnImport(addKind, addPath.trim());
-        flashApplied("VPN profile imported");
+        flashApplied("VPN added");
       }
       addName = "";
       addGateway = "";
@@ -231,6 +238,7 @@
       addPass = "";
       addPsk = "";
       addPath = "";
+      addOpen = false;
     } catch (e) {
       addError = String(e);
     }
@@ -241,6 +249,11 @@
   // signal strength as the Wi-Fi glyph's arcs (and its value in words for
   // screen readers), not a row of block characters
   const bars = (s) => (s >= 67 ? "wifi" : s >= 34 ? "wifiHigh" : s >= 15 ? "wifiLow" : "wifiZero");
+  // nearby networks: the connected one and the strongest few, the rest on request
+  const FEW = 6;
+  let allWifi = false;
+  $: wifiShown = st && st.wifi ? (allWifi ? st.wifi : st.wifi.slice(0, FEW)) : [];
+  $: activeSsid = st && st.wifi ? st.wifi.find((w) => w.active)?.ssid : "";
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
   import Row from "./ui/Row.svelte";
@@ -248,24 +261,82 @@
   import * as Select from "./ui/select/index.js";
   const KINDS = [
     { value: "l2tp", label: "L2TP/IPsec" },
-    { value: "openvpn", label: "OpenVPN file (.ovpn)" },
-    { value: "wireguard", label: "WireGuard file (.conf)" }
+    { value: "openvpn", label: "OpenVPN, from a file" },
+    { value: "wireguard", label: "WireGuard, from a file" }
   ];
 </script>
 
-<Page title="Networking" desc="Wi-Fi, the wired connection, IP and DNS settings and VPNs, through NetworkManager.">
+<Page title="Network" desc="Wi-Fi, the wired connection, VPNs and this computer's name.">
   {#if !st}
-    <p class="note">Checking the network…</p>
+    <Group title="Wi-Fi"><Row title="Wi-Fi" sub="Checking the network…" /></Group>
   {:else}
+    {#if st.hasWifi}
+      <Group title="Wi-Fi">
+        <ToggleRow
+          title="Wi-Fi"
+          sub={st.wifiOn ? (activeSsid ? `Connected to ${activeSsid}` : "On, not connected") : "Off"}
+          on={st.wifiOn}
+          toggled={toggleWifi}
+        />
+        {#if st.wifiOn}
+          {#each wifiShown as w (w.ssid)}
+            <div>
+              <button
+                class="ewe-net net-row"
+                class:is-active={w.active}
+                aria-current={w.active || undefined}
+                on:click={() => connect(w)}
+              >
+                <Icon name={bars(w.signal)} label="Signal {w.signal}%" />
+                <span class="ewe-net__name">{w.ssid}</span>
+                {#if w.active}
+                  <span class="ewe-badge ewe-badge--success"><span class="ewe-badge__label">Connected</span></span>
+                {:else if busy === w.ssid}
+                  <span class="ewe-spinner ewe-spinner--sm" aria-hidden="true"></span>
+                  <span class="text-xs text-dim">Connecting…</span>
+                {/if}
+                {#if w.sec}<Icon name="lock" class="ewe-net__lock" label="Needs a password" />{/if}
+              </button>
+              {#if pwTarget === w.ssid && !w.active}
+                <form class="ewe-net__join net-join" on:submit|preventDefault={() => connect(w)}>
+                  <Icon name="lock" size="sm" />
+                  <!-- svelte-ignore a11y_autofocus -->
+                  <input
+                    class="ewe-input"
+                    type="password"
+                    placeholder="Password for {w.ssid}"
+                    aria-label="Password for {w.ssid}"
+                    autofocus
+                    bind:value={pwText}
+                  />
+                  <button class="ewe-btn ewe-btn--primary ewe-btn--sm" type="submit">Connect</button>
+                </form>
+              {/if}
+            </div>
+          {:else}
+            <Row sub="No networks found nearby." />
+          {/each}
+          {#if st.wifi.length > FEW}
+            <div class="row-pad">
+              <button class="ewe-btn ewe-btn--ghost ewe-btn--sm" on:click={() => (allWifi = !allWifi)}>
+                <Icon name={allWifi ? "caretUp" : "caretDown"} />{allWifi ? "Show fewer" : `Show all ${st.wifi.length} networks`}
+              </button>
+            </div>
+          {/if}
+        {/if}
+      </Group>
+    {/if}
+
     {#if st.wired}
       <Group title="Wired">
         <Row
-          icon="cable"
           title="Wired"
-          sub={st.wired.state === "unavailable" ? "No cable"
+          sub={st.wired.state === "unavailable" ? "No cable plugged in"
             : wiredIs(st.wired.state, "connected") ? "Connected"
             : wiredIs(st.wired.state, "connecting") || busy === "wired" ? "Connecting…"
             : "Off"}
+          dim={st.wired.state === "unavailable"}
+          onRow={st.wired.state === "unavailable" ? null : toggleWired}
         >
           <Toggle
             label="Wired"
@@ -277,55 +348,9 @@
       </Group>
     {/if}
 
-    {#if st.hasWifi}
-      <Group title="Wi-Fi">
-        <Row icon="wifi" title="Wi-Fi" sub={st.wifiOn ? (st.wifi.find((w) => w.active)?.ssid ? `Connected to ${st.wifi.find((w) => w.active).ssid}` : "On") : "Off"}>
-          <Toggle label="Wi-Fi" on={st.wifiOn} toggled={toggleWifi} />
-        </Row>
-        {#if st.wifiOn}
-          <div class="ewe-list__divider"></div>
-          {#each st.wifi as w (w.ssid)}
-            <button
-              class="ewe-net net-row"
-              class:is-active={w.active}
-              aria-current={w.active || undefined}
-              on:click={() => connect(w)}
-            >
-              <Icon name={bars(w.signal)} label="Signal {w.signal}%" />
-              <span class="ewe-net__name">{w.ssid}</span>
-              {#if w.active}
-                <span class="text-xs">Connected</span>
-              {:else if busy === w.ssid}
-                <span class="ewe-spinner ewe-spinner--sm" aria-hidden="true"></span>
-                <span class="text-xs text-dim">Connecting…</span>
-              {/if}
-              {#if w.sec}<Icon name="lock" class="ewe-net__lock" label="Secured" />{/if}
-            </button>
-            {#if pwTarget === w.ssid && !w.active}
-              <form class="ewe-net__join net-join" on:submit|preventDefault={() => connect(w)}>
-                <Icon name="lock" size="sm" />
-                <!-- svelte-ignore a11y_autofocus -->
-                <input
-                  class="ewe-input"
-                  type="password"
-                  placeholder="Password for {w.ssid}"
-                  aria-label="Password for {w.ssid}"
-                  autofocus
-                  bind:value={pwText}
-                />
-                <button class="ewe-btn ewe-btn--primary ewe-btn--sm" type="submit">Connect</button>
-              </form>
-            {/if}
-          {:else}
-            <Row sub="No networks found." />
-          {/each}
-        {/if}
-      </Group>
-    {/if}
-
     <Group title="Active connections">
       {#each st.active.filter((c) => c.type !== "loopback") as c (c.name + c.dev)}
-        <KV k={c.name} v={`${typeWord(c.type)} · ${c.dev} · ${stateWord(c.state)}`} />
+        <KV k={c.name} v={`${typeWord(c.type)} · ${stateWord(c.state)}`} />
       {:else}
         <Row sub="Nothing connected." />
       {/each}
@@ -339,40 +364,24 @@
     <Group title="Saved networks" desc="IP addresses, DNS servers and more for each network.">
       {#each conns as c (c.uuid)}
         <button class="ewe-row ewe-row--interactive net-row" on:click={() => (detailsUuid = c.uuid)}>
-          <span class="ewe-row__lead ewe-row__lead--tile"><Icon name={c.type === "802-11-wireless" ? "wifi" : "cable"} /></span>
+          <span class="ewe-row__lead"><Icon name={c.type === "802-11-wireless" ? "wifi" : "cable"} /></span>
           <span class="ewe-row__text">
             <span class="ewe-row__title">{c.name}</span>
-            <span class="ewe-row__desc">{typeWord(c.type)}{c.active ? ` · Connected · ${c.dev}` : ""}</span>
+            <span class="ewe-row__desc">{typeWord(c.type)}{c.active ? " · Connected" : ""}</span>
           </span>
           <span class="ewe-row__trail"><Icon name="caretRight" /></span>
         </button>
       {:else}
-        <Row sub="No saved networks yet." />
+        <Row sub="No saved networks yet. They appear here once you connect." />
       {/each}
     </Group>
 
-    <Group title="This computer">
-      <form class="net-form" on:submit|preventDefault={saveHostname}>
-        <label class="ewe-field">
-          <span class="ewe-field__label">Name on the network</span>
-          <div class="flex gap-2">
-            <input class="ewe-input flex-1 font-mono" aria-label="Name on the network" bind:value={hostDraft} />
-            <button
-              class="ewe-btn ewe-btn--secondary"
-              type="submit"
-              disabled={hostBusy || !hostDraft.trim() || hostDraft.trim() === hostname}
-            >
-              {hostBusy ? "Renaming…" : "Rename"}
-            </button>
-          </div>
-          <span class="ewe-field__helper">What other devices see. Letters, digits and dashes.</span>
-        </label>
-      </form>
-    </Group>
-
-    <Group title="VPN">
+    <Group title="VPN" desc={vpnPlugin ? "You can also switch them from Quick settings." : ""}>
+      <svelte:fragment slot="action">
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" data-setting="Add VPN" on:click={openAddVpn}><Icon name="plus" />Add VPN…</button>
+      </svelte:fragment>
       {#each st.vpn as v (v.name)}
-        <Row icon="shield" title={v.name} sub={v.active ? "Connected" : ""}>
+        <Row title={v.name} sub={v.active ? "Connected" : ""} setting={v.name === st.vpn[0].name ? "VPN" : ""}>
           {#if busy === v.name}
             <span class="ewe-spinner ewe-spinner--sm" role="status" aria-label="Working…"></span>
           {:else}
@@ -382,7 +391,7 @@
         {#if credTarget === v.name && !v.active}
           <form class="net-form" on:submit|preventDefault={() => saveCredentials(v)}>
             <p class="ewe-field__helper">
-              This VPN needs your credentials once. They're kept in the profile, so the switch works from
+              This VPN needs your user name and password once. They're kept with it, so the switch works from
               then on.
             </p>
             <label class="ewe-field">
@@ -396,7 +405,7 @@
             </label>
             {#if credNeedsPsk}
               <label class="ewe-field">
-                <span class="ewe-field__label">Pre-shared key (IPsec) <span class="ewe-field__optional">optional</span></span>
+                <span class="ewe-field__label">Pre-shared key <span class="ewe-field__optional">optional</span></span>
                 <input class="ewe-input" type="password" bind:value={credPsk} />
               </label>
             {/if}
@@ -412,95 +421,109 @@
           </form>
         {/if}
       {:else}
-        <Row sub="No VPNs yet. Add one below." />
+        <Row title="VPN" sub="No VPNs yet." />
       {/each}
     </Group>
 
-    <!-- Add VPN: an L2TP/IPsec profile from its four facts (no file), or an
-         OpenVPN / WireGuard file import. Definitions sync through the one
-         file; secrets stay in the profile. -->
-    <Group title="Add a VPN">
-      <form class="net-form" on:submit|preventDefault={addVpn}>
-        <div class="ewe-field">
-          <span class="ewe-field__label">Type</span>
-          <Select.Root type="single" value={addKind} onValueChange={(v) => (addKind = v)}>
-            <Select.Trigger class="self-start select-trigger" aria-label="VPN type">
-              {KINDS.find((k) => k.value === addKind)?.label}
-            </Select.Trigger>
-            <Select.Content>
-              {#each KINDS as k (k.value)}
-                <Select.Item value={k.value} label={k.label} />
-              {/each}
-            </Select.Content>
-          </Select.Root>
-        </div>
-        {#if addKind === "l2tp"}
-          <div class="net-grid">
-            <label class="ewe-field">
-              <span class="ewe-field__label">Name</span>
-              <input class="ewe-input" placeholder="Work" bind:value={addName} />
-            </label>
-            <label class="ewe-field">
-              <span class="ewe-field__label">Server</span>
-              <input class="ewe-input" placeholder="vpn.example.com" bind:value={addGateway} />
-            </label>
-            <label class="ewe-field">
-              <span class="ewe-field__label">User name</span>
-              <input class="ewe-input" bind:value={addUser} />
-            </label>
-            <label class="ewe-field">
-              <span class="ewe-field__label">Password</span>
-              <input class="ewe-input" type="password" bind:value={addPass} />
-            </label>
-            <label class="ewe-field net-grid__wide">
-              <span class="ewe-field__label">Pre-shared key (IPsec) <span class="ewe-field__optional">optional</span></span>
-              <input class="ewe-input" type="password" bind:value={addPsk} />
-              <span class="ewe-field__helper">Leave it empty if your VPN has none.</span>
-            </label>
-          </div>
-        {:else}
-          <div class="ewe-field">
-            <span class="ewe-field__label">File</span>
-            <div class="flex gap-2">
-              <input class="ewe-input flex-1" placeholder="/home/you/work.{addKind === 'openvpn' ? 'ovpn' : 'conf'}" aria-label="Path to the file" bind:value={addPath} />
-              <button class="ewe-btn ewe-btn--secondary" type="button" on:click={pickFile}>Choose…</button>
-            </div>
-          </div>
-        {/if}
-        {#if addError}
-          <p class="ewe-field__helper ewe-field__helper--error"><Icon name="alert" />{addError}</p>
-        {/if}
-        <div class="flex items-center justify-between gap-3">
-          <span class="ewe-field__helper">
-            {addKind === "l2tp"
-              ? "Kept in the profile. The definition syncs; the secrets never do."
-              : "Imported into NetworkManager. Credentials are asked for once, the first time you connect."}
-          </span>
+    <Group title="This computer">
+      <Row title="Name on the network" sub="What other devices see. Letters, digits and dashes.">
+        <form class="flex items-center gap-2" on:submit|preventDefault={saveHostname}>
+          <input class="ewe-input ewe-input--sm font-mono host-input" aria-label="Name on the network" bind:value={hostDraft} />
           <button
-            class="ewe-btn ewe-btn--primary"
+            class="ewe-btn ewe-btn--secondary ewe-btn--sm"
             type="submit"
-            disabled={addBusy ||
-              (addKind === "l2tp" ? !addName.trim() || !addGateway.trim() || !addUser || !addPass : !addPath.trim())}
+            disabled={hostBusy || !hostDraft.trim() || hostDraft.trim() === hostname}
           >
-            {addBusy ? "Adding…" : addKind === "l2tp" ? "Add VPN" : "Import VPN"}
+            {hostBusy ? "Renaming…" : "Rename"}
           </button>
-        </div>
-      </form>
+        </form>
+      </Row>
     </Group>
 
     {#if st.sshHosts.length}
-      <Group title="SSH hosts (~/.ssh/config)">
+      <Group title="SSH hosts" desc="Computers you've set up to reach over SSH.">
         {#each st.sshHosts as h (h)}
-          <div class="ewe-row ewe-row--dense"><span class="ewe-row__lead"><Icon name="terminal" /></span><span class="ewe-row__title font-mono">{h}</span></div>
+          <div class="ewe-row" data-setting={h === st.sshHosts[0] ? "SSH hosts" : undefined}>
+            <span class="ewe-row__lead"><Icon name="terminal" /></span>
+            <div class="ewe-row__text"><div class="ewe-row__title font-mono">{h}</div></div>
+          </div>
         {/each}
       </Group>
     {/if}
-
-    <p class="note">
-      NetworkManager manages these.{#if vpnPlugin} You can also switch VPNs from the VPN card in Quick settings.{/if} The
-      first connection asks for credentials once and keeps them in the profile.
-    </p>
   {/if}
 </Page>
+
+<!-- Add a VPN: an L2TP/IPsec profile from its four facts (no file), or an
+     OpenVPN / WireGuard file. Definitions sync through the one file;
+     secrets stay in the profile. -->
+<Sheet open={addOpen} title="Add a VPN" onClose={() => (addOpen = false)}>
+  <form id="add-vpn" class="net-form" on:submit|preventDefault={addVpn}>
+    <div class="ewe-field">
+      <span class="ewe-field__label">Type</span>
+      <Select.Root type="single" value={addKind} onValueChange={(v) => (addKind = v)}>
+        <Select.Trigger class="self-start select-trigger" aria-label="VPN type">
+          {KINDS.find((k) => k.value === addKind)?.label}
+        </Select.Trigger>
+        <Select.Content>
+          {#each KINDS as k (k.value)}
+            <Select.Item value={k.value} label={k.label} />
+          {/each}
+        </Select.Content>
+      </Select.Root>
+    </div>
+    {#if addKind === "l2tp"}
+      <label class="ewe-field">
+        <span class="ewe-field__label">Name</span>
+        <input class="ewe-input" placeholder="Work" bind:value={addName} />
+      </label>
+      <label class="ewe-field">
+        <span class="ewe-field__label">Server</span>
+        <input class="ewe-input" placeholder="vpn.example.com" bind:value={addGateway} />
+      </label>
+      <label class="ewe-field">
+        <span class="ewe-field__label">User name</span>
+        <input class="ewe-input" bind:value={addUser} />
+      </label>
+      <label class="ewe-field">
+        <span class="ewe-field__label">Password</span>
+        <input class="ewe-input" type="password" bind:value={addPass} />
+      </label>
+      <label class="ewe-field">
+        <span class="ewe-field__label">Pre-shared key <span class="ewe-field__optional">optional</span></span>
+        <input class="ewe-input" type="password" bind:value={addPsk} />
+        <span class="ewe-field__helper">Leave it empty if your VPN has none.</span>
+      </label>
+    {:else}
+      <div class="ewe-field">
+        <span class="ewe-field__label">File</span>
+        <div class="flex gap-2">
+          <input class="ewe-input flex-1" placeholder="work.{addKind === 'openvpn' ? 'ovpn' : 'conf'}" aria-label="The VPN's file" bind:value={addPath} />
+          <button class="ewe-btn ewe-btn--secondary" type="button" on:click={pickFile}>Choose…</button>
+        </div>
+        <span class="ewe-field__helper">The file your VPN provider gave you.</span>
+      </div>
+    {/if}
+    {#if addError}
+      <p class="ewe-field__helper ewe-field__helper--error"><Icon name="alert" />{addError}</p>
+    {/if}
+    <p class="ewe-field__helper">
+      {addKind === "l2tp"
+        ? "The VPN syncs to your other computers. Its password and key never do."
+        : "The first time you connect, it asks for your user name and password once."}
+    </p>
+  </form>
+  <svelte:fragment slot="footer">
+    <button class="ewe-btn ewe-btn--secondary" on:click={() => (addOpen = false)}>Cancel</button>
+    <button
+      class="ewe-btn ewe-btn--primary"
+      type="submit"
+      form="add-vpn"
+      disabled={addBusy ||
+        (addKind === "l2tp" ? !addName.trim() || !addGateway.trim() || !addUser || !addPass : !addPath.trim())}
+    >
+      {addBusy ? "Adding…" : "Add VPN"}
+    </button>
+  </svelte:fragment>
+</Sheet>
 
 <NetDetails uuid={detailsUuid} onClose={() => (detailsUuid = "")} changed={refresh} />

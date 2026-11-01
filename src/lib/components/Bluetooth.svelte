@@ -8,7 +8,6 @@
   import * as api from "../api.js";
   import { errorMsg, flashApplied, shellUp } from "../stores.js";
   import ToggleRow from "./ui/ToggleRow.svelte";
-  import IconBtn from "./ui/IconBtn.svelte";
   import Icon from "./ui/Icon.svelte";
 
   let st = null;        // {adapter:{powered,discoverable,discovering,alias}, devices:[…]}
@@ -125,14 +124,14 @@
     "network-wireless": 0xe1ae
   };
   const glyph = (d) => GLYPH[d.icon] || (d.connected ? 0xe1b8 : 0xe05c);
-  const TRASH =
-    '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>';
 
   function status(d) {
     if (busy === d.address) return d.paired ? (d.connected ? "Disconnecting…" : "Connecting…") : "Pairing…";
-    if (d.connected) return d.battery != null ? `Connected · ${d.battery}%` : "Connected";
+    if (d.connected) return d.battery != null ? `Battery ${d.battery}%` : "";
     return d.paired ? "Not connected" : "";
   }
+  // signal strength in words, not dBm
+  const signal = (rssi) => (rssi == null ? "" : rssi >= -60 ? "Strong signal" : rssi >= -75 ? "Good signal" : "Weak signal");
 
   $: powered = !!(st && st.adapter && st.adapter.powered);
   $: paired = st ? st.devices.filter((d) => d.paired) : [];
@@ -148,30 +147,37 @@
   import Group from "./ui/Group.svelte";
   import Row from "./ui/Row.svelte";
   import Alert from "./ui/Alert.svelte";
+  import * as Menu from "./ui/dropdown-menu/index.js";
 </script>
 
 <Page title="Bluetooth" desc="Pair headphones, keyboards and phones, and connect the ones you've paired.">
   {#if !st}
-    <p class="note">Checking Bluetooth…</p>
+    <Group title="This computer"><Row title="Bluetooth" sub="Checking Bluetooth…" /></Group>
   {:else if !st.adapter}
-    <Alert tone="" title={st.error || "No Bluetooth adapter found"}>
-      {#if !st.error}
-        If this computer has one, it may be blocked. Try <code>rfkill unblock bluetooth</code>, or check
-        <code>systemctl status bluetooth</code>.
-      {/if}
-    </Alert>
+    <Group title="This computer">
+      <div class="ewe-empty ewe-empty--compact">
+        <span class="ewe-empty__icon"><Icon name="bluetooth" /></span>
+        <div class="ewe-empty__title">{st.error ? "Bluetooth isn't answering" : "No Bluetooth found"}</div>
+        <div class="ewe-empty__desc">
+          {st.error || "If this computer has Bluetooth, it may be switched off with a key or in the firmware settings."}
+        </div>
+      </div>
+    </Group>
   {:else}
-    <Group>
+    {#if !$shellUp && powered}
+      <Alert tone="warning">The shell isn't running, so only devices that need no code (most headphones) can pair right now.</Alert>
+    {/if}
+    <Group title="This computer">
       <ToggleRow
         title="Bluetooth"
-        sub={powered ? `On. This computer shows up as “${st.adapter.alias}”.` : "Off"}
+        sub={powered ? `On. Other devices see this computer as “${st.adapter.alias}”.` : "Off"}
         on={powered}
         toggled={togglePower}
       />
       {#if powered}
         <ToggleRow
           title="Visible to other devices"
-          sub="Lets a phone or another computer find this one and start pairing from its side. Turns off by itself after 3 minutes."
+          sub="A phone or another computer can find this one and pair from its side. Turns off by itself after 3 minutes."
           on={st.adapter.discoverable}
           toggled={toggleDiscoverable}
         />
@@ -179,15 +185,20 @@
     </Group>
 
     {#if powered}
-      <Group title="My devices">
+      <Group title="My devices" desc="Paired devices reconnect by themselves.">
         {#each paired as d (d.address)}
-          <div class="ewe-row" class:is-selected={d.connected}>
+          <div class="ewe-row" class:is-active={d.connected}>
             <span class="ewe-row__lead"><Icon code={glyph(d)} /></span>
             <div class="ewe-row__text">
-              <div class="ewe-row__title" class:font-medium={d.connected}>{d.name}</div>
-              <div class="ewe-row__desc">{status(d)}{d.trusted ? "" : " · Not trusted"}</div>
+              <div class="ewe-row__title">{d.name}</div>
+              {#if status(d) || !d.trusted}
+                <div class="ewe-row__desc">{status(d)}{status(d) && !d.trusted ? " · " : ""}{d.trusted ? "" : "Not trusted"}</div>
+              {/if}
             </div>
             <div class="ewe-row__trail">
+              {#if d.connected}
+                <span class="ewe-badge ewe-badge--success"><span class="ewe-badge__label">Connected</span></span>
+              {/if}
               <button
                 class="ewe-btn ewe-btn--secondary ewe-btn--sm"
                 disabled={busy === d.address}
@@ -195,7 +206,14 @@
               >
                 {d.connected ? "Disconnect" : "Connect"}
               </button>
-              <IconBtn name="trash" title="Forget {d.name}" danger disabled={busy === d.address} go={() => forget(d)} />
+              <Menu.Root>
+                <Menu.Trigger class="ewe-iconbtn ewe-iconbtn--ghost ewe-iconbtn--sm" aria-label="More for {d.name}" title="More for {d.name}" disabled={busy === d.address}>
+                  <Icon name="ellipsis" />
+                </Menu.Trigger>
+                <Menu.Content align="end">
+                  <Menu.Item variant="destructive" onSelect={() => forget(d)}><Icon name="trash" /><span class="ewe-menu__label">Forget {d.name}</span></Menu.Item>
+                </Menu.Content>
+              </Menu.Root>
             </div>
           </div>
         {:else}
@@ -203,7 +221,7 @@
         {/each}
       </Group>
 
-      <Group title="Nearby devices">
+      <Group title="Nearby devices" desc="When a device shows a code, the desktop asks you to confirm it.">
         <svelte:fragment slot="action">
           <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={scanning} on:click={scan}>
             {#if scanning}<span class="ewe-spinner ewe-spinner--sm" aria-hidden="true"></span>{/if}
@@ -216,11 +234,11 @@
             <div class="ewe-row__text">
               <div class="ewe-row__title">{d.name}</div>
               <div class="ewe-row__desc">
-                {busy === d.address ? "Pairing… Answer the prompt on the desktop if one appears." : d.rssi != null ? `Signal ${d.rssi} dBm` : ""}
+                {busy === d.address ? "Pairing… Answer the prompt on the desktop if one appears." : signal(d.rssi)}
               </div>
             </div>
             <div class="ewe-row__trail">
-              <button class="ewe-btn ewe-btn--primary ewe-btn--sm" disabled={busy !== ""} on:click={() => pair(d)}>
+              <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" disabled={busy !== ""} on:click={() => pair(d)}>
                 {busy === d.address ? "Pairing…" : "Pair"}
               </button>
             </div>
@@ -233,14 +251,6 @@
           />
         {/each}
       </Group>
-
-      <p class="note">
-        When a device shows a code, the desktop asks you to confirm it. Paired devices are trusted, so
-        they reconnect by themselves.
-      </p>
-      {#if !$shellUp}
-        <Alert tone="warning">The ewe shell isn't running, so only devices without a code (most headphones) can pair right now.</Alert>
-      {/if}
     {/if}
   {/if}
 </Page>

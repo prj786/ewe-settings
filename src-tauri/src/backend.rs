@@ -1025,6 +1025,15 @@ pub async fn apply_colorscheme(scheme: String, accent: String) -> Result<(), Str
     Ok(())
 }
 
+/// The `ewe-theme scheme` verbs that write ewe.conf. `list`, `show` and
+/// `export` only read it, so they must never ask for a sync.
+fn scheme_verb_writes(verb: &str) -> bool {
+    matches!(
+        verb,
+        "apply" | "import" | "duplicate" | "remove" | "set" | "from-wallpaper"
+    )
+}
+
 /// `ewe-theme scheme <verb> …` — the palette side of Appearance. Verbs and
 /// arguments are checked here (argv, never a shell); ewe-theme writes
 /// ewe.conf through ewe-conf, whose hooks repaint the shell and the
@@ -1063,7 +1072,12 @@ pub async fn theme_scheme(args: Vec<String>) -> Result<Value, String> {
         .output()
         .await
         .map_err(estr)?;
-    crate::shell::poke_sync();
+    // Only a verb that changed ewe.conf has anything to sync. Opening
+    // Appearance runs `list` plus one `show` per scheme, and each of those
+    // used to poke the shell's sync as if something had been saved.
+    if scheme_verb_writes(verb) {
+        crate::shell::poke_sync();
+    }
     if verb == "export" {
         return Ok(
             json!({ "ok": out.status.success(), "yaml": String::from_utf8_lossy(&out.stdout) }),
@@ -1236,6 +1250,80 @@ pub async fn desktop_apps() -> Result<Vec<Value>, String> {
     Ok(out)
 }
 
+/// The applications directories, in the desktop's lookup order (the user's
+/// own first, then XDG_DATA_DIRS, then the usual system places).
+fn application_dirs() -> Vec<PathBuf> {
+    let data_home = std::env::var("XDG_DATA_HOME")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".local/share"));
+    let mut dirs = vec![data_home.join("applications")];
+    let sys = std::env::var("XDG_DATA_DIRS").unwrap_or_default();
+    for d in sys.split(':').filter(|d| !d.is_empty()) {
+        dirs.push(PathBuf::from(d).join("applications"));
+    }
+    for d in ["/usr/local/share/applications", "/usr/share/applications"] {
+        dirs.push(PathBuf::from(d));
+    }
+    let mut seen = std::collections::HashSet::new();
+    dirs.retain(|d| seen.insert(d.clone()));
+    dirs
+}
+
+/// The untranslated `Name=` of a desktop entry's [Desktop Entry] group.
+/// Unlike the app picker, a hidden entry (NoDisplay, like kitty-open) still
+/// has a name worth showing: it can be someone's default app.
+fn desktop_entry_name(text: &str) -> Option<String> {
+    let mut in_entry = false;
+    for line in text.lines() {
+        let l = line.trim();
+        if l.starts_with('[') {
+            in_entry = l == "[Desktop Entry]";
+            continue;
+        }
+        if in_entry {
+            if let Some(v) = l.strip_prefix("Name=") {
+                let v = v.trim();
+                if !v.is_empty() {
+                    return Some(v.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// "brave-browser.desktop" (or the bare id) → "Brave Web Browser", looked up
+/// in `dirs` in order; None when no readable entry names it.
+fn desktop_name_in(dirs: &[PathBuf], id: &str) -> Option<String> {
+    let id = id.trim();
+    let id = id.strip_suffix(".desktop").unwrap_or(id);
+    if !valid_desktop_id(id) {
+        return None;
+    }
+    dirs.iter().find_map(|d| {
+        std::fs::read_to_string(d.join(format!("{id}.desktop")))
+            .ok()
+            .and_then(|t| desktop_entry_name(&t))
+    })
+}
+
+/// Display names for desktop ids (Default apps, the default browser):
+/// `{ "brave-browser.desktop": "Brave Web Browser", … }`. An id with no
+/// readable entry is left out, and the page falls back to a tidied id.
+#[tauri::command]
+pub async fn app_names(ids: Vec<String>) -> Result<Value, String> {
+    let dirs = application_dirs();
+    let mut map = serde_json::Map::new();
+    for id in ids.iter().take(256) {
+        if let Some(n) = desktop_name_in(&dirs, id) {
+            map.insert(id.clone(), Value::String(n));
+        }
+    }
+    Ok(Value::Object(map))
+}
+
 // ── default apps (xdg-mime / gio) ───────────────────────────────────────────
 
 fn valid_desktop_id(id: &str) -> bool {
@@ -1334,8 +1422,8 @@ pub async fn diagnostics() -> Result<Value, String> {
         "echo \"portal_gtk=$(systemctl --user is-active xdg-desktop-portal-gtk 2>/dev/null)\";",
         "echo \"browser=$(xdg-settings get default-web-browser 2>/dev/null)\";",
         "echo \"gpu=$(lspci -k 2>/dev/null | grep -A3 -iE 'VGA|Display|3D' | grep -i 'driver in use' | head -1 | sed 's/.*use: //')\";",
-        "echo \"mem=$(free -m 2>/dev/null | awk '/Mem:/{print $3\"/\"$2\" MB\"}')\";",
-        "echo \"disk=$(df -h / 2>/dev/null | awk 'NR==2{print $3\"/\"$2\" (\"$5\")\"}')\";",
+        "echo \"mem=$(free -b 2>/dev/null | awk '/Mem:/{print $3\" \"$2}')\";",
+        "echo \"disk=$(df -B1 / 2>/dev/null | awk 'NR==2{print $3\" \"$2}')\";",
         "echo \"kernel=$(uname -r)\";",
         "echo \"hypr=$(hyprctl version 2>/dev/null | head -1)\";",
         "echo \"hypridle=$(command -v hypridle >/dev/null && echo yes || echo no)\"",
@@ -1347,7 +1435,88 @@ pub async fn diagnostics() -> Result<Value, String> {
             map.insert(k.to_string(), Value::String(v.to_string()));
         }
     }
+    // Said the way people read them: "Hyprland 0.57.0", "12.0 GB of 30.8 GB
+    // in use", not the build banner and raw byte counts. The raw text stays
+    // under *_raw for a tooltip.
+    let get = |k: &str| map.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    let (hypr, mem, disk) = (get("hypr"), get("mem"), get("disk"));
+    map.insert("hypr_raw".into(), Value::String(hypr.clone()));
+    map.insert(
+        "hypr".into(),
+        Value::String(hypr_version(&hypr).unwrap_or_default()),
+    );
+    map.insert(
+        "mem".into(),
+        Value::String(used_of(&mem, "in use").unwrap_or_default()),
+    );
+    map.insert(
+        "disk".into(),
+        Value::String(used_of(&disk, "used").unwrap_or_default()),
+    );
     Ok(Value::Object(map))
+}
+
+/// The version out of `hyprctl version`'s first line, which has read
+/// "Hyprland 0.57.0 built from branch v0.57.0 at commit 0aa6745f… clean
+/// (VERSION: bump to 0.57.0)" and, on older builds, "Hyprland, built from
+/// branch  at commit …" (no number). → "0.57.0", or None.
+fn hypr_version(line: &str) -> Option<String> {
+    let is_ver = |s: &str| {
+        let s = s.trim_start_matches('v');
+        let parts: Vec<&str> = s.split('.').collect();
+        parts.len() >= 2
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    };
+    let words: Vec<&str> = line
+        .split(|c: char| c.is_whitespace() || matches!(c, ',' | '(' | ')' | ':'))
+        .map(|w| w.trim_end_matches('.'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    // "Hyprland 0.57.0", then "branch v0.57.0", then "bump to 0.57.0"
+    let after = |key: &str| {
+        words
+            .windows(2)
+            .find(|w| w[0] == key && is_ver(w[1]))
+            .map(|w| w[1].trim_start_matches('v').to_string())
+    };
+    after("Hyprland").or_else(|| after("branch")).or_else(|| {
+        words
+            .iter()
+            .find(|w| is_ver(w))
+            .map(|w| w.trim_start_matches('v').to_string())
+    })
+}
+
+/// Bytes the way the desktop shows sizes: 1024-based, one decimal under 100.
+fn human_bytes(n: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut v = n as f64;
+    let mut i = 0;
+    while v >= 1024.0 && i < UNITS.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
+    if i == 0 || v >= 100.0 {
+        format!("{} {}", v.round() as u64, UNITS[i])
+    } else {
+        format!("{v:.1} {}", UNITS[i])
+    }
+}
+
+/// "<used> <total>" in bytes → "12.0 GB of 30.8 GB in use".
+fn used_of(pair: &str, word: &str) -> Option<String> {
+    let mut it = pair.split_whitespace().map(|s| s.parse::<u64>().ok());
+    let (used, total) = (it.next()??, it.next()??);
+    if total == 0 {
+        return None;
+    }
+    Some(format!(
+        "{} of {} {word}",
+        human_bytes(used),
+        human_bytes(total)
+    ))
 }
 
 // ── power ───────────────────────────────────────────────────────────────────
@@ -2993,5 +3162,105 @@ mod net_tests {
         assert_eq!(net_value("802-3-ethernet.mtu", "1400").unwrap(), "1400");
         assert!(net_value("802-3-ethernet.mtu", "100").is_err());
         assert!(net_value("connection.id", "x").is_err());
+    }
+}
+
+#[cfg(test)]
+mod revamp_tests {
+    use super::*;
+
+    #[test]
+    fn only_writing_scheme_verbs_poke_sync() {
+        for v in ["list", "show", "export"] {
+            assert!(!scheme_verb_writes(v), "{v} only reads");
+        }
+        for v in [
+            "apply",
+            "import",
+            "duplicate",
+            "remove",
+            "set",
+            "from-wallpaper",
+        ] {
+            assert!(scheme_verb_writes(v), "{v} writes ewe.conf");
+        }
+    }
+
+    #[test]
+    fn hyprland_version_from_the_banner() {
+        assert_eq!(
+            hypr_version(
+                "Hyprland 0.57.0 built from branch v0.57.0 at commit 0aa6745f1234 clean (VERSION: bump to 0.57.0)."
+            )
+            .as_deref(),
+            Some("0.57.0")
+        );
+        assert_eq!(
+            hypr_version("Hyprland, built from branch v0.45.2 at commit 12ab dirty").as_deref(),
+            Some("0.45.2")
+        );
+        assert_eq!(
+            hypr_version("Hyprland, built from branch  at commit 12ab (VERSION: bump to 0.41.1).")
+                .as_deref(),
+            Some("0.41.1")
+        );
+        assert_eq!(hypr_version(""), None);
+        assert_eq!(
+            hypr_version("Hyprland, built from branch  at commit 0aa6"),
+            None
+        );
+    }
+
+    #[test]
+    fn memory_and_disk_in_words() {
+        // free -b: 12281 MiB of 31551 MiB
+        assert_eq!(
+            used_of("12877561856 33083424768", "in use").as_deref(),
+            Some("12.0 GB of 30.8 GB in use")
+        );
+        // df -B1: 254 GiB of 953 GiB
+        assert_eq!(
+            used_of("272730423296 1023275532288", "used").as_deref(),
+            Some("254 GB of 953 GB used")
+        );
+        assert_eq!(used_of("", "used"), None);
+        assert_eq!(used_of("12 0", "used"), None);
+        assert_eq!(human_bytes(512), "512 B");
+        assert_eq!(human_bytes(1536), "1.5 KB");
+    }
+
+    #[test]
+    fn desktop_names_include_hidden_entries() {
+        let dir = std::env::temp_dir().join(format!("ewe-settings-apps-{}", std::process::id()));
+        let apps = dir.join("applications");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(
+            apps.join("brave-browser.desktop"),
+            "[Desktop Entry]\nName[ka]=ბრეივი\nName=Brave Web Browser\nExec=brave %U\n\n[Desktop Action new-window]\nName=New Window\n",
+        )
+        .unwrap();
+        std::fs::write(
+            apps.join("kitty-open.desktop"),
+            "[Desktop Entry]\nType=Application\nNoDisplay=true\nName=kitty URL Launcher\nExec=kitty +open %U\n",
+        )
+        .unwrap();
+        std::fs::write(
+            apps.join("broken.desktop"),
+            "[Desktop Action x]\nName=Not me\n",
+        )
+        .unwrap();
+        let dirs = vec![dir.join("nowhere"), apps.clone()];
+        assert_eq!(
+            desktop_name_in(&dirs, "brave-browser.desktop").as_deref(),
+            Some("Brave Web Browser")
+        );
+        assert_eq!(
+            desktop_name_in(&dirs, "kitty-open").as_deref(),
+            Some("kitty URL Launcher")
+        );
+        assert_eq!(desktop_name_in(&dirs, "broken.desktop"), None);
+        assert_eq!(desktop_name_in(&dirs, "missing.desktop"), None);
+        assert_eq!(desktop_name_in(&dirs, "../etc/passwd"), None);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

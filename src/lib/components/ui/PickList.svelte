@@ -9,7 +9,7 @@
   export let items = [];
   export let query = "";
   export let placeholder = "Search";
-  export let empty = "No match. Check the spelling.";
+  export let empty = "Nothing to pick from."; // with no query; a query that finds nothing says so itself
   export let pick = () => {};
   let rows = [];
   function key(e, i) {
@@ -36,7 +36,9 @@
         {#if it.trail}<span class="ewe-row__trail picklist__trail">{it.trail}</span>{/if}
       </button>
     {:else}
-      <div class="ewe-row ewe-row--dense"><span class="ewe-row__desc">{empty}</span></div>
+      <div class="ewe-row ewe-row--dense">
+        <span class="ewe-row__desc">{query.trim() ? `Nothing matches “${query.trim()}”.` : empty}</span>
+      </div>
     {/each}
   </div>
 </div>

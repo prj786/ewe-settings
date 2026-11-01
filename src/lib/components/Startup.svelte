@@ -59,45 +59,46 @@
   import Row from "./ui/Row.svelte";
   import Icon from "./ui/Icon.svelte";
   import PickList from "./ui/PickList.svelte";
+  import Sheet from "./ui/Sheet.svelte";
 </script>
 
 <Page title="Startup apps" desc="Apps that open by themselves every time you sign in.">
   <svelte:fragment slot="actions">
-    <button class="ewe-btn {showAdd ? 'ewe-btn--secondary' : 'ewe-btn--primary'}" on:click={() => (showAdd = !showAdd)}>
-      {#if !showAdd}<Icon name="plus" />{/if}
-      {showAdd ? "Cancel" : "Add app"}
+    <button class="ewe-btn ewe-btn--secondary" data-setting="Add app" on:click={() => ((query = ""), (showAdd = true))}>
+      <Icon name="plus" />Add app…
     </button>
   </svelte:fragment>
 
-  {#if showAdd}
-    <Group title="Add an app">
-      <PickList
-        bind:query
-        placeholder="Search apps"
-        items={candidates.slice(0, 40).map((a) => ({ id: a.id, title: a.name, trail: a.comment || a.exec, a }))}
-        pick={(it) => add(it.a)}
-      />
-    </Group>
-  {/if}
-
   {#if apps.length === 0}
-    <div class="ewe-list">
+    <Group title="Apps">
       <div class="ewe-empty">
         <span class="ewe-empty__icon"><Icon name="rocket" /></span>
         <div class="ewe-empty__title">Nothing starts by itself</div>
         <div class="ewe-empty__desc">Add an app to open it every time you sign in.</div>
+        <div class="ewe-empty__actions">
+          <button class="ewe-btn ewe-btn--secondary" on:click={() => ((query = ""), (showAdd = true))}><Icon name="plus" />Add app…</button>
+        </div>
       </div>
-    </div>
+    </Group>
   {:else}
-    <Group>
+    <Group title="Apps" desc="Changes apply the next time you sign in.">
       {#each apps as a, i (a.exec)}
-        <Row title={a.name} sub={a.exec}>
+        <Row title={a.name} sub={a.enabled === false ? "Won't open at sign-in" : ""}>
           <Toggle on={a.enabled !== false} label={a.name} toggled={() => toggle(i)} />
           <IconBtn name="x" title="Remove {a.name}" danger go={() => remove(i)} />
         </Row>
       {/each}
     </Group>
   {/if}
-
-  <p class="note">The shell opens enabled apps when you sign in. Changes apply the next time you sign in.</p>
 </Page>
+
+<!-- Add an app: pick it in a Sheet; the page behind stays as it is -->
+<Sheet open={showAdd} title="Add an app" onClose={() => (showAdd = false)}>
+  <PickList
+    bind:query
+    placeholder="Search apps"
+    empty="Every app already opens at sign-in."
+    items={candidates.slice(0, 60).map((a) => ({ id: a.id, title: a.name, trail: a.comment, a }))}
+    pick={(it) => add(it.a)}
+  />
+</Sheet>

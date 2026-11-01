@@ -2,8 +2,7 @@
   /**
    * Scheme card (design/system/components/SchemeCard): a miniature desktop
    * drawn in the scheme's own roles — base, bar, a window with text lines and
-   * an accent button, a popup — its name, and dots for its accent, success
-   * and danger. A radio in the Appearance scheme group; clicking applies it.
+   * an accent button, a popup — and its name. A radio in the Appearance scheme group; clicking applies it.
    * Selected: check; built in: lock; every card has the overflow menu
    * (Apply, Export, Duplicate; Remove on user schemes). An Inline alert names
    * the roles the generator moved to keep contrast.
@@ -35,6 +34,8 @@
     ["--p-accent", r.accent]
   ].filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(";");
   $: moved = [...new Set((adjusted || []).map((a) => a.role))];
+  const COUNT = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+  $: adjustedText = `${COUNT[moved.length] || moved.length} ${moved.length === 1 ? "color was" : "colors were"} nudged to keep text readable.`;
 </script>
 
 <div
@@ -62,24 +63,28 @@
   </div>
   <div class="ewe-scheme__meta">
     <span class="ewe-scheme__name">{scheme.name}</span>
-    <span class="ewe-scheme__dots" aria-hidden="true">
-      <i style="--c: {r.accent || scheme.accent}"></i><i style="--c: {r.success || sw[3]}"></i><i style="--c: {r.danger || sw[4]}"></i>
-    </span>
+    {#if moved.length}
+      <!-- the generator moved some roles to keep text readable: a badge,
+           the detail in its tooltip, so every card keeps the same height -->
+      <span class="ewe-badge ewe-badge--warning" title={adjustedText} aria-label="Adjusted. {adjustedText}">
+        <span class="ewe-badge__label">Adjusted</span>
+      </span>
+    {/if}
     {#if scheme.current}
-      <Icon name="check" label="Selected" />
+      <Icon name="check" class="scheme-status" label="In use" />
     {:else if scheme.builtin}
-      <Icon name="lock" tone="muted" label="Built in" />
+      <Icon name="lock" tone="muted" class="scheme-status" label="Built in" />
     {/if}
     <!-- the overflow menu; its clicks never reach the card -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <span class="contents" on:click|stopPropagation on:keydown|stopPropagation>
       <Menu.Root>
-        <Menu.Trigger class="ewe-iconbtn ewe-iconbtn--ghost ewe-iconbtn--sm" aria-label="More for {scheme.name}" title="More for {scheme.name}" {disabled}>
+        <Menu.Trigger class="ewe-iconbtn ewe-iconbtn--secondary ewe-iconbtn--sm scheme-more" aria-label="More for {scheme.name}" title="More for {scheme.name}" {disabled}>
           <Icon name="ellipsis" />
         </Menu.Trigger>
         <Menu.Content align="end">
           <Menu.Item disabled={scheme.current} onSelect={onApply}><Icon name="check" /><span class="ewe-menu__label">Apply</span></Menu.Item>
-          <Menu.Item onSelect={onExport}><Icon name="copy" /><span class="ewe-menu__label">Export as YAML</span></Menu.Item>
+          <Menu.Item onSelect={onExport}><Icon name="copy" /><span class="ewe-menu__label">Copy as YAML</span></Menu.Item>
           <Menu.Item onSelect={onDuplicate}><Icon name="plus" /><span class="ewe-menu__label">Duplicate</span></Menu.Item>
           {#if onLight}
             <Menu.Item onSelect={onLight}><Icon name="image" /><span class="ewe-menu__label">Make a light version</span></Menu.Item>
@@ -92,12 +97,4 @@
       </Menu.Root>
     </span>
   </div>
-  {#if moved.length}
-    <div class="ewe-alert ewe-alert--warning scheme-alert" role="note">
-      <Icon name="info" />
-      <div class="ewe-alert__body">
-        <div class="ewe-alert__desc">Adjusted for contrast: {moved.join(", ")}.</div>
-      </div>
-    </div>
-  {/if}
 </div>

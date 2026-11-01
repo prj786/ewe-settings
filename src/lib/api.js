@@ -48,6 +48,8 @@ export const applyColorscheme = (scheme, accent) =>
 
 // startup / default apps
 export const desktopApps = () => invoke("desktop_apps");
+/** desktop ids → the apps' own names: { "brave-browser.desktop": "Brave Web Browser" } */
+export const appNames = (ids) => invoke("app_names", { ids });
 export const mimeDefault = (mime) => invoke("mime_default", { mime });
 export const mimeApps = (mime) => invoke("mime_apps", { mime });
 export const setMimeDefault = (desktopId, mimes, setBrowser) =>

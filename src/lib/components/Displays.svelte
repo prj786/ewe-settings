@@ -79,7 +79,7 @@
   async function applySpecs(list) {
     // last-ditch guard, same as HyprMon: never disable every output
     if (list.every((s) => s.disabled)) {
-      errorMsg.set("Refused to apply: profile would disable every display");
+      errorMsg.set("Not applied: that would turn off every display.");
       return false;
     }
     try {
@@ -338,6 +338,14 @@
   ];
   // a new resolution may not divide by the current scale — snap the way
   // Hyprland would, so what we ask for is what comes back
+  // a display by what it is: the laptop's own screen, or its model; the
+  // connector (DP-1) goes in the group's description
+  const isBuiltIn = (s) => /^(eDP|LVDS|DSI)-/.test(s.name || "");
+  const displayName = (s) => (isBuiltIn(s) ? "Built-in display" : s.desc || s.name);
+  const displayDesc = (s) => [s.name, isBuiltIn(s) ? s.desc : ""].filter(Boolean).join(" · ");
+  // displays in use first, the turned-off ones after them
+  $: orderedSpecs = [...specs.filter((s) => !s.disabled), ...specs.filter((s) => s.disabled)];
+
   function pickResolution(s, res, hzs) {
     if (!hzs.length) return;
     const [w, h] = res.split("x").map(Number);
@@ -354,71 +362,71 @@
 
 <Page title="Displays" desc="Resolution, refresh rate, scale and where each display sits.">
   <svelte:fragment slot="actions">
-    <button class="ewe-btn ewe-btn--secondary" on:click={autoArrange}>Arrange side by side</button>
-    <button class="ewe-btn ewe-btn--ghost" title="Wake sleeping displays and apply the saved profile again" on:click={resetDisplays}>
+    <button class="ewe-btn ewe-btn--secondary" data-setting="Reset displays" title="Wake sleeping displays and apply the saved settings again" on:click={resetDisplays}>
       Reset displays
     </button>
   </svelte:fragment>
 
   {#if !loaded}
-    <p class="note">Reading displays…</p>
+    <Group title="Displays"><Row sub="Reading the displays…" /></Group>
   {:else if specs.length === 0}
-    <div class="ewe-list">
+    <Group title="Displays">
       <div class="ewe-empty">
         <span class="ewe-empty__icon"><Icon name="monitor" /></span>
         <div class="ewe-empty__title">No displays reported</div>
-        <div class="ewe-empty__desc">Hyprland didn't list any. Check that the desktop session is running.</div>
+        <div class="ewe-empty__desc">The desktop didn't list any. Check that you're signed in to ewe.</div>
       </div>
-    </div>
+    </Group>
   {/if}
 
   {#if loaded && activeSpecs.length > 1}
-    <Group title="Arrangement">
-      <Row sub="Drag a display to the side it sits on. Displays snap edge to edge." />
-      <div class="arrange">
+    <Group title="Arrangement" desc="Drag a display to the side it sits on. Each set of displays keeps its own settings.">
+      <svelte:fragment slot="action">
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={autoArrange}>Arrange side by side</button>
+      </svelte:fragment>
+      <div class="arrange" data-setting="Arrangement">
         <div class="arrange__canvas touch-none select-none" bind:clientWidth={cw} bind:clientHeight={ch}>
           {#each arr.rects as r (r.s.name)}
             <div
               role="button"
               tabindex="-1"
-              aria-label="{r.s.name}, {modeRes(r.s.mode)}"
+              aria-label="{displayName(r.s)}, {modeRes(r.s.mode)}"
               class="arrange__screen"
               class:is-primary={r.s.primary}
               class:is-dragging={dragging && dragging.name === r.s.name}
               style={`left:${r.px}px;top:${r.py}px;width:${r.pw}px;height:${r.ph}px`}
               on:pointerdown={(e) => startDrag(e, r)}
             >
-              <span class="arrange__name">{r.s.name}</span>
+              <span class="arrange__name">{displayName(r.s)}</span>
               <span class="arrange__res">{modeRes(r.s.mode)}</span>
             </div>
           {/each}
         </div>
       </div>
     </Group>
-  {/if}
 
-  {#if loaded && activeSpecs.length > 1}
     <Group title="Workspaces">
       <Row
         title="Separate or shared"
+        setting="Workspaces"
         sub={wsMode === "shared"
-          ? "One set of workspaces across every display. Switching one switches all of them."
-          : "Every display has its own workspaces. Switching changes only the display you are on."}
+          ? "One set across every display. Switching one switches all of them."
+          : "Every display has its own. Switching changes only the display you're on."}
       >
         <Seg label="Workspaces" options={wsModes} value={wsMode} disabled={wsBusy} picked={setWorkspacesMode} />
       </Row>
     </Group>
   {/if}
 
-  {#each specs as s (s.name)}
+  {#each orderedSpecs as s (s.name)}
     {@const mon = monitors.find((m) => m.name === s.name)}
     {@const mm = modeMapFor(mon, s)}
     {@const curRes = modeRes(s.mode)}
     {@const vrrOk = vrrCaps[s.name] !== false}
-    <Group title={s.desc ? `${s.name} · ${s.desc}` : s.name}>
+    <Group title={displayName(s)} desc={displayDesc(s)}>
       {#if s.disabled}
-        <Row title="Turned off">
-          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={() => riskyChange(s.name, { disabled: false })}>
+        <Row title="Turned off" sub="Turn it on to use it again">
+          <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => riskyChange(s.name, { disabled: false })}>
             Turn on
           </button>
         </Row>
@@ -437,7 +445,7 @@
         />
         <SelectRow
           label="Scale"
-          sub="Only the scales this resolution divides by evenly. Hyprland refuses the rest."
+          sub="Only the sizes this resolution divides into evenly"
           options={scaleOptions(curRes, s.scale)}
           value={s.scale}
           picked={(v) => riskyChange(s.name, { scale: Number(v) })}
@@ -451,15 +459,15 @@
         {#if specs.length > 1}
           <SelectRow
             label="Mirror"
-            sub="Show another display's picture on this one."
-            options={[{ label: "Off", value: "" }, ...specs.filter((o) => o.name !== s.name && !o.disabled).map((o) => ({ label: o.name, value: o.name }))]}
+            sub="Show another display's picture on this one"
+            options={[{ label: "Off", value: "" }, ...specs.filter((o) => o.name !== s.name && !o.disabled).map((o) => ({ label: displayName(o), value: o.name }))]}
             value={s.mirror}
             picked={(v) => riskyChange(s.name, { mirror: v })}
           />
         {/if}
         <ToggleRow
           title="Variable refresh rate"
-          sub={vrrOk ? "Adaptive sync (VRR)." : "This display doesn't support adaptive sync."}
+          sub={vrrOk ? "Smoother games and video, as the display follows the frame rate" : "This display can't change its refresh rate on the fly"}
           dim={!vrrOk}
           on={s.vrr}
           toggled={() => vrrOk && directChange(s.name, { vrr: !s.vrr })}
@@ -470,14 +478,14 @@
           on={s.bitdepth === 10}
           toggled={() => directChange(s.name, { bitdepth: s.bitdepth === 10 ? 8 : 10 })}
         />
-        <Row title="Primary display" sub="Arranging starts from it, at the top left.">
+        <Row title="Primary display" sub="Arranging starts from it, at the top left">
           {#if s.primary}
             <span class="ewe-badge ewe-badge--accent"><span class="ewe-badge__label">Primary</span></span>
           {:else}
             <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => setPrimary(s.name)}>Make primary</button>
           {/if}
         </Row>
-        <KV k="Position" v={`${s.x}, ${s.y}`} mono />
+        <KV k="Position" v="{s.x}, {s.y}" mono />
         {#if specs.length > 1}
           <Row title="Turn off this display">
             <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => riskyChange(s.name, { disabled: true })}>
@@ -488,11 +496,6 @@
       {/if}
     </Group>
   {/each}
-
-  <p class="note">
-    One profile is saved for each set of connected displays and applied again at start-up, when you
-    plug a display in and when you dock. Risky changes undo themselves unless you keep them.
-  </p>
 </Page>
 
 <!-- Confirm-or-revert (Dialog card): the question is the decision, the

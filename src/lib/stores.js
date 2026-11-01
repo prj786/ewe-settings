@@ -60,3 +60,23 @@ export function dismissToast(id) {
 export function flashApplied(msg = "Applied") {
   toast(msg, "success");
 }
+
+// Restarting the shell (ewe.service: the bar, the dock and the panels;
+// windows stay open). Offered from a page's "The shell isn't running" alert
+// and from About this computer, never as a one-click item in the rail.
+export const shellRestarting = writable(false);
+export async function restartShellNow() {
+  const api = await import("./api.js");
+  shellRestarting.set(true);
+  try {
+    await api.restartShell();
+  } catch (e) {
+    errorMsg.set(String(e));
+  }
+  setTimeout(async () => {
+    try {
+      shellUp.set(await api.shellRunning());
+    } catch {}
+    shellRestarting.set(false);
+  }, 2500);
+}

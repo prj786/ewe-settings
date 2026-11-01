@@ -9,6 +9,7 @@
   export let step = 1;
   export let unit = "";
   export let dim = false;
+  export let indent = false;
   /** Called on release (commit), not every pixel — writes are not free. */
   export let moved = () => {};
   let live = null; // value while dragging
@@ -37,7 +38,7 @@
   $: shown = Number(Number(live ?? committed ?? value).toFixed(decimals(step)));
 </script>
 
-<Row title={label} {sub} {dim}>
+<Row title={label} {sub} {dim} {indent}>
   <div class="ewe-slider slider-trail">
     <Slider
       type="single"

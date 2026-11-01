@@ -7,6 +7,7 @@
   export let options = []; // [{label, value}]
   export let value;
   export let dim = false;
+  export let indent = false;
   export let width = ""; // kept for older call sites; the trigger sizes to its value
   export let picked = () => {};
 
@@ -21,7 +22,7 @@
   $: shown = (options.find((o) => enc(o.value) === current) || {}).label;
 </script>
 
-<Row title={label} {sub} {icon} {dim}>
+<Row title={label} {sub} {icon} {dim} {indent}>
   <Select.Root
     type="single"
     value={current}

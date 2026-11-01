@@ -20,10 +20,10 @@
   import { prefs, errorMsg, flashApplied, shellUp } from "../stores.js";
   import { setPrefs } from "../overrides.js";
   import KV from "./ui/KV.svelte";
-  import SelectRow from "./ui/SelectRow.svelte";
+  import Seg from "./ui/Seg.svelte";
 
   let info = null;
-  let syncApp = false; // ewe-sync (RFC-006) installed → "Manage in ewe-sync"
+  let syncApp = false; // ewe-sync (RFC-006) installed → "Open ewe Sync"
   api.syncAppInstalled().then((v) => (syncApp = !!v)).catch(() => {});
   let cloud = null; // `qs ipc call cloud status` (null = no answer yet)
   let google = null; // `qs ipc call google status`
@@ -112,7 +112,7 @@
       const b64 = c.toDataURL("image/png").split(",")[1];
       const warn = await api.saveAvatar(b64);
       if (warn) errorMsg.set(warn);
-      else flashApplied("Avatar updated");
+      else flashApplied("Picture changed");
       faceVersion++;
       refresh();
     } catch (e) {
@@ -135,7 +135,7 @@
       c.getContext("2d").drawImage(img, 0, 0, 512, 512);
       const warn = await api.saveAvatar(c.toDataURL("image/png").split(",")[1]);
       if (warn) errorMsg.set(warn);
-      else flashApplied("Avatar updated");
+      else flashApplied("Picture changed");
       faceVersion++;
       refresh();
     } catch (e) {
@@ -155,7 +155,7 @@
     }
   }
 
-  /** Everything that CHANGES the account happens in ewe-sync. */
+  /** Everything that CHANGES the account happens in ewe Sync (ewe-sync). */
   const openSync = () => api.openSyncApp().catch((e) => errorMsg.set(String(e)));
 
   const shapes = [
@@ -163,10 +163,13 @@
     { label: "Rounded", value: "rounded" },
     { label: "Square", value: "square" }
   ];
+  // "Oct 10, 1:00 PM" — the year only when it isn't this one
   const fmtSync = (iso) => {
     if (!iso) return "never";
     try {
-      return new Date(iso).toLocaleString();
+      const d = new Date(iso);
+      const sameYear = d.getFullYear() === new Date().getFullYear();
+      return d.toLocaleString([], { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), hour: "numeric", minute: "2-digit" });
     } catch {
       return iso;
     }
@@ -194,8 +197,14 @@
 </script>
 
 <Page title="User" desc="Who you are on this computer, and the accounts it's signed in to.">
-  <Group>
-    <div class="ewe-row user-head">
+  <svelte:fragment slot="actions">
+    {#if syncApp}
+      <button class="ewe-btn ewe-btn--secondary" on:click={openSync}>Open ewe Sync</button>
+    {/if}
+  </svelte:fragment>
+
+  <Group title="You">
+    <div class="ewe-row user-head" data-setting="Picture and name">
       {#if faceUrl}
         <span class="ewe-avatar ewe-avatar--xl {avatarClass}" style="background-image: url('{faceUrl}')" role="img" aria-label="Your picture"></span>
       {:else}
@@ -210,12 +219,12 @@
             <input class="ewe-input w-full" aria-label="Your name" bind:value={nameEdit} autofocus on:blur={saveName} />
           </form>
         {:else}
-          <button class="user-name" title="Edit your name"
+          <button class="user-name" title="Change your name"
             on:click={() => { nameEdit = info?.realName || ""; editingName = true; }}>
             {info?.realName || info?.user || "…"}
           </button>
         {/if}
-        <div class="ewe-row__desc">{info ? `${info.user}@${info.host}` : ""}</div>
+        <div class="ewe-row__desc">{info ? `${info.user} on ${info.host}` : ""}</div>
       </div>
       <div class="ewe-row__trail flex-col items-end">
         <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={pickAvatar}>Change picture…</button>
@@ -224,30 +233,26 @@
         {/if}
       </div>
     </div>
-    <SelectRow
-      label="Picture shape"
-      sub="On the lock screen and in the shell."
-      options={shapes}
-      value={avatarShape}
-      picked={(v) => setPrefs({ avatarShape: v })}
-    />
-    {#if info?.uptime}<KV k="Session" v={info.uptime} />{/if}
+    <Row title="Picture shape" sub="On the lock screen and in the shell">
+      <Seg label="Picture shape" options={shapes} value={avatarShape} picked={(v) => setPrefs({ avatarShape: v })} />
+    </Row>
+    {#if info?.uptime}<KV k="Signed in for" v={info.uptime} />{/if}
   </Group>
 
-  <!-- Read-only by design (RFC-006). ewe-sync owns the account; this shows it. -->
-  <Group title="Your account · Nextcloud">
+  <!-- Read-only by design (RFC-006). ewe Sync owns the account; this shows it. -->
+  <Group title="Nextcloud account">
     {#if noShell}
-      <Row sub="The shell isn't running, and your account is managed through it." />
+      <Row title="Nextcloud account" sub="Can't be read while the shell isn't running." />
     {:else if cloud === null}
-      <Row sub="Reading…" />
+      <Row title="Nextcloud account" sub="Reading…" />
     {:else if !cloud.signedIn}
-      <Row title="Not signed in" sub="Settings sync, your files as a folder, your calendar. You sign in from ewe-sync.">
+      <Row title="Not signed in" setting="Nextcloud account" sub="Sign in to keep your settings, files and calendar in your own cloud.">
         {#if syncApp}
-          <button class="ewe-btn ewe-btn--primary" on:click={openSync}>Open ewe-sync</button>
+          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={openSync}>Sign in…</button>
         {/if}
       </Row>
     {:else}
-      <div class="ewe-row">
+      <div class="ewe-row" data-setting="Nextcloud account">
         {#if cloudAvatar}
           <span class="ewe-avatar" style="background-image: url('{cloudAvatar}')" role="img" aria-label="Account picture"></span>
         {:else}
@@ -275,65 +280,59 @@
       {:else if cloud.quota}
         <KV k="Storage" v={`${fmtBytes(cloud.quota.used)} used`} />
       {/if}
-      <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"} (mounted)` : cloud.filesPath ? `${cloud.filesPath} (not mounted)` : "—"} />
+      <KV k="Files" v={cloud.filesMounted ? `${cloud.filesPath || "~/Nextcloud"}` : cloud.filesPath ? `${cloud.filesPath} (not connected)` : "—"} />
       <KV k="Calendar" v={cloud.calState === "ok" ? `${cloud.eventCount} upcoming event${cloud.eventCount === 1 ? "" : "s"}` : cloud.calState || "—"} />
       {#if cloud.error}
-        <Row><span class="text-warning">{cloud.error}</span></Row>
+        <Row sub={cloud.error} />
       {/if}
     {/if}
   </Group>
 
-  <!-- Status only. Back up, sync, push and restore are ewe-sync's verbs. -->
-  <Group title="Settings sync">
+  <!-- Status only. Back up, sync, push and restore are ewe Sync's verbs. -->
+  <Group title="Settings sync" desc="Backups, restoring and your other computers are in ewe Sync.">
     {#if noShell}
-      <Row sub="The shell isn't running, so the sync status is unknown. ewe-sync still backs up and restores." />
+      <Row title="Sync status" sub="Unknown while the shell isn't running. ewe Sync still backs up and restores." />
     {:else if cloud === null}
-      <Row sub="Reading…" />
+      <Row title="Sync status" sub="Reading…" />
     {:else if !cloud.signedIn}
-      <Row sub="Sign in from ewe-sync to keep this computer's settings, apps and look in your account, and bring them back on the next one." />
+      <Row title="Sync status" sub="Off. Sign in to bring this computer's settings, apps and look to the next one." />
     {:else}
       <Row
-        title="The one file"
+        title="Sync status"
         sub={cloud.syncState === "syncing"
           ? "Syncing…"
           : cloud.syncConflict
-            ? cloud.syncError || "The copy in your account changed since this computer last synced. Resolve it in ewe-sync."
+            ? cloud.syncError || "The copy in your account changed since this computer last synced."
             : cloud.syncError
               ? cloud.syncError
               : !cloud.lastSync
-                ? "Nothing is uploaded until you back up this computer in ewe-sync."
+                ? "Nothing is uploaded until you back up this computer in ewe Sync."
                 : cloud.inSync
-                  ? "Up to date."
-                  : "Changed since the last sync."}
+                  ? "Up to date"
+                  : "Changed since the last sync"}
       >
         {#if cloud.syncConflict && syncApp}
-          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={openSync}>Resolve in ewe-sync</button>
+          <button class="ewe-btn ewe-btn--primary ewe-btn--sm" on:click={openSync}>Resolve in ewe Sync</button>
         {/if}
       </Row>
       <KV k="Backup in your account"
-        v={cloud.remoteMachine || cloud.remoteModified ? `Saved by “${cloud.remoteMachine || "another computer"}” · ${fmtSync(cloud.remoteModified)}` : "None yet"} />
+        v={cloud.remoteMachine || cloud.remoteModified ? `From “${cloud.remoteMachine || "another computer"}”, ${fmtSync(cloud.remoteModified)}` : "None yet"} />
       <KV k="This computer last synced"
-        v={cloud.localSyncedAt ? fmtSync(cloud.localSyncedAt) + (cloud.inSync ? " · up to date" : "") : "Never"} />
-      <KV k="Auto-sync" v={cloud.autoSync ? "On" : "Off"} />
-      {#if syncApp}
-        <Row sub="Backups, restoring, your computers and folder sync are all in the account app.">
-          <button class="ewe-btn ewe-btn--secondary" on:click={openSync}>Open ewe-sync</button>
-        </Row>
-      {/if}
+        v={cloud.localSyncedAt ? fmtSync(cloud.localSyncedAt) : "Never"} />
+      <KV k="Sync by itself" v={cloud.autoSync ? "On" : "Off"} />
     {/if}
   </Group>
 
   <!-- Read-only, like the account above: connecting, disconnecting and the
-       client-file guidance all live in ewe-sync → Google. -->
-  <Group title="Google (optional)">
-    <Row sub="For Gmail notifications and a Drive folder, never settings sync. ewe ships no Google client of its own: you bring your own OAuth client, and ewe-sync → Google explains where it goes and connects the account." />
-    <KV k="Client file" v={gclient ? (gclient.valid ? "Found" : gclient.exists ? "Found, but not a desktop app client JSON" : "Missing") : google?.configured ? "Found" : "Missing"} />
+       client-file guidance all live in ewe Sync → Google. -->
+  <Group title="Google" desc="Optional, for Gmail and a Drive folder. You connect it in ewe Sync, with your own Google client file.">
+    <KV k="Your Google client file" setting="Google" v={gclient ? (gclient.valid ? "Found" : gclient.exists ? "Found, but it isn't a desktop app file" : "Not added") : google?.configured ? "Found" : "Not added"} />
     {#if google === null && !$shellUp}
-      <Row sub="The shell isn't running, and Google is managed through it." />
+      <Row title="Google account" sub="Can't be read while the shell isn't running." />
     {:else if google === null}
-      <Row sub="Reading…" />
+      <Row title="Google account" sub="Reading…" />
     {:else if !google.signedIn}
-      <Row sub="Not connected." />
+      <KV k="Google account" v="Not connected" />
     {:else}
       <div class="ewe-row">
         {#if google.profile?.picture}
@@ -344,13 +343,8 @@
           <div class="ewe-row__desc">{google.profile?.email || ""}</div>
         </div>
       </div>
-      <KV k="Gmail" v={google.mailState === "scope" ? "No mail permission. Reconnect in ewe-sync." : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
-      <KV k="Drive folder" v="~/Google Drive (mounted when you sign in)" />
-    {/if}
-    {#if syncApp}
-      <Row sub="You connect and disconnect Google in the account app.">
-        <button class="ewe-btn ewe-btn--secondary" on:click={openSync}>Open ewe-sync</button>
-      </Row>
+      <KV k="Gmail" v={google.mailState === "scope" ? "No mail permission. Reconnect in ewe Sync." : google.mailState === "ok" ? `${google.mailUnread || 0} unread` : google.mailState || "—"} />
+      <KV k="Drive folder" v="~/Google Drive, when you're signed in" />
     {/if}
   </Group>
 </Page>

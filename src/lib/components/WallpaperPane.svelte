@@ -26,8 +26,6 @@
 
   $: anyVideo = Object.values(map).some(isVideo);
   $: anyAnimated = Object.values(map).some((p) => isVideo(p) || isGif(p));
-  $: backendLabel =
-    imgBackend === "" && videoBackend === "" ? "none" : imgBackend + (videoBackend !== "" ? " + " + videoBackend : "");
 
   onMount(async () => {
     try {
@@ -65,11 +63,11 @@
 
   function assign(path) {
     if (isVideo(path) && videoBackend === "") {
-      errorMsg.set("Video wallpapers need mpvpaper — install it with: sudo pacman -S mpvpaper");
+      errorMsg.set("Video wallpapers need the mpvpaper package. Install it from Komble, then pick the video again.");
       return;
     }
     if (isGif(path) && imgBackend === "swaybg")
-      errorMsg.set("GIFs will be static with swaybg — install swww (sudo pacman -S awww) for animation");
+      errorMsg.set("This GIF stays still until the awww package is installed. Komble can install it.");
     if (target === "*") map = { "*": path }; // "all displays" replaces per-monitor picks
     else map = { ...map, [target]: path };
     write();
@@ -95,6 +93,9 @@
   }
 
   $: currentFor = (t) => map[t] || map["*"] || "";
+  // the folder by its name, not its path
+  $: folder = dir ? dir.replace(/\/+$/, "").split("/").pop() : "";
+  const fitHint = { fill: "Covers the screen, cropping the edges", fit: "Shows the whole picture, with bars if needed", center: "At its own size, in the middle", tile: "Repeated across the screen" };
   import Page from "./ui/Page.svelte";
   import Group from "./ui/Group.svelte";
   import Icon from "./ui/Icon.svelte";
@@ -103,10 +104,10 @@
 
 <Page title="Wallpaper" desc="The picture or video behind your windows, for every display or one at a time.">
   <svelte:fragment slot="actions">
-    <button class="ewe-btn ewe-btn--primary" on:click={browse}>Choose file…</button>
+    <button class="ewe-btn ewe-btn--secondary" data-setting="Choose file" on:click={browse}>Choose file…</button>
   </svelte:fragment>
 
-  <Group>
+  <Group title="Options" desc="Applied now and every time you sign in. A display you plug in gets its wallpaper by itself.">
     {#if outputs.length > 1}
       <SelectRow
         label="Set for"
@@ -117,6 +118,7 @@
     {/if}
     <SelectRow
       label="Fit"
+      sub={fitHint[mode] || ""}
       options={[
         { label: "Fill", value: "fill" },
         { label: "Fit", value: "fit" },
@@ -131,6 +133,7 @@
     />
     <ToggleRow
       title="Mute video wallpapers"
+      sub={anyVideo ? "" : "For when a video is the wallpaper"}
       dim={!anyVideo}
       on={mute}
       toggled={() => {
@@ -140,9 +143,13 @@
     />
   </Group>
 
+  {#if anyAnimated}
+    <Alert tone="warning">Moving wallpapers keep the graphics card busy all the time, which uses noticeably more battery.</Alert>
+  {/if}
+
   {#if files.length}
-    <Group title={dir} well={false}>
-      <div class="ewe-walls wall-grid" role="radiogroup" aria-label="Wallpapers in {dir}">
+    <Group title="Pictures" desc={folder ? `From the folder “${folder}”. Choose file… takes one from anywhere.` : ""} well={false}>
+      <div class="ewe-walls wall-grid" role="radiogroup" aria-label="Wallpapers">
         {#each files as f (f)}
           {@const cur = currentFor(target) === f}
           {@const fname = f.split("/").pop()}
@@ -187,21 +194,15 @@
       </div>
     </Group>
   {:else if dir}
-    <div class="ewe-list">
+    <Group title="Pictures">
       <div class="ewe-empty">
         <span class="ewe-empty__icon"><Icon name="image" /></span>
         <div class="ewe-empty__title">No pictures or videos here</div>
-        <div class="ewe-empty__desc">{dir} has nothing to show. Choose a file to use one from anywhere.</div>
+        <div class="ewe-empty__desc">The {folder ? `“${folder}” folder` : "wallpaper folder"} is empty. Choose a file to use one from anywhere.</div>
+        <div class="ewe-empty__actions">
+          <button class="ewe-btn ewe-btn--secondary" on:click={browse}>Choose file…</button>
+        </div>
       </div>
-    </div>
-  {/if}
-
-  <p class="note">
-    Applied now and again every time you sign in (wallpaper.sh); a newly connected display gets its
-    wallpaper by itself. Pictures use {imgBackend || "no backend"}, GIFs animate with swww, and
-    videos loop with mpvpaper. Backend: {backendLabel}.
-  </p>
-  {#if anyAnimated}
-    <Alert tone="warning">Animated wallpapers keep the graphics card decoding all the time, which uses noticeably more battery.</Alert>
+    </Group>
   {/if}
 </Page>

@@ -204,9 +204,6 @@ code {
   .ewe-sidenav__logo {
     color: var(--text-primary);
   }
-  .ewe-sidenav__group {
-    flex: 1 1 auto;
-  }
   .ewe-navitem {
     border: 0;
     background: transparent;
@@ -214,59 +211,155 @@ code {
     text-align: left;
     font-family: inherit;
   }
-  /* Below 720px of window width the rail collapses to icons (Side navigation). */
+  /* The rail as the approved revamp draws it: 212px, the search under the
+     brand, four groups with sentence-case headings, label-only items 26px
+     tall (the icons come back when the rail collapses). */
+  .settings-nav {
+    width: calc(7 * var(--control-md) + var(--space-md));
+    gap: calc(var(--space-s) + var(--space-xxs));
+  }
+  .settings-nav .ewe-sidenav__group {
+    flex: none;
+  }
+  .settings-nav .ewe-sidenav__heading {
+    letter-spacing: 0;
+  }
+  .settings-nav .ewe-navitem {
+    flex: none;
+    height: calc(var(--control-md) - var(--space-xxs));
+  }
+  .settings-nav .ewe-navitem > .ewe-icon,
+  .nav-search-btn {
+    display: none;
+  }
+  .nav-search {
+    padding: 0 var(--space-xs);
+  }
+  .nav-search .ewe-input {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-xs) + var(--space-xxs));
+  }
+  .nav-search .ewe-input > .ewe-icon {
+    color: var(--text-muted);
+  }
+  .nav-search .search-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .nav-results {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xxs);
+  }
+  .settings-nav .nav-result {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--space-xs) var(--space-s);
+  }
+  .nav-result__label,
+  .nav-result__where {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .nav-result__label {
+    color: var(--text-primary);
+  }
+  .nav-result__where {
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-xs);
+    color: var(--text-muted);
+  }
+  .nav-empty {
+    margin: 0;
+    padding: var(--space-xs) var(--space-s);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-xs);
+    color: var(--text-muted);
+  }
+  /* Below 720px of window width the rail collapses to icons (Side
+     navigation); while finding a setting it opens back up. */
   @media (max-width: 720px) {
-    .ewe-appwin .ewe-sidenav {
+    .settings-nav:not(.is-searching) {
       width: var(--control-2xl);
       padding-inline: var(--space-xs);
     }
-    .ewe-sidenav__name,
-    .ewe-navitem__label,
-    .ewe-sidenav__version,
-    .ewe-sidenav__note {
+    .settings-nav:not(.is-searching) :is(.ewe-sidenav__name, .ewe-navitem__label, .ewe-sidenav__version, .ewe-sidenav__heading, .nav-search) {
       display: none;
     }
-    .ewe-sidenav__brand,
-    .ewe-navitem {
+    .settings-nav:not(.is-searching) .ewe-navitem > .ewe-icon,
+    .settings-nav:not(.is-searching) .nav-search-btn {
+      display: inline-flex;
+    }
+    .settings-nav:not(.is-searching) :is(.ewe-sidenav__brand, .ewe-navitem) {
       justify-content: center;
       padding-inline: 0;
+      height: var(--control-md);
     }
   }
 
-  /* ── the page (Settings page card) ─────────────────────────────────────── */
+  /* ── the page (Settings page card): ONE grammar on every page ───────────
+     The header (title, one-line description, at most one action) stays
+     put, 16/24/12 inset; the groups scroll under it in a column at most
+     768px wide (720 of content), left-aligned. */
+  .page-head {
+    flex: none;
+    padding: var(--space-md) calc(var(--space-md) + var(--space-s)) calc(var(--space-s) + var(--space-xs));
+  }
+  .page-scroll {
+    min-height: 0;
+  }
   .page {
     box-sizing: border-box;
-    /* content at most 720px (panel-lg + 5 × space-lg), left-aligned */
-    max-width: calc(var(--panel-lg) + 5 * var(--space-lg) + 2 * (var(--space-md) + var(--space-s)));
+    max-width: calc(24 * var(--space-lg));
     padding: 0 calc(var(--space-md) + var(--space-s)) var(--space-lg);
     display: flex;
     flex-direction: column;
     gap: var(--space-s);
   }
-  .page > .ewe-headerbar {
-    padding-bottom: calc(var(--space-s) + var(--space-xs));
-  }
-  /* a group: overline section header, 8px, then its list well; 24px above */
+  /* a group: the overline 8px in, 8px down to its well, 20px above */
   .group {
     display: flex;
     flex-direction: column;
     gap: var(--space-s);
-    margin-top: calc(var(--space-md) - var(--space-s));
   }
-  .page > .ewe-headerbar + .group,
-  .page > .ewe-headerbar + * {
-    margin-top: 0;
+  .page > * + .group {
+    margin-top: calc(var(--space-s) + var(--space-xs));
   }
-  .group > .ewe-section {
-    min-height: var(--control-sm);
+  .group-head {
+    padding: 0 var(--space-s);
+    align-items: flex-end;
   }
-  /* setting rows: descriptions explain the setting, so they wrap instead of
-     truncating (Georgian runs about 30% longer; Writing guide) */
+  .group-desc {
+    margin: 0;
+    font-size: var(--font-size-s);
+    line-height: var(--line-height-s);
+    color: var(--text-muted);
+  }
+  /* rows: 40px, 48 with a description; the control in a fixed column on
+     the right; descriptions wrap rather than truncate (Georgian runs about
+     30% longer; Writing guide) */
+  .page .ewe-list > .ewe-row,
+  .ewe-sheet__body .ewe-list > .ewe-row {
+    min-height: var(--control-xl);
+  }
+  .page .ewe-list > .ewe-row:has(> .ewe-row__text > .ewe-row__desc),
+  .ewe-sheet__body .ewe-list > .ewe-row:has(> .ewe-row__text > .ewe-row__desc) {
+    min-height: var(--control-2xl);
+  }
   .page .ewe-row__desc,
   .page .ewe-row__title {
     white-space: normal;
   }
   .page .ewe-row__trail {
+    flex: none;
+    max-width: 60%;
+    justify-content: flex-end;
     color: var(--text-secondary);
   }
   .ewe-row__trail > .ewe-seg,
@@ -278,14 +371,59 @@ code {
     align-items: stretch;
     gap: var(--space-s);
   }
+  .page .ewe-row--block > .ewe-row__trail {
+    max-width: none;
+    justify-content: flex-start;
+  }
+  .ewe-row--indent {
+    padding-left: calc(var(--space-md) + var(--space-s));
+  }
+  .row-clickable {
+    cursor: pointer;
+  }
+  .row-clickable:hover {
+    background: var(--surface-hover);
+  }
   .ewe-row.is-dim .ewe-row__title,
   .ewe-row.is-dim .ewe-row__desc,
   .ewe-row.is-dim .ewe-slider__value {
     color: var(--text-disabled);
   }
-  .ewe-list > .ewe-row + .ewe-row,
-  .ewe-list > * + .ewe-row {
-    margin-top: var(--space-xxs);
+  /* rows in a well are divided by a 1px border-subtle line, 8px in from
+     each side (List row card) — drawn here so no page has to place them */
+  .page .ewe-list > * + *,
+  .ewe-sheet__body .ewe-list > * + * {
+    position: relative;
+    margin-top: calc(2 * var(--space-xxs) + var(--border-width-1));
+  }
+  .page .ewe-list > * + *::before,
+  .ewe-sheet__body .ewe-list > * + *::before {
+    content: "";
+    position: absolute;
+    left: var(--space-s);
+    right: var(--space-s);
+    top: calc(-1 * (var(--space-xxs) + var(--border-width-1)));
+    height: var(--border-width-1);
+    background: var(--border-subtle);
+    pointer-events: none;
+  }
+  /* Find a setting: the row it opened, marked for a moment */
+  .is-found,
+  .ewe-row.is-found {
+    background: var(--accent-subtle);
+    border-radius: var(--secondary);
+  }
+  /* a row's inline content that is not a row (a form, a picker, an alert) */
+  .row-pad {
+    padding: var(--space-xs);
+  }
+  /* keyboard focus stays readable on accent-filled controls: the ring sits
+     2px out, so a gap of the surface separates it from the fill */
+  .ewe-switch:focus-visible,
+  .ewe-btn--primary:focus-visible,
+  .ewe-check__box:focus-visible,
+  .ewe-seg--accent .ewe-seg__item.is-selected:focus-visible {
+    outline-offset: var(--border-width-2);
   }
   /* explanatory text under a group (help right where it is: UX value 10) */
   .note {
@@ -421,7 +559,7 @@ code {
     background: var(--text-disabled);
   }
   .slider-trail {
-    width: calc(8 * var(--control-md));
+    width: calc(8 * var(--control-lg) + var(--space-xs));
   }
   .slider-value {
     white-space: nowrap;
@@ -433,21 +571,11 @@ code {
   }
   .kv-value {
     min-width: 0;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: right;
-  }
-  .kv-row {
-    min-height: var(--control-md);
-  }
-  .kv-row .ewe-row__text {
-    flex: none;
-  }
-  .kv-row .ewe-row__trail {
-    flex: 1 1 auto;
-    justify-content: flex-end;
   }
   .ewe-sidenav__logo {
     display: inline-flex;
@@ -456,13 +584,6 @@ code {
     width: 100%;
     height: 100%;
     fill: currentColor;
-  }
-  .ewe-sidenav__note {
-    margin: 0;
-    padding: var(--space-xs) var(--space-s);
-    font-size: var(--font-size-xs);
-    line-height: var(--line-height-xs);
-    color: var(--warning);
   }
   .error-text {
     display: block;
@@ -662,6 +783,19 @@ code {
     color: var(--text-primary);
     text-align: left;
   }
+  /* Wi-Fi networks sit in the well at the same height as every other row */
+  .page .ewe-list .net-row.ewe-net {
+    min-height: var(--control-xl);
+  }
+  /* a meter's figure reads like any other value on the page */
+  .page .ewe-meter__value {
+    font-family: var(--font-sans);
+    font-weight: var(--font-weight-regular);
+    color: var(--text-secondary);
+  }
+  .host-input {
+    width: calc(6 * var(--control-md));
+  }
   .net-join {
     margin: var(--space-xxs) var(--space-xs) var(--space-xs);
   }
@@ -754,11 +888,81 @@ code {
 }
 
 @layer components {
-  /* Appearance: schemes in a wrapping row of cards */
+  /* Appearance: schemes as a grid of equal cards (four across at full
+     width), the last tile makes one from the wallpaper */
   .scheme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(5 * var(--control-md)), 1fr));
+    gap: var(--space-s);
+  }
+  .scheme-grid .ewe-scheme {
+    width: auto;
+    border: var(--border-width-2) solid transparent;
+  }
+  .scheme-grid .ewe-scheme.is-selected {
+    border-color: var(--accent);
+    box-shadow: none;
+  }
+  .scheme-grid .ewe-scheme__preview {
+    height: calc(var(--control-2xl) + var(--control-xl) - var(--space-xs));
+  }
+  .scheme-grid .ewe-scheme__meta {
+    min-height: var(--control-sm);
+    gap: calc(var(--space-xs) + var(--space-xxs));
+  }
+  .scheme-grid .ewe-scheme__meta .ewe-badge {
+    flex: none;
+  }
+  /* the ⋯ menu floats over the preview's corner on hover and focus, so the
+     name row shows only the name and the scheme's state */
+  .scheme-grid .ewe-scheme {
+    position: relative;
+  }
+  .scheme-more {
+    position: absolute;
+    top: calc(var(--space-s) + var(--space-xs));
+    right: calc(var(--space-s) + var(--space-xs));
+    opacity: 0;
+  }
+  .ewe-scheme:hover .scheme-more,
+  .ewe-scheme:focus-within .scheme-more,
+  .scheme-more[data-state="open"] {
+    opacity: 1;
+  }
+  .scheme-add {
     display: flex;
-    flex-wrap: wrap;
-    gap: calc(var(--space-s) + var(--space-xs));
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--space-xs) + var(--space-xxs));
+    min-height: calc(4 * var(--space-lg));
+    padding: var(--space-s);
+    border: var(--border-width-1) dashed var(--border-strong);
+    border-radius: var(--rounded);
+    background: transparent;
+    font: inherit;
+    color: var(--text-primary);
+    text-align: center;
+    cursor: pointer;
+  }
+  .scheme-add:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+  .scheme-add:disabled {
+    cursor: progress;
+  }
+  .scheme-add > .ewe-icon {
+    width: var(--icon-lg);
+    height: var(--icon-lg);
+    color: var(--text-secondary);
+  }
+  .scheme-add__title {
+    font-weight: var(--font-weight-medium);
+  }
+  .scheme-add__desc {
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-xs);
+    color: var(--text-muted);
   }
   .ewe-scheme {
     outline-offset: var(--border-width-1);
@@ -782,11 +986,26 @@ code {
     outline: var(--focus-width) solid var(--focus-ring);
     outline-offset: calc(3 * var(--border-width-2));
   }
+  /* Accent color: the swatches, then the hex and Custom… on the right */
+  .accent-row {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-s) + var(--space-xxs));
+    padding: calc(var(--space-xs) + var(--space-xxs)) var(--space-s);
+  }
+  .accent-row .ewe-swatches {
+    flex: 1;
+    min-width: 0;
+  }
   .accent-hex {
-    margin-left: var(--space-xs);
     font-family: var(--font-mono);
     font-size: var(--font-size-s);
-    color: var(--text-muted);
+    line-height: var(--line-height-s);
+    color: var(--text-secondary);
+  }
+  .accent-custom:focus-within {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--border-width-1);
   }
   .ewe-swatch {
     padding: 0;
@@ -822,6 +1041,14 @@ code {
   }
   .ewe-scheme__meta .ewe-icon-tone--muted {
     color: var(--text-muted);
+  }
+  .ewe-scheme__meta .scheme-status {
+    width: var(--icon-md);
+    height: var(--icon-md);
+  }
+  .ewe-scheme__meta .scheme-status.ewe-icon-tone--muted {
+    width: var(--icon-sm);
+    height: var(--icon-sm);
   }
   .ewe-scheme__meta .ewe-iconbtn .ewe-icon {
     color: inherit;

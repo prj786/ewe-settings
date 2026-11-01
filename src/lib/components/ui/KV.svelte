@@ -1,12 +1,16 @@
 <script>
-  // Key–value, as a row in a list well: the key in text-muted, the value in
-  // text-primary on the right (KeyValue card).
+  // A read-only fact as a settings row: the name on the left like any row,
+  // the value in the control column in text-secondary — never the muted
+  // "disabled" look (KeyValue card, Settings page).
+  import Row from "./Row.svelte";
   export let k = "";
   export let v = "";
+  export let sub = "";
   export let mono = false;
+  export let hint = ""; // the full text behind a shortened value
+  export let setting = ""; // what Find a setting looks for, when not the name
 </script>
 
-<div class="ewe-row kv-row">
-  <div class="ewe-row__text"><div class="ewe-row__title text-dim">{k}</div></div>
-  <div class="ewe-row__trail kv-value {mono ? 'ewe-kv__mono' : ''}" title={v}>{v}</div>
-</div>
+<Row title={k} {sub} {setting}>
+  <span class="kv-value {mono ? 'ewe-kv__mono' : ''}" title={hint || v}>{v}</span>
+</Row>

@@ -21,7 +21,7 @@
     ...Array.from({ length: 8 }, (_, i) => ({ label: `Workspace ${i + 1}`, value: i + 1 }))
   ];
   const MODES = [
-    { label: "Default", value: "" },
+    { label: "As usual", value: "" },
     { label: "Floating", value: "float" },
     { label: "Tiled", value: "tile" }
   ];
@@ -85,43 +85,35 @@
   import Row from "./ui/Row.svelte";
   import Icon from "./ui/Icon.svelte";
   import PickList from "./ui/PickList.svelte";
+  import Sheet from "./ui/Sheet.svelte";
 </script>
 
 <Page title="Window rules" desc="Always open an app on a chosen workspace, or make it float or tile.">
   <svelte:fragment slot="actions">
-    <button class="ewe-btn {showAdd ? 'ewe-btn--secondary' : 'ewe-btn--primary'}" on:click={() => (showAdd = !showAdd)}>
-      {#if !showAdd}<Icon name="plus" />{/if}
-      {showAdd ? "Cancel" : "Add rule"}
+    <button class="ewe-btn ewe-btn--secondary" data-setting="Add rule" on:click={() => ((query = ""), (showAdd = true))}>
+      <Icon name="plus" />Add rule…
     </button>
   </svelte:fragment>
 
-  {#if showAdd}
-    <Group title="Add a rule for">
-      <PickList
-        bind:query
-        placeholder="Search apps"
-        items={candidates.slice(0, 40).map((a) => ({ id: a.id, title: a.name, trail: a.comment || a.exec, a }))}
-        pick={(it) => add(it.a)}
-      />
-    </Group>
-  {/if}
-
   {#if rules.length === 0}
-    <div class="ewe-list">
+    <Group title="Rules">
       <div class="ewe-empty">
         <span class="ewe-empty__icon"><Icon name="windowRules" /></span>
         <div class="ewe-empty__title">No rules yet</div>
         <div class="ewe-empty__desc">Add one to always open an app on a chosen workspace, or make it float or tile.</div>
+        <div class="ewe-empty__actions">
+          <button class="ewe-btn ewe-btn--secondary" on:click={() => ((query = ""), (showAdd = true))}><Icon name="plus" />Add rule…</button>
+        </div>
       </div>
-    </div>
+    </Group>
   {:else}
-    <Group>
+    <Group title="Rules" desc="They apply when the app's window opens. If one isn't caught, edit the window class under its name.">
       {#each rules as r, i (r.class)}
         <Row title={r.name || r.class}>
           <svelte:fragment slot="text">
             <input
               class="rule-class"
-              title="The window class this rule matches. Edit it if the app's real class differs."
+              title="The window class this rule matches. Change it if the app's window isn't caught."
               aria-label="Window class for {r.name || r.class}"
               value={r.class}
               on:change={(e) => patch(i, { class: e.target.value.trim() || r.class })}
@@ -132,7 +124,7 @@
             value={enc(r.workspace || 0)}
             onValueChange={(raw) => patch(i, { workspace: Number(raw) || 0 })}
           >
-            <Select.Trigger class="select-trigger" aria-label="Workspace">
+            <Select.Trigger class="select-trigger" aria-label="Workspace for {r.name || r.class}">
               {(WS.find((o) => enc(o.value) === enc(r.workspace || 0)) || WS[0]).label}
             </Select.Trigger>
             <Select.Content>
@@ -146,7 +138,7 @@
             value={enc(r.mode || "")}
             onValueChange={(raw) => patch(i, { mode: raw === EMPTY ? "" : raw })}
           >
-            <Select.Trigger class="select-trigger" aria-label="Floating or tiled">
+            <Select.Trigger class="select-trigger" aria-label="Floating or tiled, for {r.name || r.class}">
               {(MODES.find((o) => enc(o.value) === enc(r.mode || "")) || MODES[0]).label}
             </Select.Trigger>
             <Select.Content>
@@ -160,10 +152,15 @@
       {/each}
     </Group>
   {/if}
-
-  <p class="note">
-    Rules apply when an app's window opens: “Workspace N” sends it to that workspace, “Floating” and
-    “Tiled” override how it joins the layout. Rules match the window class; if a window isn't caught,
-    edit the small value under the app's name (<code>hyprctl activewindow</code> shows the real class).
-  </p>
 </Page>
+
+<!-- Add a rule: pick the app in a Sheet; the page behind stays as it is -->
+<Sheet open={showAdd} title="Add a rule for…" onClose={() => (showAdd = false)}>
+  <PickList
+    bind:query
+    placeholder="Search apps"
+    empty="Every app already has a rule."
+    items={candidates.slice(0, 60).map((a) => ({ id: a.id, title: a.name, trail: a.comment, a }))}
+    pick={(it) => add(it.a)}
+  />
+</Sheet>

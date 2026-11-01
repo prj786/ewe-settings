@@ -32,25 +32,23 @@
   const truthy = (v) => v === true || String(v).toLowerCase() === "true";
 </script>
 
-<Page title="Accessibility" desc="Change how the desktop looks and moves. Every mode works with every scheme.">
+<Page title="Accessibility" desc="Contrast, transparency, text size and motion. Every mode works with every scheme.">
   <Group title="Seeing">
     <ToggleRow
-      icon="contrast"
       title="Increase contrast"
-      sub="Stronger outlines and text, a 2px focus ring, and a solid bar and dock."
+      sub="Stronger outlines and text, a thicker focus ring, and a solid bar and dock"
       on={truthy(a.increase_contrast)}
       dim={busy}
       toggled={() => set("increase_contrast", !truthy(a.increase_contrast))}
     />
     <ToggleRow
-      icon="eye"
       title="Reduce transparency"
-      sub="The bar, dock and lock screen turn solid with no blur. App blur and window transparency turn off."
+      sub="The bar, the dock and the lock screen turn solid. App blur and window transparency turn off."
       on={truthy(a.reduce_transparency)}
       dim={busy}
       toggled={() => set("reduce_transparency", !truthy(a.reduce_transparency))}
     />
-    <Row icon="textSize" title="Text size" sub="Text and the controls around it grow to fit. At 130% the bar’s icons are one size larger." dim={busy}>
+    <Row title="Text size" sub="Text and the controls around it grow to fit. At 130% the bar's icons are a size larger." dim={busy}>
       <Seg
         label="Text size"
         options={[[100, "100%"], [115, "115%"], [130, "130%"]]}
@@ -63,9 +61,8 @@
 
   <Group title="Motion">
     <ToggleRow
-      icon="motion"
       title="Reduce motion"
-      sub="Slides and zooms become quick fades. Nothing bounces or scales. Spinners keep turning."
+      sub="Slides and zooms become quick fades. Nothing bounces or scales."
       on={truthy(a.reduce_motion)}
       dim={busy}
       toggled={() => set("reduce_motion", !truthy(a.reduce_motion))}

@@ -10,7 +10,7 @@
   export let value;
   export let label = "";
   export let disabled = false;
-  export let size = "";
+  export let size = "sm"; // rows use the small control (Settings page)
   export let block = false;
   export let picked = () => {};
 

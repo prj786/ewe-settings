@@ -1626,8 +1626,8 @@ async fn ewe_game(args: &[&str]) -> Result<Value, String> {
     .await
     .map_err(|_| "ewe-game did not answer".to_string())?
     .map_err(estr)?;
-    let v: Value = serde_json::from_slice(&out.stdout)
-        .map_err(|_| "ewe-game gave no answer".to_string())?;
+    let v: Value =
+        serde_json::from_slice(&out.stdout).map_err(|_| "ewe-game gave no answer".to_string())?;
     if v.get("ok") == Some(&Value::Bool(false)) {
         return Err(v
             .get("error")

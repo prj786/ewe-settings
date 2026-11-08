@@ -149,6 +149,19 @@
             case "mime_apps": return Promise.resolve({ "x-scheme-handler/https": ["helium.desktop", "zen.desktop", "kitty-open.desktop"], "x-scheme-handler/mailto": [], "text/plain": ["dev.zed.Zed.desktop", "org.gnome.TextEditor.desktop"], "image/png": ["org.gnome.Loupe.desktop", "helium.desktop"], "video/mp4": ["mpv.desktop", "vlc.desktop"], "inode/directory": ["org.gnome.Nautilus.desktop"] }[args.mime] ?? []);
             case "app_names": return Promise.resolve(Object.fromEntries(Object.entries({ "helium.desktop": "Helium", "zen.desktop": "Zen Browser", "kitty-open.desktop": "kitty URL Launcher", "dev.zed.Zed.desktop": "Zed", "org.gnome.TextEditor.desktop": "Text Editor", "org.gnome.Loupe.desktop": "Image Viewer", "mpv.desktop": "mpv Media Player", "vlc.desktop": "VLC media player", "org.gnome.Nautilus.desktop": "Files" }).filter(([k]) => args.ids.includes(k))));
             case "power_info": return Promise.resolve({ battery: { capacity: 84, status: "Discharging", health: 0.91, cycles: 212, chargeLimit: 80, chargeLimitWritable: true }, kbdBacklight: { present: true, value: 1, max: 3 }, profiles: ["power-saver", "balanced", "performance"], profile: "balanced" });
+            // Game mode (ewe 0.42): ?game=on shows the steps of a running Ultra
+            case "game_status": case "game_set": {
+              const on = cmd === "game_set" ? args.on : new URLSearchParams(location.search).get("game") === "on";
+              return Promise.resolve({ ok: true, on, level: "ultra", reasons: on ? ["window"] : [], auto: true, close_apps: true,
+                steps: on ? [
+                  { id: "quiet", ok: true, note: "Banners wait in the notification list" },
+                  { id: "effects", ok: true, note: "No animations, blur or shadows, and a fullscreen game goes straight to the display" },
+                  { id: "boost", ok: true, note: "GameMode on: CPU boost, split-lock mitigation off" },
+                  { id: "power", ok: true, note: "Power profile: Performance (was Balanced)" },
+                  { id: "apps", ok: true, note: "Closed until game mode ends: ewe Sync, ewe Browser" },
+                  { id: "shell", ok: true, note: "Desktop widgets hidden, video wallpaper still" }] : [],
+                ready: { gamemode: true, boost_allowed: false, gamemode_ini: true } });
+            }
             case "default_wallpaper_dir": return Promise.resolve("/usr/share/ewe/system/branding/wallpapers");
             case "list_wallpapers": return Promise.resolve([]);
             case "wallpaper_backend": return Promise.resolve("img=awww video=mpvpaper");
@@ -196,5 +209,20 @@
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
+    <script>
+      // ?pane=<label>: open that page once the app is up (headless shots
+      // cannot click), and ?scroll=<px> scrolls the page body down
+      const want = new URLSearchParams(location.search).get("pane");
+      const scroll = Number(new URLSearchParams(location.search).get("scroll") || 0);
+      if (want) {
+        const t = setInterval(() => {
+          const b = [...document.querySelectorAll(".ewe-navitem")].find((x) => x.title.toLowerCase() === want.toLowerCase());
+          if (!b) return;
+          clearInterval(t);
+          b.click();
+          if (scroll) setTimeout(() => document.querySelectorAll("main, .ewe-page, [class*=scroll]").forEach((el) => (el.scrollTop = scroll)), 400);
+        }, 100);
+      }
+    </script>
   </body>
 </html>

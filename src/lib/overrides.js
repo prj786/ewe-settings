@@ -165,6 +165,18 @@ export async function setAccent(hexColor) {
   await api.applyColorscheme(p.colorScheme || "dark", get(effectiveAccent));
 }
 
+/** The pointer ([desktop.cursor], ewe 0.42): saved with the prefs, then
+ *  colorscheme.sh — the one writer of every toolkit's cursor — rewrites GTK,
+ *  ~/.icons/default and gsettings and moves the live pointer
+ *  (`hyprctl setcursor`). X11 and Qt apps already open keep the old one
+ *  until they restart; the next sign-in starts with the new one. */
+export async function setCursor(patch) {
+  await setPrefs(patch);
+  const p = get(prefs);
+  await api.applyColorscheme(p.colorScheme || "dark", get(effectiveAccent));
+  flashApplied("Cursor changed");
+}
+
 export async function setColorScheme(mode) {
   await setPrefs({ colorScheme: mode });
   await api.applyColorscheme(mode, get(effectiveAccent));

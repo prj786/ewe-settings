@@ -1611,6 +1611,43 @@ pub async fn set_power_profile(profile: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Game mode (ewe 0.42): everything goes through the DE's `ewe-game`, which
+/// owns the state the Quick settings tile, Shaun and GameMode's hooks share.
+/// It prints one JSON object and exits 0; `null` means ewe is older than
+/// 0.42 (no tool), and the page says so instead of failing.
+async fn ewe_game(args: &[&str]) -> Result<Value, String> {
+    let Some(bin) = ewe_tool("ewe-game") else {
+        return Ok(Value::Null);
+    };
+    let out = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        Command::new(bin).args(args).stdin(Stdio::null()).output(),
+    )
+    .await
+    .map_err(|_| "ewe-game did not answer".to_string())?
+    .map_err(estr)?;
+    let v: Value = serde_json::from_slice(&out.stdout)
+        .map_err(|_| "ewe-game gave no answer".to_string())?;
+    if v.get("ok") == Some(&Value::Bool(false)) {
+        return Err(v
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("game mode failed")
+            .to_string());
+    }
+    Ok(v)
+}
+
+#[tauri::command]
+pub async fn game_status() -> Result<Value, String> {
+    ewe_game(&["status"]).await
+}
+
+#[tauri::command]
+pub async fn game_set(on: bool) -> Result<Value, String> {
+    ewe_game(&[if on { "on" } else { "off" }]).await
+}
+
 /// Charge ceiling: the kernel attribute is group-writable only when the udev
 /// rule from install.sh is present — otherwise this errors and the UI says why.
 #[tauri::command]

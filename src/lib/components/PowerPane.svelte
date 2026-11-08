@@ -8,6 +8,10 @@
   import KV from "./ui/KV.svelte";
 
   let info = null;
+  // Game mode (ewe 0.42, bin/ewe-game): undefined = still asking, null = this
+  // ewe has no ewe-game yet
+  let game = undefined;
+  let gameBusy = false;
 
   async function refresh() {
     try {
@@ -15,8 +19,28 @@
     } catch (e) {
       errorMsg.set(String(e));
     }
+    refreshGame();
+  }
+  async function refreshGame() {
+    try {
+      game = await api.gameStatus();
+    } catch (e) {
+      game = null;
+    }
   }
   onMount(refresh);
+
+  async function setGame(on) {
+    gameBusy = true;
+    try {
+      game = await api.gameSet(on);
+      flashApplied(on ? "Game mode on" : "Game mode off, everything put back");
+      setTimeout(refresh, 400);
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+    gameBusy = false;
+  }
 
   $: bat = info?.battery;
   $: kbd = info?.kbdBacklight;
@@ -137,6 +161,62 @@
       />
     {:else}
       <KV k="Power profile" sub="Install power-profiles-daemon from Komble to choose one" v="Not available" />
+    {/if}
+  </Group>
+
+  <Group
+    title="Gaming"
+    desc="Game mode keeps banners in the list and turns off window effects. Ultra goes further. Everything goes back when it ends."
+  >
+    {#if game === undefined}
+      <Row sub="Checking…" />
+    {:else if game === null}
+      <Row title="Game mode" sub="Comes with ewe 0.42. Update ewe from Komble to get it.">—</Row>
+    {:else}
+      <ToggleRow
+        title="Game mode"
+        sub={game.on
+          ? `On, ${game.level === "ultra" ? "Ultra" : "Balanced"}${game.reasons?.includes("manual") ? "" : ", while a game runs"}`
+          : "Also in Quick settings"}
+        on={game.on}
+        dim={gameBusy}
+        toggled={() => !gameBusy && setGame(!game.on)}
+      />
+      <SelectRow
+        label="Game mode level"
+        sub={($prefs.gameLevel || "ultra") === "ultra"
+          ? "Also the Performance power profile, ewe's background apps closed, and a fullscreen game sent straight to the display"
+          : "Quiet banners, no window effects, and GameMode's CPU boost"}
+        options={[
+          { label: "Ultra", value: "ultra" },
+          { label: "Balanced", value: "balanced" }
+        ]}
+        value={$prefs.gameLevel || "ultra"}
+        picked={(v) => setPrefs({ gameLevel: v })}
+      />
+      <ToggleRow
+        title="Turn on while a game runs"
+        sub="A Steam game, gamescope, or any game that asks GameMode for a boost"
+        on={$prefs.gameAuto !== false}
+        toggled={() => setPrefs({ gameAuto: $prefs.gameAuto === false })}
+      />
+      <ToggleRow
+        title="Close background apps"
+        sub="Ultra closes ewe Sync and ewe Browser's background process, and opens them again afterwards"
+        on={$prefs.gameCloseApps !== false}
+        dim={($prefs.gameLevel || "ultra") !== "ultra"}
+        toggled={() => setPrefs({ gameCloseApps: $prefs.gameCloseApps === false })}
+      />
+      {#if game.on && game.steps?.length}
+        {#each game.steps as s}
+          <KV k={s.ok ? "Done" : "Skipped"} v={s.note} hint={s.note} />
+        {/each}
+      {/if}
+      {#if !game.ready?.gamemode}
+        <Row title="CPU boost" sub="Install gamemode from Komble, or the gaming stack, for the CPU boost">Not installed</Row>
+      {:else if !game.ready?.boost_allowed}
+        <Row title="CPU boost" sub="GameMode needs ewe's permission for it. Updating ewe (sudo pacman -Syu) adds it.">Not allowed yet</Row>
+      {/if}
     {/if}
   </Group>
 

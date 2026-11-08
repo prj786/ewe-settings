@@ -58,6 +58,8 @@ pub fn run() {
             backend::diagnostics,
             backend::power_info,
             backend::set_power_profile,
+            backend::game_status,
+            backend::game_set,
             backend::set_charge_limit,
             backend::set_kbd_backlight,
             backend::qs_ipc,

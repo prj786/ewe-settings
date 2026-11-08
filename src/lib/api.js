@@ -22,6 +22,8 @@ export const dpmsOn = () => invoke("dpms_on");
 export const vrrCaps = () => invoke("vrr_caps");
 export const xkbRegistry = () => invoke("xkb_registry");
 export const setConf = (key, value) => invoke("set_conf", { key, value });
+export const gameStatus = () => invoke("game_status");
+export const gameSet = (on) => invoke("game_set", { on });
 export const timeInfo = () => invoke("time_info");
 export const listTimezones = () => invoke("list_timezones");
 export const setTimezone = (tz) => invoke("set_timezone", { tz });

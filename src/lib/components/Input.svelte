@@ -5,7 +5,8 @@
     INPUT_DEFAULTS, INPUT_OPTIONS, parseInputBlocks, inputLua, deviceLua,
     kbActiveList, isTouchpadName, KB_PRESETS, KB_VARIANTS, GRP_OPTIONS
   } from "../hypr.js";
-  import { errorMsg, flashApplied } from "../stores.js";
+  import { prefs, errorMsg, flashApplied } from "../stores.js";
+  import { setCursor } from "../overrides.js";
   import ToggleRow from "./ui/ToggleRow.svelte";
   import SelectRow from "./ui/SelectRow.svelte";
   import SliderRow from "./ui/SliderRow.svelte";
@@ -17,6 +18,19 @@
   const V_EMPTY = " empty";
   const vEnc = (v) => (v === "" || v == null ? V_EMPTY : String(v));
   const vDec = (v) => (v === V_EMPTY ? "" : v);
+
+  // the sizes the Mocu cursor draws (ewe-conf refuses others); 60 and 96
+  // are listed only when set from the command line, so they still show
+  const CURSOR_SIZES = [
+    { label: "Default", value: 24 },
+    { label: "Large", value: 36 },
+    { label: "Larger", value: 48 },
+    { label: "Largest", value: 72 }
+  ];
+  $: curSize = Number($prefs.cursorSize ?? 24);
+  $: sizeOptions = CURSOR_SIZES.some((o) => o.value === curSize)
+    ? CURSOR_SIZES
+    : [...CURSOR_SIZES, { label: `${curSize} pixels`, value: curSize }].sort((a, b) => a.value - b.value);
 
   const icUp = '<path d="m18 15-6-6-6 6"/>';
   const icDown = '<path d="m6 9 6 6 6-6"/>';
@@ -283,6 +297,27 @@
           })}
       />
       <SliderRow label="Scroll speed" value={Number(inp.scroll_factor)} from={0.1} to={3} step={0.1} moved={(v) => applyInput({ scroll_factor: Math.round(v * 10) / 10 })} />
+    </Group>
+
+    <Group title="Cursor" desc="Apps that were already open use the new cursor after they restart.">
+      <SelectRow
+        label="Cursor size"
+        sub="A bigger pointer is easier to find on a large or busy screen"
+        options={sizeOptions}
+        value={curSize}
+        picked={(v) => setCursor({ cursorSize: Number(v) })}
+      />
+      <SelectRow
+        label="Cursor color"
+        sub="Automatic is white with a dark scheme and black with a light one"
+        options={[
+          { label: "Automatic", value: "auto" },
+          { label: "White", value: "white" },
+          { label: "Black", value: "black" }
+        ]}
+        value={$prefs.cursorColor || "auto"}
+        picked={(v) => setCursor({ cursorColor: v })}
+      />
     </Group>
 
     {#if hasTouchpad}

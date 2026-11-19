@@ -3,12 +3,43 @@ mod backend;
 mod shell;
 mod util;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+
+/// `--page <id>` / `--page=<id>` from a command line: the page the shell asks
+/// for (desktop menu "Change wallpaper…" → `wallpaper`, the bar's network
+/// menu → `network` …). The page ids are lib/pages.js's; an unknown one is
+/// ignored by the front end.
+fn page_arg(args: &[String]) -> Option<String> {
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        if a == "--page" {
+            return it.next().filter(|p| !p.is_empty()).cloned();
+        }
+        if let Some(p) = a.strip_prefix("--page=") {
+            return (!p.is_empty()).then(|| p.to_string());
+        }
+    }
+    None
+}
+
+/// The page this process was started on (`ewe-settings --page wallpaper`);
+/// the front end reads it once, at mount.
+#[tauri::command]
+fn start_page() -> Option<String> {
+    page_arg(&std::env::args().collect::<Vec<_>>())
+}
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        // a second `ewe-settings --page X` while Settings is open: bring the
+        // window forward AND go to X — until 0.23.1 the page was dropped (and
+        // the first start ignored it too), so "Change wallpaper…" showed
+        // Appearance
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
+                if let Some(page) = page_arg(&args) {
+                    let _ = w.emit("open-page", page);
+                }
                 let _ = w.show();
                 let _ = w.unminimize();
                 let _ = w.set_focus();
@@ -20,6 +51,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            start_page,
             shell::read_prefs,
             shell::write_prefs,
             shell::shell_version,
@@ -103,4 +135,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running ewe Settings");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::page_arg;
+
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn page_arg_reads_both_spellings() {
+        assert_eq!(page_arg(&v(&["ewe-settings", "--page", "wallpaper"])).as_deref(), Some("wallpaper"));
+        assert_eq!(page_arg(&v(&["ewe-settings", "--page=displays"])).as_deref(), Some("displays"));
+    }
+
+    #[test]
+    fn page_arg_none_when_missing_or_empty() {
+        assert_eq!(page_arg(&v(&["ewe-settings"])), None);
+        assert_eq!(page_arg(&v(&["ewe-settings", "--page"])), None);
+        assert_eq!(page_arg(&v(&["ewe-settings", "--page="])), None);
+    }
 }

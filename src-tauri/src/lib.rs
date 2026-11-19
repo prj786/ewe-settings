@@ -147,8 +147,14 @@ mod tests {
 
     #[test]
     fn page_arg_reads_both_spellings() {
-        assert_eq!(page_arg(&v(&["ewe-settings", "--page", "wallpaper"])).as_deref(), Some("wallpaper"));
-        assert_eq!(page_arg(&v(&["ewe-settings", "--page=displays"])).as_deref(), Some("displays"));
+        assert_eq!(
+            page_arg(&v(&["ewe-settings", "--page", "wallpaper"])).as_deref(),
+            Some("wallpaper")
+        );
+        assert_eq!(
+            page_arg(&v(&["ewe-settings", "--page=displays"])).as_deref(),
+            Some("displays")
+        );
     }
 
     #[test]

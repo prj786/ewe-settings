@@ -174,7 +174,7 @@ const PAGE_KEYS = {
   input: "keyboard mouse touchpad trackpad typing layout",
   power: "battery lid suspend sleep",
   saver: "screensaver lock idle sleep",
-  defaults: "default apps browser mail open with",
+  defaults: "default apps browser mail open with music pdf documents archives zip files video",
   time: "date clock timezone language region locale",
   user: "account avatar name nextcloud google",
   system: "about version info hardware system"

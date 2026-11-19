@@ -7,6 +7,8 @@ export const writePrefs = (patch) => invoke("write_prefs", { patch });
 export const shellVersion = () => invoke("shell_version");
 export const shellRunning = () => invoke("shell_running");
 export const pokeShell = () => invoke("poke_shell");
+/** the page `ewe-settings --page <id>` was started on (null without one) */
+export const startPage = () => invoke("start_page");
 
 // config files (allowlisted, relative to ~/.config; atomic writes)
 export const readConfig = (rel) => invoke("read_config", { rel });

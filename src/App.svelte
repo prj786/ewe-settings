@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy, tick } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { Tooltip } from "bits-ui";
   import * as api from "./lib/api.js";
   import { prefs, pane, version, shellUp, themeKey, errorMsg } from "./lib/stores.js";
@@ -165,7 +166,19 @@
     loadAddons(true);
     probeShell();
   };
+  // The page the shell asked for: `ewe-settings --page wallpaper` (the
+  // desktop's "Change wallpaper…", the bar's menus) at start, and the
+  // "open-page" event when Settings was already open (lib.rs forwards a
+  // second launch's --page). An id lib/pages.js does not know is ignored.
+  let unlistenPage = () => {};
+  function goToPage(id) {
+    if (!id || !pageById(id)) return;
+    closeSearch();
+    pane.set(id);
+  }
   onMount(async () => {
+    try { goToPage(await api.startPage()); } catch { /* the mock has no start page */ }
+    try { unlistenPage = await listen("open-page", (e) => goToPage(e.payload)); } catch { /* idem */ }
     unwatch = watchTheme();
     loadAddons();
     window.addEventListener("focus", onFocus);
@@ -176,6 +189,7 @@
     if (misses) setTimeout(probeShell, 1500);
   });
   onDestroy(() => {
+    unlistenPage();
     unwatch();
     clearInterval(probeTimer);
     window.removeEventListener("focus", onFocus);

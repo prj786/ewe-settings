@@ -664,7 +664,11 @@ export const APP_CATS = [
   { key: "Mail", mime: "x-scheme-handler/mailto", mimes: ["x-scheme-handler/mailto"] },
   { key: "Text Editor", mime: "text/plain", mimes: ["text/plain"] },
   { key: "Image Viewer", mime: "image/png", mimes: ["image/png", "image/jpeg", "image/gif", "image/webp"] },
-  { key: "Video Player", mime: "video/mp4", mimes: ["video/mp4", "video/x-matroska", "video/webm"] },
+  { key: "Video Player", mime: "video/mp4", mimes: ["video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg", "video/x-ms-wmv"] },
+  // 0.44: ewe Player plays music too, ewe Viewer opens PDFs and books, ewe Files opens archives
+  { key: "Music Player", mime: "audio/mpeg", mimes: ["audio/mpeg", "audio/flac", "audio/ogg", "audio/x-vorbis+ogg", "audio/opus", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/x-wav", "audio/wav"] },
+  { key: "Document Viewer", mime: "application/pdf", mimes: ["application/pdf", "application/epub+zip"] },
+  { key: "Archives", mime: "application/zip", mimes: ["application/zip", "application/x-tar", "application/gzip", "application/x-xz", "application/x-bzip2", "application/x-7z-compressed", "application/x-rar", "application/vnd.rar", "application/zstd", "application/x-compressed-tar"] },
   { key: "File Manager", mime: "inode/directory", mimes: ["inode/directory"] }
 ];
 

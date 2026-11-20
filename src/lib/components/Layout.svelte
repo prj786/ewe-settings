@@ -130,6 +130,13 @@
         picked={setBarIcons}
       />
     </Row>
+    <ToggleRow
+      title="Fold the extras"
+      sub="Tray icons, plugin buttons and the tiling switch hide behind an arrow. Click the arrow to show them."
+      dim={$prefs.barEnabled === false}
+      on={$prefs.barCollapse === true}
+      toggled={() => setPrefs({ barCollapse: !($prefs.barCollapse === true) })}
+    />
   </Group>
 
   <Group title="Status row" desc="What the right side of the top bar shows.">
@@ -150,10 +157,10 @@
       <Row
         title="Dock"
         sub={dockOn
-          ? "Auto-hide and icon size are the Dock plugin's own settings"
+          ? "Auto-hide, icon size and which displays show it are the Dock plugin's own settings"
           : "The Dock plugin is installed but turned off. Turn it on in Komble."}
       >
-        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={dockOptions}>Dock options</button>
+        <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={dockOptions}>Dock settings</button>
       </Row>
     {:else}
       <Row title="Dock" sub="Pinned apps, the launcher and your workspaces at the bottom of the screen. It's a plugin you add in Komble.">

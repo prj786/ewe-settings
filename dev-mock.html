@@ -16,6 +16,7 @@
        find=<words>                              type that into Find a setting
        open=1                                    …and open the first result
        glass=<0-100>                             the bar opacity (100 = Glass off)
+       lang=ka                                   Language / Time and place as on a Georgian desktop
      Every invoke is logged in window.__calls ([cmd, args]), so a test can
      assert that just viewing a page writes nothing (set_conf, write_*);
      ?calls appends them to the page as <pre id="calls"> for --dump-dom.
@@ -167,7 +168,43 @@
             case "wallpaper_backend": return Promise.resolve("img=awww video=mpvpaper");
             case "time_info": return Promise.resolve({ timezone: "Asia/Tbilisi", auto: true, ntp: true, ntpSynced: true });
             case "list_timezones": return Promise.resolve(["Asia/Tbilisi", "Asia/Tokyo", "Europe/Berlin", "Europe/London", "America/New_York"]);
-            case "locale_info": return Promise.resolve({ current: "en_US.UTF-8", currentLabel: "English (United States)", generated: true, choices: [{ code: "en_US.UTF-8", label: "English (United States)", generated: true }, { code: "ka_GE.UTF-8", label: "Georgian (Georgia)", generated: false }, { code: "de_DE.UTF-8", label: "German (Germany)", generated: true }] });
+            case "locale_info": return Promise.resolve({
+              current: q.get("lang") === "ka" ? "ka_GE.UTF-8" : "en_US.UTF-8",
+              currentLabel: q.get("lang") === "ka" ? "Georgian (Georgia)" : "English (United States)", generated: true,
+              choices: [["en_US.UTF-8", "English (United States)", true], ["en_GB.UTF-8", "English (United Kingdom)", true], ["de_DE.UTF-8", "German (Germany)", true],
+                ["ka_GE.UTF-8", "Georgian (Georgia)", q.get("lang") === "ka"], ["fr_FR.UTF-8", "French (France)", false], ["ja_JP.UTF-8", "Japanese (Japan)", false],
+                ["ar_EG.UTF-8", "Arabic (Egypt)", false], ["ru_RU.UTF-8", "Russian (Russia)", false]].map(([code, label, generated]) => ({ code, label, generated })) });
+            // Language + Formats: ?lang=ka (a Georgian desktop: Georgian not in ewe
+            // Browser, its dictionary in Komble, Firefox + LibreOffice packs)
+            case "formats_info": return Promise.resolve(q.get("lang") === "ka"
+              ? { lang: "ka_GE.UTF-8", langLabel: "Georgian (Georgia)", formats: "de_DE.UTF-8", formatsLabel: "German (Germany)", mixed: false }
+              : { lang: "en_US.UTF-8", langLabel: "English (United States)", formats: "en_GB.UTF-8", formatsLabel: "English (United Kingdom)", mixed: false });
+            case "set_formats": return Promise.resolve(null);
+            case "spell_info": {
+              const row = (code, label, state, source, pkg) => ({ code, label, state, source, package: pkg });
+              const ka = q.get("lang") === "ka";
+              return Promise.resolve({
+                enabled: true, auto: !ka, confAvailable: true,
+                system: ka ? "ka_GE" : "en_US", systemLabel: ka ? "Georgian (Georgia)" : "English (United States)",
+                chosen: ka
+                  ? [row("ka_GE", "Georgian (Georgia)", "missing", "aur", "hunspell-ka"), row("en_US", "English (United States)", "installed", "repo", "hunspell-en_us"), row("de_DE", "German (Germany)", "missing", "repo", "hunspell-de")]
+                  : [row("en_US", "English (United States)", "installed", "repo", "hunspell-en_us")],
+                available: [
+                  row("en_GB", "English (United Kingdom)", "installed", "repo", "hunspell-en_gb"),
+                  row("de_DE", "German (Germany)", "repo", "repo", "hunspell-de"),
+                  row("fr_FR", "French (France)", "repo", "repo", "hunspell-fr-comprehensive"),
+                  row("ru_RU", "Russian (Russia)", "repo", "repo", "hunspell-ru"),
+                  row("es_ES", "Spanish (Spain)", "repo", "repo", "hunspell-es_es"),
+                  row("ka_GE", "Georgian (Georgia)", "aur", "aur", "hunspell-ka"),
+                  row("uk_UA", "Ukrainian (Ukraine)", "aur", "aur", "hunspell-uk")
+                ]
+              });
+            }
+            case "language_packs": return Promise.resolve(q.get("lang") === "ka"
+              ? { locale: "ka_GE.UTF-8", label: "Georgian (Georgia)", packs: [{ app: "Firefox", package: "firefox-i18n-ka", installed: false }, { app: "LibreOffice", package: "libreoffice-fresh-ka", installed: true }] }
+              : { locale: "en_US.UTF-8", label: "English (United States)", packs: [] });
+            case "install_packages": return Promise.resolve({ ok: true, installed: args.names });
+            case "komble_search": return Promise.resolve(true);
             case "hostname_get": return Promise.resolve("ewe-laptop");
             case "net_connections": return Promise.resolve([{ uuid: "1", name: "office", type: "802-11-wireless", active: true, dev: "wlan0" }, { uuid: "2", name: "Home", type: "802-11-wireless", active: false }]);
             case "desktop_apps": return Promise.resolve([{ id: "helium", name: "Helium", exec: "helium %U", icon: "helium", comment: "Web browser" }, { id: "kitty", name: "kitty", exec: "kitty", icon: "kitty", comment: "Terminal" }, { id: "org.gnome.Nautilus", name: "Files", exec: "nautilus", icon: "files", comment: "Your files" }]);

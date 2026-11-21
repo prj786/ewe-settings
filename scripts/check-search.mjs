@@ -34,6 +34,7 @@ const FILES = {
   saver: ["src/lib/components/Saver.svelte"],
   defaults: ["src/lib/components/DefaultApps.svelte", "src/lib/hypr.js"],
   time: ["src/lib/components/TimePlace.svelte"],
+  language: ["src/lib/components/Language.svelte"],
   user: ["src/lib/components/UserPane.svelte"],
   system: ["src/lib/components/SystemInfo.svelte"]
 };
@@ -66,7 +67,11 @@ const SEARCHES = [
   ["glass", "appearance", "Glass"],
   ["touchpad", "input", "Keyboard and mouse", "any"],
   ["hostname", "network", "Name on the network", "any"],
-  ["restart", "system", "Restart the shell", "any"]
+  ["restart", "system", "Restart the shell", "any"],
+  ["spelling", "language", "Check spelling as you type", "any"],
+  ["dictionary", "language", "Spelling languages", "any"],
+  ["24-hour", "time", "Region", "any"],
+  ["language", "language", "Display language", "any"]
 ];
 for (const [q, page, label, how] of SEARCHES) {
   const r = findSettings(q);

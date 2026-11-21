@@ -33,6 +33,17 @@ export const setAutoTimezone = (on) => invoke("set_auto_timezone", { on });
 export const setNtp = (on) => invoke("set_ntp", { on });
 export const localeInfo = () => invoke("locale_info");
 export const setLocale = (locale) => invoke("set_locale", { locale });
+// regional formats (LC_TIME & co.): { lang, langLabel, formats ("" = like the language), formatsLabel, mixed }
+export const formatsInfo = () => invoke("formats_info");
+export const setFormats = (locale) => invoke("set_formats", { locale });
+// spelling: { enabled, auto, chosen: [{code,label,state,source,package}], available: [...], system, confAvailable }
+export const spellInfo = () => invoke("spell_info");
+// the apps' language packs for a locale: { locale, label, packs: [{ app, package, installed }] }
+export const languagePacks = (locale) => invoke("language_packs", { locale });
+// official-repo packages, one polkit prompt → { ok, installed: [...] } (the wave's shared command)
+export const installPackages = (names) => invoke("install_packages", { names });
+/** Komble's search on a package the AUR has (false = Komble missing) */
+export const kombleSearch = (query) => invoke("komble_search", { query });
 export const reloadHyprland = () => invoke("hyprctl_reload");
 
 // wallpaper

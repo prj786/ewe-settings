@@ -44,8 +44,32 @@ the next login. Nothing here requires the shell to be up.
 
 ## Privileges
 
-None. Every file it touches is already owned by the user, so unlike Komble
-there is no polkit helper and no setuid anything.
+No helper and no setuid anything: the files it writes are the user's own.
+The few system changes go through `pkexec` — one polkit prompt each, fixed
+scripts, every value checked first: the time zone latch, the display language
+and the regional formats (`localectl set-locale`, generating the locale when
+needed, always naming LANG and the formats together so one never drops the
+other), and on-demand installs. `install_packages` (the one install path, also
+for input methods) takes official-repo packages of a few families only —
+`hunspell-*`, `firefox-i18n-*`, `thunderbird-i18n-*`, `libreoffice-fresh-*` /
+`-still-*`, `fcitx5*` — checks them against the sync databases, skips what is
+installed and runs `pacman -S --needed --noconfirm`. A dictionary only the AUR
+has opens Komble's search (`komble --search=hunspell-ka`) instead.
+
+## Language (Settings → Language, Time and place → Formats)
+
+- Spelling languages are `[desktop.language] spellcheck` in ewe.conf (a list
+  of hunspell names, written through `ewe-conf set`; unset = the display
+  language's dictionary when installed + `en_US`) and `check_spelling` (bool,
+  default true). They sync, so a name with no dictionary here shows "not on
+  this computer" with Download / Open Komble. ewe Browser reads both and
+  follows changes; it checks with Chromium's own dictionaries, so the page
+  marks a language Chromium lacks (Georgian…) as "Not in ewe Browser yet".
+- Formats = LC_TIME, LC_NUMERIC, LC_MONETARY, LC_MEASUREMENT, LC_PAPER from
+  one region, separate from LANG; "Same as the display language" clears them.
+  Apps read them at start: the page says "Applies after you sign out".
+- Also for your apps: Firefox / Thunderbird / LibreOffice language packs for
+  the display language, offered only for the apps that are installed.
 
 ## Version
 

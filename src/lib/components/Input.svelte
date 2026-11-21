@@ -194,9 +194,10 @@
   import Icon from "./ui/Icon.svelte";
   import PickList from "./ui/PickList.svelte";
   import Sheet from "./ui/Sheet.svelte";
+  import TypingLanguages from "./TypingLanguages.svelte";
 </script>
 
-<Page title="Keyboard and mouse" desc="Keyboard layouts and typing, the mouse and the touchpad.">
+<Page title="Keyboard and mouse" desc="Keyboard layouts and typing in other languages, the mouse and the touchpad.">
   {#if !loaded}
     <Group title="Keyboard layouts"><Row sub="Reading the input settings…" /></Group>
   {:else}
@@ -257,6 +258,8 @@
       <SliderRow label="Key repeat rate" sub="Characters per second while a key is held" value={Number(inp.repeat_rate)} from={5} to={80} unit="/s" moved={(v) => applyInput({ repeat_rate: Math.round(v) })} />
       <SliderRow label="Repeat delay" sub="How long to hold a key before it repeats" value={Number(inp.repeat_delay)} from={150} to={1000} step={10} unit=" ms" moved={(v) => applyInput({ repeat_delay: Math.round(v) })} />
     </Group>
+
+    <TypingLanguages />
 
     <Group title="Mouse">
       {#if pointerMice.length > 1}

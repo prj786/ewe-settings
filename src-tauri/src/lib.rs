@@ -74,6 +74,8 @@ pub fn run() {
             backend::set_ntp,
             backend::locale_info,
             backend::set_locale,
+            backend::install_packages,
+            backend::ime,
             backend::wallpaper_backend,
             backend::wallpaper_reapply,
             backend::restart_hypridle,

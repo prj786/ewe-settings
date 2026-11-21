@@ -33,6 +33,11 @@ export const setAutoTimezone = (on) => invoke("set_auto_timezone", { on });
 export const setNtp = (on) => invoke("set_ntp", { on });
 export const localeInfo = () => invoke("locale_info");
 export const setLocale = (locale) => invoke("set_locale", { locale });
+/** pkexec pacman -S --needed: language packages only (an allow-list), one prompt */
+export const installPackages = (names) => invoke("install_packages", { names });
+/** typing in other languages: ewe-ime <verb> [id] — status, catalog, add, remove, enable, disable, apply, configure */
+export const ime = (args) => invoke("ime", { args });
+export const imeStatus = () => ime(["status"]);
 export const reloadHyprland = () => invoke("hyprctl_reload");
 
 // wallpaper

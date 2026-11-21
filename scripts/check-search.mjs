@@ -29,7 +29,7 @@ const FILES = {
   shortcuts: ["src/lib/components/Shortcuts.svelte"],
   network: ["src/lib/components/Network.svelte"],
   bluetooth: ["src/lib/components/Bluetooth.svelte"],
-  input: ["src/lib/components/Input.svelte"],
+  input: ["src/lib/components/Input.svelte", "src/lib/components/TypingLanguages.svelte"],
   power: ["src/lib/components/PowerPane.svelte"],
   saver: ["src/lib/components/Saver.svelte"],
   defaults: ["src/lib/components/DefaultApps.svelte", "src/lib/hypr.js"],
@@ -65,6 +65,9 @@ const SEARCHES = [
   ["default apps", "defaults", "Default apps"],
   ["glass", "appearance", "Glass"],
   ["touchpad", "input", "Keyboard and mouse", "any"],
+  ["chinese", "input", "Typing in other languages"],
+  ["japanese", "input", "Typing in other languages", "any"],
+  ["input method", "input", "Typing in other languages", "any"],
   ["hostname", "network", "Name on the network", "any"],
   ["restart", "system", "Restart the shell", "any"]
 ];

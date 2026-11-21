@@ -924,6 +924,173 @@ pub async fn set_locale(locale: String) -> Result<(), String> {
     Ok(())
 }
 
+// ── on-demand packages (the wave's ONE install pattern) ─────────────────────
+// Languages are installed when someone asks for them, never for everyone:
+// typing in other languages (fcitx5 + an engine), spell-check dictionaries,
+// app language packs. One `pkexec pacman -S --needed --noconfirm` for the
+// whole list — one polkit prompt — and only names that are (a) shaped like
+// an Arch package and (b) in the allow-list below. They go to pacman as
+// argv after `--`, never through a shell.
+
+/// Arch package name: lowercase alphanumerics and @._+- , not starting with
+/// a hyphen or a dot (makepkg's rule), at most 100 characters.
+fn valid_pkg_name(n: &str) -> bool {
+    !n.is_empty()
+        && n.len() <= 100
+        && !n.starts_with('-')
+        && !n.starts_with('.')
+        && n.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "@._+-".contains(c))
+}
+
+/// What Settings may install on demand: the input method and its engines,
+/// spelling dictionaries, and the language packs of apps people already
+/// have. Exact names, or a family prefix ending in '-'.
+const PKG_ALLOW: &[&str] = &[
+    "fcitx5",
+    "fcitx5-",
+    "hunspell",
+    "hunspell-",
+    "hyphen-",
+    "firefox-i18n-",
+    "thunderbird-i18n-",
+    "libreoffice-fresh-",
+    "libreoffice-still-",
+];
+
+fn allowed_pkg(n: &str) -> bool {
+    valid_pkg_name(n)
+        && PKG_ALLOW.iter().any(|a| {
+            if a.ends_with('-') {
+                n.len() > a.len() && n.starts_with(a)
+            } else {
+                n == *a
+            }
+        })
+}
+
+#[tauri::command]
+pub async fn install_packages(names: Vec<String>) -> Result<Value, String> {
+    let mut list: Vec<String> = Vec::new();
+    for n in names {
+        let n = n.trim().to_string();
+        if !allowed_pkg(&n) {
+            return Err(format!("{n} can't be installed from Settings"));
+        }
+        if !list.contains(&n) {
+            list.push(n);
+        }
+    }
+    if list.is_empty() {
+        return Ok(json!({ "ok": true, "installed": [] }));
+    }
+    // Komble (or a terminal) in the middle of a transaction: say so before
+    // asking for a password that would only end in "unable to lock database"
+    if std::path::Path::new("/var/lib/pacman/db.lck").exists() {
+        return Err(
+            "Another installation is running (Komble?). Try again when it has finished.".into(),
+        );
+    }
+    // every name must be in the repositories — checked before the prompt,
+    // so a typo never costs a password
+    let probe = Command::new("pacman")
+        .arg("-Si")
+        .args(&list)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !probe.status.success() {
+        let err = String::from_utf8_lossy(&probe.stderr);
+        let missing: Vec<&str> = err
+            .lines()
+            .filter_map(|l| l.split('\'').nth(1).filter(|_| l.contains("was not found")))
+            .collect();
+        return Err(if missing.is_empty() {
+            "the package list could not be read (pacman -Si)".into()
+        } else {
+            format!("not in the repositories: {}", missing.join(", "))
+        });
+    }
+    let out = Command::new("pkexec")
+        .args(["pacman", "-S", "--needed", "--noconfirm", "--"])
+        .args(&list)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !out.status.success() {
+        // 126/127: the prompt was dismissed or refused
+        if matches!(out.status.code(), Some(126) | Some(127)) {
+            return Err("Not installed: the password prompt was cancelled.".into());
+        }
+        let err = String::from_utf8_lossy(&out.stderr);
+        let line = err
+            .lines()
+            .rev()
+            .find(|x| !x.trim().is_empty())
+            .unwrap_or("pacman failed")
+            .trim();
+        return Err(format!("could not install: {line}"));
+    }
+    Ok(json!({ "ok": true, "installed": list }))
+}
+
+// ── typing in other languages (ewe-ime — fcitx5, on demand) ────────────────
+// The tool owns everything: [desktop.ime] through ewe-conf, fcitx5's
+// profile, the session environment, the process. This only passes a fixed
+// verb and a checked input method name.
+
+fn valid_im(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c))
+}
+
+#[tauri::command]
+pub async fn ime(args: Vec<String>) -> Result<Value, String> {
+    let verb = args.first().map(String::as_str).unwrap_or("");
+    let rest: &[String] = args.get(1..).unwrap_or(&[]);
+    let ok = match verb {
+        "status" | "catalog" | "current" | "enable" | "disable" | "apply" | "configure" => {
+            rest.is_empty()
+        }
+        "add" | "remove" => rest.len() == 1 && valid_im(&rest[0]),
+        _ => false,
+    };
+    if !ok {
+        return Err(format!("ewe-ime: refused {args:?}"));
+    }
+    let Some(bin) = ewe_tool("ewe-ime") else {
+        return Err("Typing in other languages needs ewe 0.46 or newer".into());
+    };
+    let out = Command::new("python3")
+        .arg(bin)
+        .args(&args)
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let v: Value = serde_json::from_str(text.trim())
+        .map_err(|_| format!("ewe-ime: unreadable reply: {}", text.trim()))?;
+    if v.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(v)
+    } else {
+        Err(v
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("typing in other languages: something went wrong")
+            .to_string())
+    }
+}
+
 // ── named actions (fixed scripts, no free-form shell from the frontend) ─────
 
 async fn run_sh(script: &str) -> Result<String, String> {
@@ -3299,5 +3466,66 @@ mod revamp_tests {
         assert_eq!(desktop_name_in(&dirs, "missing.desktop"), None);
         assert_eq!(desktop_name_in(&dirs, "../etc/passwd"), None);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::{allowed_pkg, valid_im, valid_pkg_name};
+
+    #[test]
+    fn package_names_are_arch_shaped() {
+        assert!(valid_pkg_name("fcitx5-chinese-addons"));
+        assert!(valid_pkg_name("hunspell-en_us"));
+        assert!(valid_pkg_name("libreoffice-fresh-zh-cn"));
+        assert!(!valid_pkg_name(""));
+        assert!(!valid_pkg_name("-Syu"));
+        assert!(!valid_pkg_name(".hidden"));
+        assert!(!valid_pkg_name("Fcitx5"));
+        assert!(!valid_pkg_name("fcitx5 vim"));
+        assert!(!valid_pkg_name("fcitx5;rm"));
+        assert!(!valid_pkg_name(&"a".repeat(101)));
+    }
+
+    #[test]
+    fn only_language_packages_pass() {
+        for ok in [
+            "fcitx5",
+            "fcitx5-gtk",
+            "fcitx5-qt",
+            "fcitx5-configtool",
+            "fcitx5-mozc",
+            "fcitx5-m17n",
+            "hunspell",
+            "hunspell-de",
+            "firefox-i18n-ka",
+            "thunderbird-i18n-ja",
+            "libreoffice-fresh-ru",
+        ] {
+            assert!(allowed_pkg(ok), "{ok} should pass");
+        }
+        for no in [
+            "sudo",
+            "linux",
+            "fcitx5x",
+            "hunspellx",
+            "fcitx5-",
+            "firefox-i18n-",
+            "openssh",
+            "--noconfirm",
+        ] {
+            assert!(!allowed_pkg(no), "{no} must be refused");
+        }
+    }
+
+    #[test]
+    fn input_method_names() {
+        assert!(valid_im("pinyin"));
+        assert!(valid_im("m17n_hi_inscript2"));
+        assert!(valid_im("m17n_pa_inscript2-guru"));
+        assert!(!valid_im(""));
+        assert!(!valid_im("x;rm -rf /"));
+        assert!(!valid_im("../etc"));
+        assert!(!valid_im(&"a".repeat(65)));
     }
 }

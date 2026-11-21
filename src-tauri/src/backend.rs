@@ -72,7 +72,9 @@ pub async fn set_conf(key: String, value: Value) -> Result<(), String> {
     // login (2026-09-20). desktop.input is applied live by its pane through
     // `hyprctl eval`, so it skips the compositor reload.
     crate::shell::reload_shell().await?;
-    if !key.starts_with("desktop.input") {
+    // desktop.language (spelling) is read by the apps themselves — nothing
+    // in Hyprland changes, so no compositor reload either
+    if !key.starts_with("desktop.input") && !key.starts_with("desktop.language") {
         let _ = Command::new("hyprctl")
             .arg("reload")
             .stdin(Stdio::null())
@@ -267,7 +269,7 @@ pub async fn remove_config(rel: String) -> Result<(), String> {
 
 // ── hyprctl ─────────────────────────────────────────────────────────────────
 
-async fn run_out(bin: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) async fn run_out(bin: &str, args: &[&str]) -> Result<String, String> {
     let out = Command::new(bin)
         .args(args)
         .env("LANG", "C")
@@ -514,7 +516,7 @@ pub async fn set_ntp(on: bool) -> Result<(), String> {
 
 /// Only the locale shapes glibc itself accepts: "ll_CC.UTF-8", "C.UTF-8",
 /// "sr_RS.UTF-8@latin". Anything else never reaches the shell script below.
-fn valid_locale(l: &str) -> bool {
+pub(crate) fn valid_locale(l: &str) -> bool {
     !l.is_empty()
         && l.len() <= 64
         && l.chars()
@@ -523,7 +525,7 @@ fn valid_locale(l: &str) -> bool {
 
 /// SUPPORTED lines look like "en_US.UTF-8 UTF-8" (and a few "aa_ER UTF-8");
 /// the charset column is what decides, the first column is the LANG value.
-fn supported_locales() -> Vec<String> {
+pub(crate) fn supported_locales() -> Vec<String> {
     std::fs::read_to_string("/usr/share/i18n/SUPPORTED")
         .unwrap_or_default()
         .lines()
@@ -542,7 +544,7 @@ fn supported_locales() -> Vec<String> {
 /// cover what people actually pick; the rest fall back to the raw code, which
 /// is still searchable. Not a translation layer — English names on purpose,
 /// like the installer, so the list sorts and searches predictably.
-fn locale_label(code: &str) -> String {
+pub(crate) fn locale_label(code: &str) -> String {
     if code == "C.UTF-8" || code == "C" || code == "POSIX" {
         return "None (C / POSIX)".into();
     }
@@ -869,42 +871,114 @@ pub async fn locale_info() -> Result<Value, String> {
     }))
 }
 
-/// One pkexec prompt does everything: uncomment (or append) the entry in
-/// /etc/locale.gen, generate it if it is not already, then set LANG through
-/// localectl (which as root needs no second polkit round-trip). An already
-/// generated locale skips locale-gen — it takes seconds per entry and there
-/// is nothing to build. The locale must come from SUPPORTED: the charset
-/// check above is what keeps the string shell-safe inside the script.
-#[tauri::command]
-pub async fn set_locale(locale: String) -> Result<(), String> {
-    let l = locale.trim().to_string();
-    if !valid_locale(&l) || !supported_locales().contains(&l) {
-        return Err(format!("unknown locale: {l}"));
+/// The system locale as localectl reports it (`LANG=…` and any `LC_*=…`),
+/// /etc/locale.conf when localed is not reachable. Order kept, LANG first.
+pub(crate) async fn system_locale_vars() -> Vec<(String, String)> {
+    let mut vars =
+        parse_locale_status(&run_out("localectl", &["status"]).await.unwrap_or_default());
+    if vars.is_empty() {
+        vars = parse_locale_conf(&std::fs::read_to_string("/etc/locale.conf").unwrap_or_default());
     }
+    vars
+}
+
+/// "   System Locale: LANG=en_US.UTF-8\n                  LC_TIME=de_DE.UTF-8\n
+///  VC Keymap: …" → [("LANG", …), ("LC_TIME", …)]
+pub(crate) fn parse_locale_status(text: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut inside = false;
+    for line in text.lines() {
+        let t = line.trim();
+        let assignment = if let Some(rest) = t.strip_prefix("System Locale:") {
+            inside = true;
+            rest.trim()
+        } else if inside && !t.contains(": ") {
+            t
+        } else {
+            inside = false;
+            continue;
+        };
+        if let Some((k, v)) = assignment.split_once('=') {
+            if locale_var_ok(k) && !v.is_empty() {
+                out.push((k.to_string(), v.trim_matches('"').to_string()));
+            }
+        }
+    }
+    out
+}
+
+fn parse_locale_conf(text: &str) -> Vec<(String, String)> {
+    text.lines()
+        .filter_map(|l| l.trim().split_once('='))
+        .filter(|(k, v)| locale_var_ok(k) && !v.is_empty())
+        .map(|(k, v)| (k.to_string(), v.trim_matches('"').to_string()))
+        .collect()
+}
+
+/// LANG, LANGUAGE and the LC_* categories (never LC_ALL: localectl refuses it)
+pub(crate) fn locale_var_ok(k: &str) -> bool {
+    k == "LANG"
+        || k == "LANGUAGE"
+        || (k.starts_with("LC_")
+            && k != "LC_ALL"
+            && k.len() > 3
+            && k[3..].chars().all(|c| c.is_ascii_uppercase()))
+}
+
+/// A value safe inside the root script's single quotes: a locale, or for
+/// LANGUAGE a ':'-separated list of them.
+pub(crate) fn locale_value_ok(k: &str, v: &str) -> bool {
+    if k == "LANGUAGE" {
+        !v.is_empty() && v.len() <= 256 && v.split(':').all(valid_locale)
+    } else {
+        valid_locale(v)
+    }
+}
+
+/// The root script's head when `l` is not generated yet: uncomment (or
+/// append) its row in /etc/locale.gen and run locale-gen. "" when it is.
+pub(crate) async fn locale_gen_part(l: &str) -> String {
     let generated = run_out("localectl", &["list-locales"])
         .await
         .unwrap_or_default()
         .lines()
         .any(|x| x.trim() == l);
-    let gen_part = if generated {
-        String::new()
-    } else {
-        // "en_US.UTF-8 UTF-8" is the locale.gen row shape; a locale missing
-        // from the file entirely (a trimmed template) gets appended.
-        format!(
-            "if grep -q '^{l} ' /etc/locale.gen; then :; \
-             elif grep -q '^#{l} ' /etc/locale.gen; then sed -i 's|^#{l} |{l} |' /etc/locale.gen; \
-             else printf '%s UTF-8\\n' '{l}' >> /etc/locale.gen; fi && \
-             locale-gen >/dev/null && "
-        )
-    };
-    let script = format!(
-        "{gen_part}( localectl set-locale LANG='{l}' || printf 'LANG=%s\\n' '{l}' > /etc/locale.conf )"
-    );
-    // Unlike the latch writes above, a cancelled or refused prompt has to
-    // surface here — otherwise the pane would report a language it never set.
+    if generated {
+        return String::new();
+    }
+    // "en_US.UTF-8 UTF-8" is the locale.gen row shape; a locale missing
+    // from the file entirely (a trimmed template) gets appended.
+    format!(
+        "if grep -q '^{l} ' /etc/locale.gen; then :; \
+         elif grep -q '^#{l} ' /etc/locale.gen; then sed -i 's|^#{l} |{l} |' /etc/locale.gen; \
+         else printf '%s UTF-8\\n' '{l}' >> /etc/locale.gen; fi && \
+         locale-gen >/dev/null && "
+    )
+}
+
+/// `localectl set-locale` with EVERY variable named — it replaces the whole
+/// set, so a LANG change without the LC_* would drop the regional formats
+/// (and a formats change without LANG the language). The fallback writes
+/// the same lines to /etc/locale.conf. Callers validated every pair.
+pub(crate) fn set_locale_script(gen_part: &str, vars: &[(String, String)]) -> String {
+    let args: Vec<String> = vars.iter().map(|(k, v)| format!("'{k}={v}'")).collect();
+    let lines: Vec<String> = vars.iter().map(|(k, v)| format!("{k}={v}")).collect();
+    format!(
+        "{gen_part}( localectl set-locale {} || printf '%s\\n' {} > /etc/locale.conf )",
+        args.join(" "),
+        lines
+            .iter()
+            .map(|l| format!("'{l}'"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
+}
+
+/// Run a root script behind ONE polkit prompt; a cancelled or refused prompt
+/// is an error the pane shows (it must never report a change it did not make).
+pub(crate) async fn pkexec_script(script: &str, what: &str) -> Result<(), String> {
     let out = Command::new("pkexec")
-        .args(["sh", "-c", &script])
+        .args(["sh", "-c", script])
         .env("LANG", "C")
         .env("LC_ALL", "C")
         .stdin(Stdio::null())
@@ -919,9 +993,164 @@ pub async fn set_locale(locale: String) -> Result<(), String> {
             .find(|x| !x.trim().is_empty())
             .unwrap_or("not authorised")
             .trim();
-        return Err(format!("could not set locale: {line}"));
+        return Err(format!("could not {what}: {line}"));
     }
     Ok(())
+}
+
+/// One pkexec prompt does everything: uncomment (or append) the entry in
+/// /etc/locale.gen, generate it if it is not already, then set LANG through
+/// localectl (which as root needs no second polkit round-trip). An already
+/// generated locale skips locale-gen — it takes seconds per entry and there
+/// is nothing to build. The locale must come from SUPPORTED: the charset
+/// check above is what keeps the string shell-safe inside the script. The
+/// regional formats (LC_*, Time and place → Formats) are kept as they are.
+#[tauri::command]
+pub async fn set_locale(locale: String) -> Result<(), String> {
+    let l = locale.trim().to_string();
+    if !valid_locale(&l) || !supported_locales().contains(&l) {
+        return Err(format!("unknown locale: {l}"));
+    }
+    let mut vars = vec![("LANG".to_string(), l.clone())];
+    vars.extend(
+        system_locale_vars()
+            .await
+            .into_iter()
+            .filter(|(k, v)| k != "LANG" && locale_value_ok(k, v)),
+    );
+    let script = set_locale_script(&locale_gen_part(&l).await, &vars);
+    pkexec_script(&script, "set locale").await
+}
+
+// ── On-demand installs (the wave contract) ──────────────────────────────────
+// ONE pattern for everything ewe Settings installs when asked (spelling
+// dictionaries, apps' language packs, input methods): official-repo packages
+// only, names held to an allow-list of families, `pkexec pacman -S --needed
+// --noconfirm` — one polkit prompt — and JSON back. Never in common.list:
+// these are per-language and per-person.
+
+/// The families this app may install: spelling dictionaries, the apps'
+/// language packs, input methods (fcitx5 + engines).
+pub(crate) fn install_name_ok(n: &str) -> bool {
+    const FAMILIES: &[&str] = &[
+        "hunspell-",
+        "firefox-i18n-",
+        "thunderbird-i18n-",
+        "libreoffice-fresh-",
+        "libreoffice-still-",
+        "fcitx5-",
+    ];
+    let tail = if n == "fcitx5" {
+        Some("x")
+    } else {
+        FAMILIES.iter().find_map(|f| n.strip_prefix(f))
+    };
+    n.len() <= 64
+        && tail.is_some_and(|t| {
+            !t.is_empty()
+                && !t.starts_with('-')
+                && t.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+        })
+}
+
+/// "error: target not found: x" / "error: package 'x' was not found" → x
+fn pacman_missing(stderr: &str) -> Vec<String> {
+    stderr
+        .lines()
+        .filter_map(|l| {
+            let l = l.trim();
+            l.strip_prefix("error: target not found: ")
+                .map(|x| x.trim().to_string())
+                .or_else(|| {
+                    l.strip_prefix("error: package '")
+                        .and_then(|r| r.split_once('\''))
+                        .map(|(x, _)| x.to_string())
+                })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn install_packages(names: Vec<String>) -> Result<Value, String> {
+    let mut want: Vec<String> = Vec::new();
+    for n in names.iter().map(|n| n.trim()) {
+        if !install_name_ok(n) {
+            return Err(format!("not something ewe Settings installs: {n}"));
+        }
+        if !want.iter().any(|w| w == n) {
+            want.push(n.to_string());
+        }
+    }
+    if want.is_empty() || want.len() > 32 {
+        return Err("nothing to install".into());
+    }
+    // only what the sync databases carry: an AUR-only or mistyped name is
+    // refused here, not halfway through a root pacman run
+    let probe = Command::new("pacman")
+        .args(["-Sp", "--print-format", "%n", "--"])
+        .args(&want)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !probe.status.success() {
+        let missing = pacman_missing(&String::from_utf8_lossy(&probe.stderr));
+        return Err(if missing.is_empty() {
+            "the package lists could not be read".into()
+        } else {
+            format!("not in the official repositories: {}", missing.join(", "))
+        });
+    }
+    // already installed → nothing to ask a password for
+    let q = Command::new("pacman")
+        .args(["-Q", "--"])
+        .args(&want)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    let absent = pacman_missing(&String::from_utf8_lossy(&q.stderr));
+    let todo: Vec<String> = want
+        .iter()
+        .filter(|n| absent.contains(n))
+        .cloned()
+        .collect();
+    if todo.is_empty() {
+        return Ok(json!({ "ok": true, "installed": [], "already": want }));
+    }
+    let out = Command::new("pkexec")
+        .args(["pacman", "-S", "--needed", "--noconfirm", "--"])
+        .args(&todo)
+        .env("LANG", "C")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .await
+        .map_err(estr)?;
+    if !out.status.success() {
+        let all = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        if all.contains("unable to lock database") {
+            return Err("Another install is running. Try again when it has finished.".into());
+        }
+        let line = all
+            .lines()
+            .rev()
+            .find(|x| !x.trim().is_empty())
+            .unwrap_or("not authorised")
+            .trim()
+            .to_string();
+        return Err(format!("could not install: {line}"));
+    }
+    Ok(json!({ "ok": true, "installed": todo }))
 }
 
 // ── named actions (fixed scripts, no free-form shell from the frontend) ─────
@@ -3299,5 +3528,78 @@ mod revamp_tests {
         assert_eq!(desktop_name_in(&dirs, "missing.desktop"), None);
         assert_eq!(desktop_name_in(&dirs, "../etc/passwd"), None);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::*;
+
+    #[test]
+    fn localectl_status_with_formats() {
+        let text = "   System Locale: LANG=en_US.UTF-8\n                  LC_TIME=de_DE.UTF-8\n                  LC_PAPER=de_DE.UTF-8\n       VC Keymap: (unset)\n      X11 Layout: us\n";
+        assert_eq!(
+            parse_locale_status(text),
+            vec![
+                ("LANG".to_string(), "en_US.UTF-8".to_string()),
+                ("LC_TIME".to_string(), "de_DE.UTF-8".to_string()),
+                ("LC_PAPER".to_string(), "de_DE.UTF-8".to_string()),
+            ]
+        );
+        assert!(parse_locale_status("System Locale: n/a\n").is_empty());
+        assert!(!locale_var_ok("LC_ALL"));
+        assert!(!locale_var_ok("PATH"));
+        assert!(locale_value_ok("LANGUAGE", "ka_GE:en_US"));
+        assert!(!locale_value_ok("LANG", "en_US.UTF-8' x"));
+    }
+
+    #[test]
+    fn set_locale_names_every_variable() {
+        let vars = vec![
+            ("LANG".to_string(), "ka_GE.UTF-8".to_string()),
+            ("LC_TIME".to_string(), "en_GB.UTF-8".to_string()),
+        ];
+        let s = set_locale_script("", &vars);
+        assert_eq!(
+            s,
+            "( localectl set-locale 'LANG=ka_GE.UTF-8' 'LC_TIME=en_GB.UTF-8' || printf '%s\\n' 'LANG=ka_GE.UTF-8' 'LC_TIME=en_GB.UTF-8' > /etc/locale.conf )"
+        );
+    }
+
+    #[test]
+    fn only_the_allowed_families_install() {
+        for ok in [
+            "hunspell-de",
+            "hunspell-en_us",
+            "hunspell-fr-comprehensive",
+            "firefox-i18n-pt-br",
+            "thunderbird-i18n-ka",
+            "libreoffice-fresh-de",
+            "libreoffice-still-en-gb",
+            "fcitx5",
+            "fcitx5-mozc",
+        ] {
+            assert!(install_name_ok(ok), "{ok}");
+        }
+        for bad in [
+            "hunspell",
+            "hunspell-",
+            "hunspell--x",
+            "firefox",
+            "linux",
+            "hunspell-de;x",
+            "hunspell-DE",
+            "fcitx5x",
+            "-hunspell-de",
+            "hunspell-de --overwrite=*",
+        ] {
+            assert!(!install_name_ok(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn pacman_missing_names() {
+        let e = "error: target not found: hunspell-ka\nerror: package 'firefox' was not found\nwarning: x\n";
+        assert_eq!(pacman_missing(e), vec!["hunspell-ka", "firefox"]);
     }
 }

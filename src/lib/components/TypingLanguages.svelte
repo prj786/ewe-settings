@@ -21,6 +21,41 @@
   let busy = ""; // the language being installed / changed ("*" = all)
   let showAdd = false;
   let addQuery = "";
+  // what each language downloads on THIS computer ({id: bytes | null}):
+  // ewe-ime sizes (pacman -Sp, cached until the package databases change)
+  let sizes = null;
+  async function loadSizes() {
+    try {
+      sizes = (await api.imeSizes()).sizes || {};
+    } catch {
+      sizes = {};
+    }
+  }
+  function openAdd() {
+    addQuery = "";
+    showAdd = true;
+    if (sizes === null) loadSizes();
+  }
+  // "About 170 MB to download" — rounded the way people say sizes
+  // (sizes is a parameter so the list re-renders when they arrive)
+  function sizeText(c, sizes) {
+    if (!c.packages?.length) return "On this computer";
+    if (sizes === null) return "Working out the download size…";
+    const b = sizes[c.id];
+    if (b == null) return "Downloads first";
+    if (b === 0) return "On this computer";
+    const mb = b / 1048576;
+    if (mb < 1) return "Less than 1 MB to download";
+    const n = mb >= 100 ? Math.round(mb / 10) * 10 : Math.max(1, Math.round(mb));
+    return `About ${n} MB to download`;
+  }
+  // Language options' line: whether what you type may go online
+  $: optionsSub =
+    st?.cloud_pinyin === false
+      ? "Dictionaries, fuzzy Pinyin and more. Online suggestions are off."
+      : st?.cloud_pinyin === true
+        ? "Dictionaries, fuzzy Pinyin and more. Online suggestions are on."
+        : "Dictionaries, fuzzy Pinyin and more";
 
   async function refresh() {
     try {
@@ -55,6 +90,7 @@
         await api.installPackages(c.packages);
       }
       st = await api.ime(["add", c.id]);
+      sizes = null;
       flashApplied(`${c.language} added. Ctrl+Space switches to it.`);
     } catch (e) {
       errorMsg.set(String(e));
@@ -121,7 +157,7 @@
       <button
         class="ewe-btn ewe-btn--secondary ewe-btn--sm"
         disabled={!st || busy !== ""}
-        on:click={() => ((addQuery = ""), (showAdd = true))}
+        on:click={openAdd}
       >
         <Icon name="plus" />Add a language…
       </button>
@@ -158,7 +194,7 @@
         </div>
       {/each}
       {#if st.configtool && st.installed}
-        <Row title="Language options" sub="Fuzzy Pinyin, dictionaries, how many suggestions show">
+        <Row title="Language options" sub={optionsSub}>
           <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => api.ime(["configure"]).catch((e) => errorMsg.set(String(e)))}>
             Open…
           </button>
@@ -195,14 +231,15 @@
     items={candidates.map((c) => ({
       id: c.id,
       title: `${c.language} — ${c.method}`,
-      trail: c.installed ? c.native : `${c.native} · Install`,
+      desc: sizeText(c, sizes),
+      trail: c.native,
       c
     }))}
     pick={(it) => add(it.c)}
   />
   <p class="note">
-    A language marked “Install” is downloaded first (one password prompt). Removing a language later leaves its
-    programs installed; Komble can remove them.
+    A language that is not on this computer yet is downloaded first, with one password prompt. Removing it later
+    leaves its programs installed; Komble can remove them.
   </p>
 </Sheet>
 

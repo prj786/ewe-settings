@@ -35,9 +35,11 @@ export const localeInfo = () => invoke("locale_info");
 export const setLocale = (locale) => invoke("set_locale", { locale });
 /** pkexec pacman -S --needed: language packages only (an allow-list), one prompt */
 export const installPackages = (names) => invoke("install_packages", { names });
-/** typing in other languages: ewe-ime <verb> [id] — status, catalog, add, remove, enable, disable, apply, configure */
+/** typing in other languages: ewe-ime <verb> [id] — status, catalog, sizes, add, remove, enable, disable, apply, configure */
 export const ime = (args) => invoke("ime", { args });
 export const imeStatus = () => ime(["status"]);
+/** { sizes: { id: bytes to download on this computer | null } } — pacman -Sp, cached */
+export const imeSizes = () => ime(["sizes"]);
 export const reloadHyprland = () => invoke("hyprctl_reload");
 
 // wallpaper

@@ -172,7 +172,7 @@
             // typing in other languages (ewe-ime): ?ime=none (default) | on | missing | signout | off
             case "ime": {
               const mode = q.get("ime") || "none";
-              const core = mode !== "missing";
+              const core = mode !== "missing" && mode !== "none";  // none: a computer that never had fcitx5
               const cat = [
                 ["pinyin", "Chinese", "中文", "Pinyin", "fcitx5-chinese-addons", "拼"],
                 ["mozc", "Japanese", "日本語", "Mozc", "fcitx5-mozc", "あ"],
@@ -192,7 +192,12 @@
               const st = { ok: true, enabled, installed: core, on: enabled && core, running: enabled && core, engines,
                 missing: mode === "missing" ? ["fcitx5", "fcitx5-gtk", "fcitx5-qt", "fcitx5-configtool", "fcitx5-chinese-addons", "fcitx5-mozc"] : [],
                 current: enabled && core ? "pinyin" : "", active: enabled && core, glyph: enabled && core ? "拼" : "", layout: "us",
-                trigger: "Ctrl+Space", needs_signout: mode === "signout", configtool: core, catalog: cat };
+                trigger: "Ctrl+Space", needs_signout: mode === "signout", configtool: core, cloud_pinyin: core ? false : null, catalog: cat };
+              // download sizes as a fresh ewe would see them (pacman -Sp --needed, 2026-11)
+              if (args.args[0] === "sizes") {
+                const MB = 1048576, fresh = { pinyin: 165, mozc: 27, hangul: 15, unikey: 13, m17n_hi_inscript2: 17, m17n_ta_tamil99: 17, m17n_th_kesmanee: 17 };
+                return Promise.resolve({ ok: true, sizes: Object.fromEntries(cat.map((c) => [c.id, c.packages.length ? Math.round(((fresh[c.id] || 0) - (core ? 13 : 0)) * MB) : 0])) });
+              }
               if (args.args[0] === "remove" && engines.length <= 1) return Promise.resolve({ ...st, engines: [], enabled: false, on: false, note: "Typing in other languages is off. Its programs stay installed — Komble can remove them." });
               return Promise.resolve(st);
             }

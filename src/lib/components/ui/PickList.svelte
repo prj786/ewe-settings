@@ -32,7 +32,10 @@
         on:click={() => pick(it)}
         on:keydown={(e) => key(e, i)}
       >
-        <span class="ewe-row__text"><span class="ewe-row__title">{it.title}</span></span>
+        <span class="ewe-row__text">
+          <span class="ewe-row__title">{it.title}</span>
+          {#if it.desc}<span class="ewe-row__desc">{it.desc}</span>{/if}
+        </span>
         {#if it.trail}<span class="ewe-row__trail picklist__trail">{it.trail}</span>{/if}
       </button>
     {:else}

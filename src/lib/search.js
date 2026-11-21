@@ -101,7 +101,7 @@ const ROWS = [
   ["input", "Key repeat rate", "Typing", "keyboard repeat"],
   ["input", "Repeat delay", "Typing", "keyboard repeat"],
   ["input", "Typing in other languages", "Typing in other languages", "input method ime fcitx chinese japanese korean vietnamese hindi pinyin mozc hangul cjk 中文 日本語 한국어"],
-  ["input", "Language options", "Typing in other languages", "fcitx5 configtool fuzzy pinyin dictionary candidates"],
+  ["input", "Language options", "Typing in other languages", "fcitx5 configtool fuzzy pinyin dictionary candidates cloud online suggestions privacy"],
   ["input", "Pointer speed", "Mouse", "mouse sensitivity cursor"],
   ["input", "Acceleration", "Mouse", "mouse flat adaptive"],
   ["input", "Natural scrolling", "Mouse", "mouse reverse scroll direction"],

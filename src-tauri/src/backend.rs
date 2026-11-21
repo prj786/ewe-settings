@@ -1058,9 +1058,8 @@ pub async fn ime(args: Vec<String>) -> Result<Value, String> {
     let verb = args.first().map(String::as_str).unwrap_or("");
     let rest: &[String] = args.get(1..).unwrap_or(&[]);
     let ok = match verb {
-        "status" | "catalog" | "current" | "enable" | "disable" | "apply" | "configure" => {
-            rest.is_empty()
-        }
+        "status" | "catalog" | "sizes" | "current" | "enable" | "disable" | "apply"
+        | "configure" => rest.is_empty(),
         "add" | "remove" => rest.len() == 1 && valid_im(&rest[0]),
         _ => false,
     };

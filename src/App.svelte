@@ -31,6 +31,7 @@
   import Bluetooth from "./lib/components/Bluetooth.svelte";
   import UserPane from "./lib/components/UserPane.svelte";
   import TimePlace from "./lib/components/TimePlace.svelte";
+  import Language from "./lib/components/Language.svelte";
 
   // No window controls. ewe Settings is part of ewe, and the shell's bar
   // already provides New / Float / Move / Close for every window.
@@ -53,6 +54,7 @@
     saver: Saver,
     defaults: DefaultApps,
     time: TimePlace,
+    language: Language,
     user: UserPane,
     system: SystemInfo
   };

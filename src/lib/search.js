@@ -146,7 +146,10 @@ const ROWS = [
   ["time", "Set the time zone automatically", "Time zone", "timezone automatic location"],
   ["time", "Region", "Time zone", "timezone continent"],
   ["time", "Zone", "Time zone", "timezone city"],
-  ["time", "Display language", "Language", "language locale translation"],
+  ["time", "Region", "Formats", "formats date time number decimal 24-hour 12-hour clock week monday sunday metric imperial currency paper locale"],
+  ["language", "Display language", "Display language", "language locale translation"],
+  ["language", "Check spelling as you type", "Spell checking", "spelling spell checker dictionary hunspell typos"],
+  ["language", "Spelling languages", "Spell checking", "spelling dictionary add language hunspell"],
   ["user", "Picture and name", "", "avatar photo face full name"],
   ["user", "Picture shape", "", "avatar circle rounded square"],
   ["user", "Nextcloud account", "Nextcloud account", "account cloud sign in login"],
@@ -178,7 +181,8 @@ const PAGE_KEYS = {
   power: "battery lid suspend sleep",
   saver: "screensaver lock idle sleep",
   defaults: "default apps browser mail open with music pdf documents archives zip files video",
-  time: "date clock timezone language region locale",
+  time: "date clock timezone region formats locale",
+  language: "language locale spelling dictionary translation firefox libreoffice language pack",
   user: "account avatar name nextcloud google",
   system: "about version info hardware system"
 };

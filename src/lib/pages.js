@@ -39,6 +39,7 @@ export const NAV = [
     pages: [
       { id: "defaults", label: "Default apps", icon: "apps" },
       { id: "time", label: "Time and place", icon: "globe" },
+      { id: "language", label: "Language", icon: "languages" },
       { id: "user", label: "User", icon: "user" },
       { id: "system", label: "About this computer", icon: "cpu" }
     ]

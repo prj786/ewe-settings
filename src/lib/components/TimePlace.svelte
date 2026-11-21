@@ -20,7 +20,7 @@
   }
   onMount(async () => {
     refresh();
-    refreshLocale();
+    refreshFormats();
     try {
       zones = await api.listTimezones();
     } catch (e) {
@@ -70,45 +70,100 @@
     }
   }
 
-  // ── Language ──────────────────────────────────────────────────────────────
-  // The list is every UTF-8 locale glibc knows, not just the generated ones —
-  // picking an ungenerated one runs locale-gen behind one polkit prompt, so
-  // the user never has to know locale.gen exists.
-  let loc = null;
-  let langQuery = "";
-  let showLang = false;
-  let langBusy = false;
-  async function refreshLocale() {
+  // ── Formats ───────────────────────────────────────────────────────────────
+  // Dates, times, numbers, money, measurement and paper from one region
+  // (LC_TIME, LC_NUMERIC, LC_MONETARY, LC_MEASUREMENT, LC_PAPER), separate
+  // from the display language (Language page). Set with localectl behind one
+  // polkit prompt; the locale is generated first when it has to be. Apps read
+  // them when they start, so the change shows after signing out.
+  let fmt = null;
+  let fmtRegions = null;
+  let fmtQuery = "";
+  let showFmt = false;
+  let fmtBusy = false;
+  async function refreshFormats() {
     try {
-      loc = await api.localeInfo();
+      fmt = await api.formatsInfo();
     } catch (e) {
       errorMsg.set(String(e));
     }
   }
-  $: langCandidates = (loc?.choices || []).filter((c) => {
-    const q = langQuery.trim().toLowerCase();
-    return q === "" || c.label.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
-  });
-
-  async function setLocale(c) {
-    if (langBusy || c.code === loc?.current) return;
-    langBusy = true;
-    if (!c.generated) flashApplied(`Preparing ${c.label}…`);
+  async function loadRegions() {
+    if (fmtRegions) return;
     try {
-      await api.setLocale(c.code);
-      flashApplied(`Language set to ${c.label}`);
-      showLang = false;
-      langQuery = "";
-      await refreshLocale();
+      fmtRegions = (await api.localeInfo()).choices || [];
+    } catch (e) {
+      errorMsg.set(String(e));
+    }
+  }
+  // "sr_RS.UTF-8@latin" → "sr-Latn-RS": what Intl understands
+  function bcp47(code) {
+    const [base, mod] = String(code || "").split("@");
+    const [lang, region] = base.split(".")[0].split("_");
+    const script = { latin: "Latn", cyrillic: "Cyrl", devanagari: "Deva" }[mod];
+    return [lang, script, region].filter(Boolean).join("-");
+  }
+  // what apps will show, written by the region itself
+  function example(code, d, short = false) {
+    try {
+      const tag = bcp47(code) || undefined;
+      const time = new Intl.DateTimeFormat(tag, { hour: "numeric", minute: "2-digit" }).format(d);
+      if (short) return `${new Intl.DateTimeFormat(tag, { dateStyle: "short" }).format(d)} · ${time}`;
+      const date = new Intl.DateTimeFormat(tag, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d);
+      const num = new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }).format(1234.5);
+      return `${date} · ${time} · ${num}`;
+    } catch (e) {
+      return "";
+    }
+  }
+  function weekStart(code) {
+    try {
+      const l = new Intl.Locale(bcp47(code));
+      const wi = typeof l.getWeekInfo === "function" ? l.getWeekInfo() : l.weekInfo;
+      const day = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][(wi?.firstDay || 0) - 1];
+      return day ? `Weeks start on ${day}` : "";
+    } catch (e) {
+      return "";
+    }
+  }
+  $: fmtCode = fmt ? fmt.formats || fmt.lang : "";
+  $: fmtCandidates = [
+    { id: "", title: "Same as the display language", trail: fmt?.lang ? example(fmt.lang, now, true) : "", selected: fmt && !fmt.formats, c: null },
+    ...(fmtRegions || [])
+      .filter((c) => {
+        const q = fmtQuery.trim().toLowerCase();
+        return q === "" || c.label.toLowerCase().includes(q) || c.code.toLowerCase().includes(q);
+      })
+      .slice(0, 60)
+      .map((c) => ({ id: c.code, title: c.label, trail: example(c.code, now, true), selected: fmt?.formats === c.code, c }))
+  ].filter((it, i) => i > 0 || fmtQuery.trim() === "");
+
+  async function setFormats(it) {
+    if (fmtBusy) return;
+    const code = it.c ? it.c.code : "";
+    if (fmt && code === (fmt.formats || "") && !fmt.mixed) {
+      showFmt = false;
+      return;
+    }
+    fmtBusy = true;
+    if (it.c && !it.c.generated) flashApplied(`Preparing ${it.c.label}…`);
+    try {
+      await api.setFormats(code);
+      flashApplied(code ? `Formats of ${it.c.label}. Applies after you sign out.` : "Formats follow the language. Applies after you sign out.");
+      showFmt = false;
+      fmtQuery = "";
+      await refreshFormats();
     } catch (e) {
       errorMsg.set(String(e));
     } finally {
-      langBusy = false;
+      fmtBusy = false;
     }
   }
 
-  const timeText = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateText = (d) => d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  // written the way the region's formats write them (Formats below)
+  const fmtTag = (f) => (f ? bcp47(f.formats || f.lang) || [] : []);
+  const timeText = (d, f) => d.toLocaleTimeString(fmtTag(f), { hour: "2-digit", minute: "2-digit" });
+  const dateText = (d, f) => d.toLocaleDateString(fmtTag(f), { weekday: "long", month: "long", day: "numeric" });
   $: auto = info?.auto ?? true;
   $: zoneText = info?.timezone ? `${cityName(info.timezone)} (${info.timezone.split("/")[0]})` : "—";
   import Page from "./ui/Page.svelte";
@@ -119,9 +174,9 @@
   import KV from "./ui/KV.svelte";
 </script>
 
-<Page title="Time and place" desc="The time zone, the clock and the language apps use.">
+<Page title="Time and place" desc="The clock, the time zone and how dates and numbers are written.">
   <Group title="Clock">
-    <KV k="Date and time" v="{dateText(now)}, {timeText(now)}" />
+    <KV k="Date and time" v="{dateText(now, fmt)}, {timeText(now, fmt)}" />
     <ToggleRow
       title="Network time"
       sub={info?.ntp ?? true ? (info?.ntpSynced ? "Keeps the clock right. In sync." : "Keeps the clock right. Syncing…") : "Keeps the clock right over the internet"}
@@ -155,32 +210,22 @@
     {/if}
   </Group>
 
-  <Group title="Language" desc="Apps that are already open switch after you sign out and back in.">
-    <Row
-      title="Display language"
-      sub={loc && loc.current && !loc.generated ? "Needs setting up. ewe does it when you pick it." : "Every app's menus and dates"}
-    >
-      <span class="kv-value">{loc?.currentLabel || (loc ? "Not set" : "…")}</span>
-      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => ((langQuery = ""), (showLang = true))}>Change…</button>
+  <Group title="Formats" desc="Dates, times, numbers and measurements. Applies after you sign out.">
+    <Row title="Region" sub={fmt?.mixed ? "Set by hand. Pick one to put them in step." : fmt?.formats ? "" : "Same as the display language"}>
+      <span class="kv-value">{fmt ? fmt.formatsLabel || fmt.langLabel || "Not set" : "…"}</span>
+      <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={() => ((fmtQuery = ""), (showFmt = true), loadRegions())}>Change…</button>
     </Row>
+    {#if fmtCode}
+      <KV k="Example" v={example(fmtCode, now)} />
+      {#if weekStart(fmtCode)}<KV k="Calendar" v={weekStart(fmtCode)} />{/if}
+    {/if}
   </Group>
 </Page>
 
-<!-- Pick a language in a Sheet -->
-<Sheet open={showLang} title="Display language" onClose={() => ((showLang = false), (langQuery = ""))}>
-  <div class={langBusy ? "pointer-events-none" : ""} aria-busy={langBusy}>
-    <PickList
-      bind:query={langQuery}
-      placeholder="Search languages"
-      items={langCandidates.slice(0, 60).map((c) => ({
-        id: c.code,
-        title: c.label,
-        trail: c.generated ? "" : "Needs setup",
-        selected: c.code === loc?.current,
-        c
-      }))}
-      pick={(it) => setLocale(it.c)}
-    />
+<!-- Pick the formats' region in a Sheet -->
+<Sheet open={showFmt} title="Formats" onClose={() => ((showFmt = false), (fmtQuery = ""))}>
+  <div class={fmtBusy ? "pointer-events-none" : ""} aria-busy={fmtBusy}>
+    <PickList bind:query={fmtQuery} placeholder="Search regions" items={fmtCandidates} pick={setFormats} />
   </div>
-  <p class="note">A language marked “Needs setup” is prepared first. That takes a moment and asks for your password.</p>
+  <p class="note">Regions are written in their own way, as apps will show them. One that is not set up yet is prepared first and asks for your password.</p>
 </Sheet>

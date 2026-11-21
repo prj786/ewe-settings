@@ -1,5 +1,6 @@
 mod addons;
 mod backend;
+mod language;
 mod shell;
 mod util;
 
@@ -74,6 +75,13 @@ pub fn run() {
             backend::set_ntp,
             backend::locale_info,
             backend::set_locale,
+            backend::install_packages,
+            backend::ime,
+            language::spell_info,
+            language::komble_search,
+            language::formats_info,
+            language::set_formats,
+            language::language_packs,
             backend::wallpaper_backend,
             backend::wallpaper_reapply,
             backend::restart_hypridle,

@@ -29,11 +29,12 @@ const FILES = {
   shortcuts: ["src/lib/components/Shortcuts.svelte"],
   network: ["src/lib/components/Network.svelte"],
   bluetooth: ["src/lib/components/Bluetooth.svelte"],
-  input: ["src/lib/components/Input.svelte"],
+  input: ["src/lib/components/Input.svelte", "src/lib/components/TypingLanguages.svelte"],
   power: ["src/lib/components/PowerPane.svelte"],
   saver: ["src/lib/components/Saver.svelte"],
   defaults: ["src/lib/components/DefaultApps.svelte", "src/lib/hypr.js"],
   time: ["src/lib/components/TimePlace.svelte"],
+  language: ["src/lib/components/Language.svelte"],
   user: ["src/lib/components/UserPane.svelte"],
   system: ["src/lib/components/SystemInfo.svelte"]
 };
@@ -65,8 +66,15 @@ const SEARCHES = [
   ["default apps", "defaults", "Default apps"],
   ["glass", "appearance", "Glass"],
   ["touchpad", "input", "Keyboard and mouse", "any"],
+  ["chinese", "input", "Typing in other languages"],
+  ["japanese", "input", "Typing in other languages", "any"],
+  ["input method", "input", "Typing in other languages", "any"],
   ["hostname", "network", "Name on the network", "any"],
-  ["restart", "system", "Restart the shell", "any"]
+  ["restart", "system", "Restart the shell", "any"],
+  ["spelling", "language", "Check spelling as you type", "any"],
+  ["dictionary", "language", "Spelling languages", "any"],
+  ["24-hour", "time", "Region", "any"],
+  ["language", "language", "Display language", "any"]
 ];
 for (const [q, page, label, how] of SEARCHES) {
   const r = findSettings(q);

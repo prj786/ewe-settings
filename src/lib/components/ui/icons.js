@@ -53,6 +53,7 @@ export const ICONS = {
   rocket: 0xE286,
   command: 0xE09A,
   globe: 0xE0E8,
+  languages: 0xE0FE,
   user: 0xE19F,
   cpu: 0xE0A9,
   // Accessibility page

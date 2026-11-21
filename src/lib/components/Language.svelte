@@ -171,6 +171,7 @@
     spellBusy = true;
     try {
       await install([d.package], `${d.label} spelling`);
+      await refreshSpell();
     } catch (e) {
       errorMsg.set(String(e));
     } finally {

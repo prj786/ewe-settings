@@ -1710,6 +1710,9 @@ pub async fn diagnostics() -> Result<Value, String> {
         "echo \"portal=$(systemctl --user is-active xdg-desktop-portal 2>/dev/null)\";",
         "echo \"portal_hypr=$(systemctl --user is-active xdg-desktop-portal-hyprland 2>/dev/null)\";",
         "echo \"portal_gtk=$(systemctl --user is-active xdg-desktop-portal-gtk 2>/dev/null)\";",
+        // the Open and Save windows (ewe RFC-011): ewe's picker when the portal
+        // routes files to ewe-portal (started on demand), GTK's on an older ewe
+        "echo \"portal_files=$(ewe-portal status 2>/dev/null | grep -q 'ewe.: true' && echo active || systemctl --user is-active xdg-desktop-portal-gtk 2>/dev/null)\";",
         "echo \"browser=$(xdg-settings get default-web-browser 2>/dev/null)\";",
         "echo \"gpu=$(lspci -k 2>/dev/null | grep -A3 -iE 'VGA|Display|3D' | grep -i 'driver in use' | head -1 | sed 's/.*use: //')\";",
         "echo \"mem=$(free -b 2>/dev/null | awk '/Mem:/{print $3\" \"$2}')\";",

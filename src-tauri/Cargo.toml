@@ -1,6 +1,6 @@
 [package]
 name = "ewe-settings"
-version = "0.26.0-beta"
+version = "0.26.1-beta"
 description = "Settings for the ewe desktop"
 authors = ["scubba"]
 license = "MIT"
@@ -16,7 +16,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
+# Open/Save through the portal, so ewe's file picker draws it (ewe RFC-011);
+# the default "gtk3" feature drew GTK's dialog inside this app instead
+tauri-plugin-dialog = { version = "2", default-features = false, features = ["xdg-portal"] }
 tauri-plugin-fs = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-os = "2"

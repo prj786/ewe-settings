@@ -25,7 +25,7 @@
     ["Graphical session", "gsession", "The desktop session itself"],
     ["Desktop portal", "portal", "Lets apps open files and share things"],
     ["Screen sharing", "portal_hypr", "Screenshots and screen sharing"],
-    ["File pickers", "portal_gtk", "The Open and Save windows"]
+    ["File pickers", "portal_files", "The Open and Save windows"]
   ];
   const running = (s) => s === "active";
   const kernelText = (k) => String(k || "").replace(/-arch\d+-\d+$/, "") || "—";

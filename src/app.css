@@ -312,6 +312,14 @@ code {
     flex: none;
     padding: var(--space-md) calc(var(--space-md) + var(--space-s)) calc(var(--space-s) + var(--space-xs));
   }
+  /* In a narrow window the action drops under the title instead of
+     squeezing it to nothing, and the page gives back its side padding. */
+  .page-head {
+    flex-wrap: wrap;
+  }
+  .page-head .ewe-headerbar__titles {
+    flex: 1 1 calc(6 * var(--control-md));
+  }
   .page-scroll {
     min-height: 0;
   }
@@ -322,6 +330,15 @@ code {
     display: flex;
     flex-direction: column;
     gap: var(--space-s);
+  }
+  /* the same, for the page's own side padding */
+  @media (max-width: 480px) {
+    .page-head {
+      padding-inline: var(--space-md);
+    }
+    .page {
+      padding-inline: var(--space-md);
+    }
   }
   /* a group: the overline 8px in, 8px down to its well, 20px above */
   .group {

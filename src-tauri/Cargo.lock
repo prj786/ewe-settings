@@ -981,9 +981,10 @@ dependencies = [
 
 [[package]]
 name = "ewe-settings"
-version = "0.26.1-beta"
+version = "0.26.2-beta"
 dependencies = [
  "anyhow",
+ "gtk",
  "serde",
  "serde_json",
  "tauri",

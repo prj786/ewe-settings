@@ -1,6 +1,8 @@
 mod addons;
 mod backend;
+mod crash;
 mod language;
+mod pointer;
 mod shell;
 mod util;
 
@@ -31,6 +33,7 @@ fn start_page() -> Option<String> {
 }
 
 pub fn run() {
+    crash::log_panics();
     tauri::Builder::default()
         // a second `ewe-settings --page X` while Settings is open: bring the
         // window forward AND go to X — until 0.23.1 the page was dropped (and
@@ -141,6 +144,19 @@ pub fn run() {
             addons::addons_state,
             addons::open_addons,
         ])
+        .setup(|app| {
+            // the window comes from tauri.conf.json, so it is hooked here.
+            // It declares no minWidth/minHeight (420x480 until 0.26.1):
+            // Hyprland gives a tiled window the size of its tile whatever the
+            // window asks for, and a window that insists on more is drawn
+            // squeezed into the tile (cropped on a scale-1 screen) while the
+            // pointer is not, so every hover and click lands beside what is
+            // drawn. The page takes any size.
+            if let Some(w) = app.get_webview_window("main") {
+                pointer::forget_hover_on_leave(&w);
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running ewe Settings");
 }

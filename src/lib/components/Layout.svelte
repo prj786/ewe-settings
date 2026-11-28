@@ -51,6 +51,17 @@
     }
   }
 
+  // [desktop.bar] layout (ewe 0.52): split = the top bar and the dock apart;
+  // merged = one full-width bar at the bottom, like a Windows taskbar — the
+  // dock's buttons on its left, status and clock on its right. The shell
+  // reads it as barLayout (user-theme.json, through ewe-conf absorb).
+  const barLayouts = [
+    ["split", "Separate"],
+    ["merged", "Merged"]
+  ];
+  $: merged = $prefs.barLayout === "merged";
+  const setBarLayout = (v) => setPrefs({ barLayout: v });
+
   // Top bar — what the status row shows. Absent = shown, so a fresh install
   // and an old user-theme.json both mean "everything"; the shell reads the
   // same object (Globals.barShow). Identity (workspace, window title) and
@@ -116,10 +127,27 @@
       toggled={() => setPrefs({ barEnabled: !($prefs.barEnabled !== false) })}
     />
     <Row
+      title="Bar and dock"
+      sub={merged
+        ? "One full-width bar at the bottom, like Windows: the dock's apps and workspaces on the left, status and clock on the right"
+        : "The bar at the top, the dock at the bottom"}
+      dim={$prefs.barEnabled === false}
+    >
+      <Seg
+        label="Bar and dock"
+        options={barLayouts}
+        value={merged ? "merged" : "split"}
+        disabled={$prefs.barEnabled === false}
+        picked={setBarLayout}
+      />
+    </Row>
+    <Row
       title="Bar icons"
       sub={textScale >= 130
         ? "The bar grows with its icons. At text size 130% they're a size larger."
-        : "The bar grows with its icons: 36, 40 or 48\u00a0px tall"}
+        : merged
+          ? "The merged bar is 48\u00a0px tall, 56\u00a0px with large icons"
+          : "The bar grows with its icons: 36, 40 or 48\u00a0px tall"}
       dim={$prefs.barEnabled === false}
     >
       <Seg
@@ -156,9 +184,11 @@
     {:else if dockInstalled}
       <Row
         title="Dock"
-        sub={dockOn
-          ? "Auto-hide, icon size and which displays show it are the Dock plugin's own settings"
-          : "The Dock plugin is installed but turned off. Turn it on in Komble."}
+        sub={!dockOn
+          ? "The Dock plugin is installed but turned off. Turn it on in Komble."
+          : merged
+            ? "It sits in the merged bar. Which displays show it is the Dock plugin's own setting"
+            : "Auto-hide, icon size and which displays show it are the Dock plugin's own settings"}
       >
         <button class="ewe-btn ewe-btn--secondary ewe-btn--sm" on:click={dockOptions}>Dock settings</button>
       </Row>

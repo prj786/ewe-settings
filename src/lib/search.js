@@ -55,6 +55,7 @@ const ROWS = [
   ["layout", "Border width", "Gaps and borders", "border thickness"],
   ["layout", "Corner radius", "Gaps and borders", "rounding rounded corners"],
   ["layout", "Top bar", "Top bar", "panel bar hide"],
+  ["layout", "Bar and dock", "Top bar", "merged merge taskbar windows bottom full width one bar dock combine"],
   ["layout", "Bar icons", "Top bar", "size bar height"],
   ["layout", "Fold the extras", "Top bar", "fold collapse hide tray icons arrow chevron overloaded minimize"],
   ["layout", "Sound", "Status row", "volume bar"],

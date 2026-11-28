@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "ewe-settings"
-version = "0.26.2-beta"
+version = "0.27.0-beta"
 dependencies = [
  "anyhow",
  "gtk",

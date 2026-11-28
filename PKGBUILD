@@ -11,8 +11,8 @@ pkgname=ewe-settings
 # extracts to <repo>-<tag without the leading v>, so the source URL and
 # the directory below follow _tag, never pkgver. The release workflow
 # rewrites both.
-_tag=v0.26.2-beta
-pkgver=0.26.2beta
+_tag=v0.27.0-beta
+pkgver=0.27.0beta
 pkgrel=1
 pkgdesc="ewe Settings, the settings app for the ewe desktop"
 arch=('x86_64' 'aarch64')
